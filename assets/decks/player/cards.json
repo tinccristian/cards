@@ -85,6 +85,18 @@
       ]
     },
     {
+      "id": "rapid_assessment",
+      "name": "Rapid Assessment",
+      "description": "Draw 3 cards",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["medicine", "utility"],
+      "artPath": "assets/cards/pill.png",
+      "effects": [
+        { "type": "draw_cards", "target": "self", "amount": 3 }
+      ]
+    },
+    {
       "id": "quarantine",
       "name": "Quarantine",
       "description": "Prevent the enemy from acting for 1 turn",

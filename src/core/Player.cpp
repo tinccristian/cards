@@ -108,6 +108,22 @@ bool Player::canDrawCard() const {
 
 void Player::addCardToDeck(const Card& card) { m_deck.addCard(card); }
 
+void Player::moveCardInHand(int fromIndex, int toIndex) {
+    if (fromIndex < 0 || toIndex < 0) {
+        return;
+    }
+    if (fromIndex >= static_cast<int>(m_hand.size()) || toIndex >= static_cast<int>(m_hand.size())) {
+        return;
+    }
+    if (fromIndex == toIndex) {
+        return;
+    }
+
+    Card movedCard = m_hand[fromIndex];
+    m_hand.erase(m_hand.begin() + fromIndex);
+    m_hand.insert(m_hand.begin() + toIndex, movedCard);
+}
+
 void Player::addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition) {
     m_statuses.add(type, magnitude, duration, disposition);
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "audio/CardAudio.h"
 #include "CardArtCache.h"
 #include "Colors.h"
 #include "config/Defines.h"
@@ -20,7 +21,7 @@ enum class MenuAction {
 
 class GameScreen {
 public:
-    GameScreen(int screenWidth, int screenHeight);
+    GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio = nullptr);
 
     // Draw the main menu and report the clicked action for this frame.
     MenuAction drawMenu();
@@ -53,10 +54,19 @@ public:
     Rectangle discardPileRect() const;
 
 private:
+    struct HandLayoutCard {
+        Rectangle bounds;
+        float     rotation = 0.0f;
+        bool      scaled   = false;
+    };
+
     int          m_width;
     int          m_height;
     int          m_hoveredCardIndex = -1;
     float        m_wiggleTime       = 0.0f;
+    int          m_draggedCardIndex = -1;
+    Vector2      m_dragGrabOffset   = { 0.0f, 0.0f };
+    CardAudio*   m_cardAudio        = nullptr;
     mutable CardArtCache m_artCache;
 
     // --- helpers ---
@@ -64,13 +74,19 @@ private:
     void drawHealthBar(Rectangle bar, float ratio) const;
     void drawPlayerBox(Rectangle box, const Player& player) const;
     void drawEnemyBox(Rectangle box, const Enemy& enemy) const;
-    void drawCardFace(Rectangle rect, const Card& card, bool scaled) const;
+    void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const;
     void drawCardTooltip(const Card& card, float x, float y) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemyBox) const;
 
     // Draw a pile widget (stack visual + label + count). Returns true if clicked.
     bool drawPileWidget(Rectangle rect, const std::string& label,
                         int count, Color accentColor) const;
+
+    Rectangle handDropZone() const;
+    Rectangle drawPileButtonRect() const;
+    Rectangle endTurnButtonRect() const;
+    std::vector<HandLayoutCard> buildHandLayout(int cardCount, int draggedCardIndex) const;
+    int handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const;
 
     static float archOffset(int i, int n);
     static bool  mouseOver(Rectangle rect);

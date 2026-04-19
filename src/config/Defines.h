@@ -7,6 +7,22 @@ inline constexpr const char* PLAYER_STARTER_DECK = "assets/decks/player/deck_con
 inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json";
 } // namespace AssetPaths
 
+// ## Audio ##
+namespace AudioPaths {
+inline constexpr const char* CARD_HOVER_SOUND   = "assets/sounds/cards/card_hover.mp3";
+inline constexpr const char* CARD_SHUFFLE_SOUND = "assets/sounds/cards/card_shuffle.mp3";
+} // namespace AudioPaths
+
+namespace AudioConfig {
+// ## Audio / Levels ##
+inline constexpr float MasterVolume      = 78.0f;
+inline constexpr float CardHoverVolume   = 42.0f;
+inline constexpr float CardShuffleVolume = 68.0f;
+
+// ## Audio / Card SFX ##
+inline constexpr int CardHoverVoiceCount = 6;
+} // namespace AudioConfig
+
 // ## Window ##
 namespace WindowConfig {
 inline constexpr int Width  = 1280;
@@ -50,12 +66,17 @@ inline constexpr int CombatLogFontSize     = 17;
 // ## UI / Cards ##
 inline constexpr int CardWidth             = 120;
 inline constexpr int CardHeight            = 180;
-inline constexpr int CardGap               = 12;
+inline constexpr int CardGap               = 6;
 inline constexpr int CardArtHeight         = 80;
+inline constexpr float HandLeftBoundPercent  = 0.14f;
+inline constexpr float HandRightBoundPercent = 0.86f;
 inline constexpr float HoveredCardScale    = 1.4f;
 inline constexpr float HoveredCardLift     = 40.0f;
 inline constexpr float HandArchHeight      = 24.0f;
+inline constexpr float HandMaxTiltDegrees  = 14.0f;
+inline constexpr float HoveredTiltFactor   = 0.35f;
 inline constexpr int HandBottomMargin      = 50;
+inline constexpr int HandDropZoneTopPadding = 90;
 inline constexpr float WiggleXAmplitude    = 3.0f;
 inline constexpr float WiggleYAmplitude    = 2.0f;
 inline constexpr float WiggleXFrequency    = 3.0f;
@@ -63,15 +84,15 @@ inline constexpr float WiggleYFrequency    = 2.0f;
 inline constexpr float NeighborCardShift   = 20.0f;
 
 // ## UI / Piles ##
-inline constexpr int PileWidgetWidth       = 100;
-inline constexpr int PileWidgetHeight      = 150;
-inline constexpr int PileWidgetY           = 260;
-inline constexpr int PileWidgetMargin      = 24;
-inline constexpr int PileLabelFontSize     = 14;
-inline constexpr int PileLabelOffsetY      = 10;
-inline constexpr int PileCountFontSize     = 32;
+inline constexpr int PileWidgetWidth       = 86;
+inline constexpr int PileWidgetHeight      = 118;
+inline constexpr float PileSideMarginPercent = 0.02f;
+inline constexpr float PileBottomMarginPercent = 0.03f;
+inline constexpr int PileLabelFontSize     = 12;
+inline constexpr int PileLabelOffsetY      = 8;
+inline constexpr int PileCountFontSize     = 26;
 inline constexpr int PileEmptyFontSize     = 16;
-inline constexpr int PileHintFontSize      = 12;
+inline constexpr int PileHintFontSize      = 11;
 inline constexpr int PileHintOffsetY       = 4;
 inline constexpr int PileShadowLayers      = 3;
 inline constexpr float PileShadowOffset    = 2.0f;
@@ -81,6 +102,7 @@ inline constexpr int PileShadowAlpha       = 180;
 inline constexpr int EndTurnButtonWidth    = 160;
 inline constexpr int EndTurnButtonHeight   = 50;
 inline constexpr int EndTurnButtonMargin   = 24;
+inline constexpr int EndTurnToPileGap      = 14;
 
 // ## UI / Game Over ##
 inline constexpr int GameOverFontSize      = 60;

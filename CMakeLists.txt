@@ -51,6 +51,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 # Main executable
 add_executable(medical_deckbuilder
     src/main.cpp
+    src/audio/CardAudio.cpp
     src/content/EnemyFactory.cpp
     src/gameplay/CardEffect.cpp
     src/gameplay/CombatResolver.cpp

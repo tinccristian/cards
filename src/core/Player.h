@@ -60,6 +60,7 @@ public:
 
     // Add a card directly to the deck (used when building the starter deck).
     void addCardToDeck(const Card& card);
+    void moveCardInHand(int fromIndex, int toIndex);
 
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     int  clearNegativeStatuses();

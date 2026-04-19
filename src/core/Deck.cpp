@@ -2,8 +2,15 @@
 
 #include <algorithm>
 #include <random>
+#include <utility>
+
+Deck::ShuffleCallback Deck::s_shuffleCallback = {};
 
 Deck::Deck() = default;
+
+void Deck::setShuffleCallback(ShuffleCallback callback) {
+    s_shuffleCallback = std::move(callback);
+}
 
 void Deck::addCard(const Card& card) {
     m_drawPile.push_back(card);
@@ -24,9 +31,17 @@ bool Deck::isEmpty() const {
 }
 
 void Deck::shuffle() {
+    if (m_drawPile.size() < 2) {
+        return;
+    }
+
     std::random_device rd;
     std::mt19937 rng(rd());
     std::shuffle(m_drawPile.begin(), m_drawPile.end(), rng);
+
+    if (s_shuffleCallback) {
+        s_shuffleCallback();
+    }
 }
 
 int Deck::size() const {

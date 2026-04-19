@@ -1,5 +1,7 @@
 #include "GameScreen.h"
 
+#include "rlgl.h"
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -11,16 +13,16 @@ constexpr int CARD_GAP = LayoutConfig::CardGap;
 constexpr int ART_H    = LayoutConfig::CardArtHeight;
 constexpr int PILE_W   = LayoutConfig::PileWidgetWidth;
 constexpr int PILE_H   = LayoutConfig::PileWidgetHeight;
-constexpr int PILE_Y   = LayoutConfig::PileWidgetY;
 } // namespace
 
 // ---------------------------------------------------------------------------
 // Construction
 // ---------------------------------------------------------------------------
 
-GameScreen::GameScreen(int screenWidth, int screenHeight)
+GameScreen::GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio)
     : m_width(screenWidth)
     , m_height(screenHeight)
+    , m_cardAudio(cardAudio)
 {}
 
 // ---------------------------------------------------------------------------
@@ -28,11 +30,15 @@ GameScreen::GameScreen(int screenWidth, int screenHeight)
 // ---------------------------------------------------------------------------
 
 Rectangle GameScreen::drawPileRect() const {
-    return { (float)LayoutConfig::PileWidgetMargin, (float)PILE_Y, (float)PILE_W, (float)PILE_H };
+    const float marginX = m_width * LayoutConfig::PileSideMarginPercent;
+    const float y = m_height - PILE_H - (m_height * LayoutConfig::PileBottomMarginPercent);
+    return { marginX, y, (float)PILE_W, (float)PILE_H };
 }
 
 Rectangle GameScreen::discardPileRect() const {
-    return { (float)(m_width - LayoutConfig::PileWidgetMargin - PILE_W), (float)PILE_Y,
+    const float marginX = m_width * LayoutConfig::PileSideMarginPercent;
+    const float y = m_height - PILE_H - (m_height * LayoutConfig::PileBottomMarginPercent);
+    return { (float)(m_width - marginX - PILE_W), y,
              (float)PILE_W, (float)PILE_H };
 }
 
@@ -80,6 +86,15 @@ float GameScreen::archOffset(int i, int n) {
     float dist   = t - 0.5f;
     return -LayoutConfig::HandArchHeight * (1.0f - 4.0f * dist * dist);
 }
+
+namespace {
+float handTValue(int index, int count) {
+    if (count <= 1) {
+        return 0.5f;
+    }
+    return (float)index / (float)(count - 1);
+}
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Pile widget
@@ -197,10 +212,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     }
 
     // --- End Turn button ---
-    const int etW = LayoutConfig::EndTurnButtonWidth;
-    const int etH = LayoutConfig::EndTurnButtonHeight;
-    Rectangle etBtn = { (float)(m_width - etW - LayoutConfig::EndTurnButtonMargin), (float)(m_height - etH - LayoutConfig::EndTurnButtonMargin),
-                         (float)etW, (float)etH };
+    Rectangle etBtn = endTurnButtonRect();
     bool etHovered = mouseOver(etBtn);
     drawButton(etBtn, "End Turn", etHovered);
     if (etHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) endTurnClicked = true;
@@ -213,64 +225,60 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
 
     if (n == 0) return -1;
 
-    const int baseY = m_height - CARD_H - LayoutConfig::HandBottomMargin;
-    const int totalW = n * CARD_W + (n - 1) * CARD_GAP;
-    const int startX = (m_width - totalW) / 2;
-
-    std::vector<float> baseCardX(n), baseCardY(n);
-    for (int i = 0; i < n; ++i) {
-        baseCardX[i] = (float)(startX + i * (CARD_W + CARD_GAP));
-        baseCardY[i] = (float)baseY + archOffset(i, n);
-    }
+    std::vector<HandLayoutCard> layout = buildHandLayout(n, m_draggedCardIndex);
 
     // Determine hovered card
+    const int previousHoveredCardIndex = m_hoveredCardIndex;
     m_hoveredCardIndex = -1;
-    for (int i = 0; i < n; ++i) {
-        Rectangle r = { baseCardX[i], baseCardY[i], (float)CARD_W, (float)CARD_H };
-        if (mouseOver(r)) m_hoveredCardIndex = i;
-    }
-
-    // Wiggle offsets
-    const float wX = std::sin(m_wiggleTime * LayoutConfig::WiggleXFrequency) * LayoutConfig::WiggleXAmplitude;
-    const float wY = std::cos(m_wiggleTime * LayoutConfig::WiggleYFrequency) * LayoutConfig::WiggleYAmplitude;
-
-    struct CardPos { float x, y, w, h; };
-    std::vector<CardPos> positions(n);
-    for (int i = 0; i < n; ++i) {
-        float cx = baseCardX[i] + wX;
-        float cy = baseCardY[i] + wY;
-
-        if (i == m_hoveredCardIndex) {
-            float sw = CARD_W * LayoutConfig::HoveredCardScale;
-            float sh = CARD_H * LayoutConfig::HoveredCardScale;
-            cx -= (sw - CARD_W) / 2.0f;
-            cy -= LayoutConfig::HoveredCardLift + (sh - CARD_H);
-            positions[i] = { cx, cy, sw, sh };
-        } else {
-            float sideShift = 0.0f;
-            if (m_hoveredCardIndex >= 0) {
-                int diff = i - m_hoveredCardIndex;
-                if      (diff == -1) sideShift = -LayoutConfig::NeighborCardShift;
-                else if (diff ==  1) sideShift =  LayoutConfig::NeighborCardShift;
+    if (m_draggedCardIndex < 0) {
+        for (int i = 0; i < n; ++i) {
+            if (mouseOver(layout[i].bounds)) {
+                m_hoveredCardIndex = i;
             }
-            positions[i] = { cx + sideShift, cy, (float)CARD_W, (float)CARD_H };
         }
     }
 
+    if (m_cardAudio
+        && m_draggedCardIndex < 0
+        && m_hoveredCardIndex >= 0
+        && m_hoveredCardIndex != previousHoveredCardIndex) {
+        m_cardAudio->playHover();
+    }
+
+    if (m_draggedCardIndex < 0 && m_hoveredCardIndex >= 0 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        m_draggedCardIndex = m_hoveredCardIndex;
+        m_dragGrabOffset = {
+            GetMouseX() - layout[m_draggedCardIndex].bounds.x,
+            GetMouseY() - layout[m_draggedCardIndex].bounds.y
+        };
+        layout = buildHandLayout(n, m_draggedCardIndex);
+    }
+
+    if (m_draggedCardIndex >= 0 && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+        const int draggedIndex = m_draggedCardIndex;
+        const bool releasedInHand = CheckCollisionPointRec(GetMousePosition(), handDropZone());
+        m_draggedCardIndex = -1;
+
+        if (releasedInHand) {
+            const int targetIndex = handInsertIndexFromMouseX(layout, (float)GetMouseX());
+            state.getPlayer().moveCardInHand(draggedIndex, targetIndex);
+            return -1;
+        }
+
+        return draggedIndex;
+    }
+
     // Draw non-hovered cards first
-    int clicked = -1;
     for (int i = 0; i < n; ++i) {
-        if (i == m_hoveredCardIndex) continue;
-        Rectangle r = { positions[i].x, positions[i].y, positions[i].w, positions[i].h };
-        drawCardFace(r, hand[i], false);
-        if (mouseOver(r) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) clicked = i;
+        if (i == m_hoveredCardIndex || i == m_draggedCardIndex) continue;
+        drawCardFace(layout[i].bounds, hand[i], layout[i].scaled, layout[i].rotation);
     }
 
     // Hovered card on top
-    if (m_hoveredCardIndex >= 0) {
+    if (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0) {
         int i = m_hoveredCardIndex;
-        Rectangle r = { positions[i].x, positions[i].y, positions[i].w, positions[i].h };
-        drawCardFace(r, hand[i], true);
+        Rectangle r = layout[i].bounds;
+        drawCardFace(r, hand[i], true, layout[i].rotation);
 
         float tipX = r.x + r.width + LayoutConfig::TooltipHorizontalGap;
         if (tipX + LayoutConfig::TooltipWidth > m_width) {
@@ -278,10 +286,23 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         }
         drawCardTooltip(hand[i], tipX, r.y);
 
-        if (mouseOver(r) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) clicked = i;
     }
 
-    return clicked;
+    if (m_draggedCardIndex >= 0) {
+        const int dragIndex = m_draggedCardIndex;
+        const float t = handTValue(dragIndex, n);
+        const float normalizedOffset = (t - 0.5f) * 2.0f;
+        Rectangle draggedRect = {
+            GetMouseX() - m_dragGrabOffset.x,
+            GetMouseY() - m_dragGrabOffset.y,
+            layout[dragIndex].bounds.width,
+            layout[dragIndex].bounds.height
+        };
+        drawCardFace(draggedRect, hand[dragIndex], true,
+                     normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor);
+    }
+
+    return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -370,7 +391,7 @@ int GameScreen::drawPileViewer(const std::string& title,
 
         Rectangle r = { (float)cx + LayoutConfig::PileViewerCellInset, (float)cy + LayoutConfig::PileViewerCellInset,
                          (float)cellW - LayoutConfig::PileViewerCellInset * 2, (float)cellH - LayoutConfig::PileViewerCellInset * 2 };
-        drawCardFace(r, cards[idx], false);
+        drawCardFace(r, cards[idx], false, 0.0f);
     }
 
     EndScissorMode();
@@ -412,6 +433,101 @@ bool GameScreen::drawGameOver(const GameState& state) {
 
 void GameScreen::unloadAssets() {
     m_artCache.unloadAll();
+}
+
+Rectangle GameScreen::handDropZone() const {
+    const float left = m_width * LayoutConfig::HandLeftBoundPercent;
+    const float right = m_width * LayoutConfig::HandRightBoundPercent;
+    const float top = m_height - CARD_H - LayoutConfig::HandBottomMargin - LayoutConfig::HandDropZoneTopPadding;
+    const float bottom = (float)m_height;
+    return { left, top, right - left, bottom - top };
+}
+
+Rectangle GameScreen::drawPileButtonRect() const {
+    return drawPileRect();
+}
+
+Rectangle GameScreen::endTurnButtonRect() const {
+    const Rectangle discardRect = discardPileRect();
+    return {
+        discardRect.x + (discardRect.width - LayoutConfig::EndTurnButtonWidth) / 2.0f,
+        discardRect.y - LayoutConfig::EndTurnButtonHeight - LayoutConfig::EndTurnToPileGap,
+        (float)LayoutConfig::EndTurnButtonWidth,
+        (float)LayoutConfig::EndTurnButtonHeight
+    };
+}
+
+std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCount, int draggedCardIndex) const {
+    std::vector<HandLayoutCard> layout(cardCount);
+    if (cardCount <= 0) {
+        return layout;
+    }
+
+    const float handLeftBound  = m_width * LayoutConfig::HandLeftBoundPercent;
+    const float handRightBound = m_width * LayoutConfig::HandRightBoundPercent;
+    const float handUsableWidth = std::max((float)CARD_W, handRightBound - handLeftBound);
+    const int baseY = m_height - CARD_H - LayoutConfig::HandBottomMargin;
+    float cardSpacing = (cardCount > 1)
+        ? (handUsableWidth - CARD_W * cardCount) / (float)(cardCount - 1)
+        : 0.0f;
+    cardSpacing = std::min((float)CARD_GAP, cardSpacing);
+    const float totalW = CARD_W * cardCount + cardSpacing * (cardCount - 1);
+    const float startX = handLeftBound + (handUsableWidth - totalW) / 2.0f;
+
+    const float wX = std::sin(m_wiggleTime * LayoutConfig::WiggleXFrequency) * LayoutConfig::WiggleXAmplitude;
+    const float wY = std::cos(m_wiggleTime * LayoutConfig::WiggleYFrequency) * LayoutConfig::WiggleYAmplitude;
+
+    for (int index = 0; index < cardCount; ++index) {
+        float cx = startX + index * (CARD_W + cardSpacing) + wX;
+        float cy = (float)baseY + archOffset(index, cardCount) + wY;
+        const float t = handTValue(index, cardCount);
+        const float normalizedOffset = (t - 0.5f) * 2.0f;
+        float rotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees;
+        bool scaled = false;
+
+        if (index == m_hoveredCardIndex && draggedCardIndex < 0) {
+            const float sw = CARD_W * LayoutConfig::HoveredCardScale;
+            const float sh = CARD_H * LayoutConfig::HoveredCardScale;
+            cx -= (sw - CARD_W) / 2.0f;
+            cy -= LayoutConfig::HoveredCardLift + (sh - CARD_H);
+            rotation *= LayoutConfig::HoveredTiltFactor;
+            layout[index] = { { cx, cy, sw, sh }, rotation, true };
+            continue;
+        }
+
+        if (m_hoveredCardIndex >= 0 && draggedCardIndex < 0) {
+            const int diff = index - m_hoveredCardIndex;
+            if (diff == -1) {
+                cx -= LayoutConfig::NeighborCardShift;
+            } else if (diff == 1) {
+                cx += LayoutConfig::NeighborCardShift;
+            }
+        }
+
+        layout[index] = { { cx, cy, (float)CARD_W, (float)CARD_H }, rotation, scaled };
+    }
+
+    return layout;
+}
+
+int GameScreen::handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const {
+    if (layout.empty()) {
+        return 0;
+    }
+
+    int bestIndex = 0;
+    float bestDistance = std::fabs((layout[0].bounds.x + layout[0].bounds.width / 2.0f) - mouseX);
+
+    for (int index = 1; index < static_cast<int>(layout.size()); ++index) {
+        const float centerX = layout[index].bounds.x + layout[index].bounds.width / 2.0f;
+        const float distance = std::fabs(centerX - mouseX);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestIndex = index;
+        }
+    }
+
+    return bestIndex;
 }
 
 // ---------------------------------------------------------------------------
@@ -505,7 +621,14 @@ void GameScreen::drawEnemyBox(Rectangle box, const Enemy& enemy) const {
     }
 }
 
-void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) const {
+void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const {
+    const Vector2 pivot = { rect.x + rect.width / 2.0f, rect.y + rect.height };
+
+    rlPushMatrix();
+    rlTranslatef(pivot.x, pivot.y, 0.0f);
+    rlRotatef(rotationDegrees, 0.0f, 0.0f, 1.0f);
+    rlTranslatef(-pivot.x, -pivot.y, 0.0f);
+
     Color bg = scaled ? Colors::button_hover : Colors::card_bg;
     DrawRectangleRec(rect, bg);
     DrawRectangleLinesEx(rect, (float)LayoutConfig::PanelBorderThickness, Colors::card_border);
@@ -574,6 +697,8 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) con
         DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - LayoutConfig::CardRightStatPadding, footerY,
                  infoSz, Colors::block_color);
     }
+
+    rlPopMatrix();
 }
 
 void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {

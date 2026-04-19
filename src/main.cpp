@@ -1,6 +1,8 @@
+#include "audio/CardAudio.h"
 #include "raylib.h"
 #include "config/Defines.h"
 #include "core/CardDatabase.h"
+#include "core/Deck.h"
 #include "core/GameState.h"
 #include "ui/Colors.h"
 #include "ui/GameScreen.h"
@@ -14,18 +16,31 @@ int main() {
     const int screenHeight = WindowConfig::Height;
 
     InitWindow(screenWidth, screenHeight, "Medical Deckbuilder");
+    InitAudioDevice();
     SetTargetFPS(WindowConfig::TargetFps);
     SetExitKey(KEY_NULL); // Disable ESC-closes-window; handled manually per context
+
+    CardAudio cardAudio;
+    std::string audioWarning;
+    if (!cardAudio.initialize(audioWarning)) {
+        TraceLog(LOG_WARNING, "%s", audioWarning.c_str());
+    }
+    Deck::setShuffleCallback([&cardAudio]() {
+        cardAudio.playShuffle();
+    });
 
     std::string startupError;
     if (!CardDatabase::loadCardsFromJSON(AssetPaths::PLAYER_CARD_LIBRARY, startupError)) {
         TraceLog(LOG_ERROR, "%s", startupError.c_str());
+        Deck::setShuffleCallback({});
+        cardAudio.shutdown();
+        CloseAudioDevice();
         CloseWindow();
         return 1;
     }
 
     GameState  state;
-    GameScreen screen(screenWidth, screenHeight);
+    GameScreen screen(screenWidth, screenHeight, &cardAudio);
     UIState    uiState;
 
     float       enemyTurnElapsed    = 0.0f;
@@ -44,6 +59,9 @@ int main() {
                 state.setPhase(GamePhase::NEW_GAME);
             } else if (action == MenuAction::Quit) {
                 EndDrawing();
+                Deck::setShuffleCallback({});
+                cardAudio.shutdown();
+                CloseAudioDevice();
                 CloseWindow();
                 return 0;
             }
@@ -145,6 +163,9 @@ int main() {
     }
 
     screen.unloadAssets();
+    Deck::setShuffleCallback({});
+    cardAudio.shutdown();
+    CloseAudioDevice();
     CloseWindow();
     return 0;
 }

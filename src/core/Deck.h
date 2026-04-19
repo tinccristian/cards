@@ -1,13 +1,19 @@
 #pragma once
 
 #include "Card.h"
+
+#include <functional>
 #include <optional>
 #include <vector>
 
 // Manages a collection of cards split into draw pile, hand, and discard pile.
 class Deck {
 public:
+    using ShuffleCallback = std::function<void()>;
+
     Deck();
+
+    static void setShuffleCallback(ShuffleCallback callback);
 
     // Add a card to the draw pile
     void addCard(const Card& card);
@@ -41,6 +47,8 @@ public:
     const std::vector<Card>& getDiscardPileCards() const;
 
 private:
+    static ShuffleCallback s_shuffleCallback;
+
     std::vector<Card> m_drawPile;
     std::vector<Card> m_discardPile;
 };
