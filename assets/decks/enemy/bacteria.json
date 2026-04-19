@@ -1,0 +1,26 @@
+{
+  "cards": [
+    {
+      "id": "bacteria_attack",
+      "name": "Bacteria Attack",
+      "description": "Deal 4 damage",
+      "cost": 0,
+      "power": 4,
+      "blockAmount": 0,
+      "type": "attack",
+      "tags": ["bacteria"],
+      "artPath": ""
+    },
+    {
+      "id": "bacteria_defend",
+      "name": "Bacteria Shield",
+      "description": "Gain 3 block",
+      "cost": 0,
+      "power": 0,
+      "blockAmount": 3,
+      "type": "skill",
+      "tags": ["bacteria"],
+      "artPath": ""
+    }
+  ]
+}
