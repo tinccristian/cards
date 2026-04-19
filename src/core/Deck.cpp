@@ -1,0 +1,48 @@
+#include "Deck.h"
+
+#include <algorithm>
+#include <cassert>
+#include <random>
+
+Deck::Deck() = default;
+
+void Deck::addCard(const Card& card) {
+    m_drawPile.push_back(card);
+}
+
+Card Deck::draw() {
+    assert(!m_drawPile.empty() && "Cannot draw from an empty deck");
+    Card top = m_drawPile.back();
+    m_drawPile.pop_back();
+    return top;
+}
+
+bool Deck::isEmpty() const {
+    return m_drawPile.empty();
+}
+
+void Deck::shuffle() {
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::shuffle(m_drawPile.begin(), m_drawPile.end(), rng);
+}
+
+int Deck::size() const {
+    return static_cast<int>(m_drawPile.size());
+}
+
+const std::vector<Card>& Deck::getDiscard() const {
+    return m_discardPile;
+}
+
+void Deck::reshuffleDiscard() {
+    for (auto& card : m_discardPile) {
+        m_drawPile.push_back(card);
+    }
+    m_discardPile.clear();
+    shuffle();
+}
+
+void Deck::discard(const Card& card) {
+    m_discardPile.push_back(card);
+}
