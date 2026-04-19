@@ -14,6 +14,19 @@ GameScreen::GameScreen(int screenWidth, int screenHeight)
 {}
 
 // ---------------------------------------------------------------------------
+// Pile widget rects (used both for drawing and click detection in main)
+// ---------------------------------------------------------------------------
+
+Rectangle GameScreen::drawPileRect() const {
+    return { 24.0f, (float)PILE_Y, (float)PILE_W, (float)PILE_H };
+}
+
+Rectangle GameScreen::discardPileRect() const {
+    return { (float)(m_width - 24 - PILE_W), (float)PILE_Y,
+             (float)PILE_W, (float)PILE_H };
+}
+
+// ---------------------------------------------------------------------------
 // Main Menu
 // ---------------------------------------------------------------------------
 
@@ -28,8 +41,8 @@ int GameScreen::drawMenu() {
     const int centerX = (m_width - btnW) / 2;
 
     Rectangle rects[3] = {
-        { (float)centerX, (float)startY,                (float)btnW, (float)btnH },
-        { (float)centerX, (float)(startY + btnH + gap), (float)btnW, (float)btnH },
+        { (float)centerX, (float)startY,                 (float)btnW, (float)btnH },
+        { (float)centerX, (float)(startY + btnH + gap),  (float)btnW, (float)btnH },
         { (float)centerX, (float)(startY + 2*(btnH+gap)),(float)btnW, (float)btnH },
     };
     const char* labels[3] = { "New Game", "Continue", "Quit" };
@@ -49,40 +62,81 @@ int GameScreen::drawMenu() {
 
 float GameScreen::archOffset(int i, int n) {
     if (n <= 1) return 0.0f;
-    // Parabolic: centre card at 0, outer cards raised by up to 24 px
-    float t = (float)i / (float)(n - 1); // 0..1
-    float centre = 0.5f;
-    float dist = t - centre;             // -0.5..0.5
-    return -24.0f * (1.0f - 4.0f * dist * dist); // 0 at ends, -24 at middle
-    // Note: negative Y is UP in screen space, so outer cards are higher
+    float t      = (float)i / (float)(n - 1);
+    float dist   = t - 0.5f;
+    return -24.0f * (1.0f - 4.0f * dist * dist);
+}
+
+// ---------------------------------------------------------------------------
+// Pile widget
+// ---------------------------------------------------------------------------
+
+bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
+                                int count, Color accentColor) const {
+    bool empty   = (count == 0);
+    Color bg     = empty ? Color{ 28, 28, 36, 255 } : Colors::card_bg;
+    Color border = empty ? Colors::text_secondary   : accentColor;
+
+    // Stack shadow (3 offset rectangles behind the widget)
+    if (!empty) {
+        for (int s = 3; s >= 1; --s) {
+            Rectangle shadow = { rect.x + s * 2.0f, rect.y + s * 2.0f,
+                                  rect.width, rect.height };
+            DrawRectangleRec(shadow, Color{ (unsigned char)(accentColor.r / 2),
+                                            (unsigned char)(accentColor.g / 2),
+                                            (unsigned char)(accentColor.b / 2), 180 });
+        }
+    }
+
+    DrawRectangleRec(rect, bg);
+    DrawRectangleLinesEx(rect, 2.0f, border);
+
+    // Label (top)
+    int lw = MeasureText(label.c_str(), 14);
+    DrawText(label.c_str(), (int)rect.x + ((int)rect.width - lw) / 2,
+             (int)rect.y + 10, 14, Colors::text_primary);
+
+    // Count (centre, large)
+    std::string countStr = empty ? "EMPTY" : std::to_string(count);
+    int cSz  = empty ? 16 : 32;
+    Color cCol = empty ? Colors::text_secondary : accentColor;
+    int cw = MeasureText(countStr.c_str(), cSz);
+    DrawText(countStr.c_str(), (int)rect.x + ((int)rect.width - cw) / 2,
+             (int)rect.y + (int)rect.height / 2 - cSz / 2, cSz, cCol);
+
+    // Hover highlight
+    bool hovered = mouseOver(rect);
+    if (hovered) {
+        DrawRectangleLinesEx(rect, 3.0f, Colors::text_primary);
+        // Tooltip hint
+        DrawText("Click to view", (int)rect.x, (int)rect.y + (int)rect.height + 4,
+                 12, Colors::text_secondary);
+    }
+
+    return hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
 }
 
 // ---------------------------------------------------------------------------
 // Combat Screen
 // ---------------------------------------------------------------------------
 
-int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
-    endTurnClicked = false;
+int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
+                            bool& drawPileClicked, bool& discardPileClicked) {
+    endTurnClicked     = false;
+    drawPileClicked    = false;
+    discardPileClicked = false;
+
     const bool   isPlayerTurn = (state.getTurnPhase() == TurnPhase::PLAYER_TURN);
     const Player& player = state.getPlayer();
     const Enemy&  enemy  = state.getEnemy();
+    const Deck&   deck   = player.getDeck();
 
-    // Advance wiggle timer
     m_wiggleTime += GetFrameTime();
 
-    // --- Turn number (top centre) ---
+    // --- Turn number ---
     std::string turnStr = "Turn " + std::to_string(state.getTurnNumber());
     int turnW = MeasureText(turnStr.c_str(), 26);
     DrawText(turnStr.c_str(), (m_width - turnW) / 2, 18, 26, Colors::text_secondary);
-
-    // --- Deck / discard pile counts (bottom-left corner) ---
-    {
-        const Deck& deck = player.getDeck();
-        std::string deckStr    = "Deck: "    + std::to_string(deck.size());
-        std::string discardStr = "Discard: " + std::to_string((int)deck.getDiscard().size());
-        DrawText(deckStr.c_str(),    16, m_height - 40, 16, Colors::text_secondary);
-        DrawText(discardStr.c_str(), 16, m_height - 22, 16, Colors::text_secondary);
-    }
 
     // --- Combatant boxes ---
     const int boxW = 260, boxH = 160, boxY = 55;
@@ -101,6 +155,16 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
         DrawText(action.c_str(), (m_width - aw) / 2, boxY + boxH + 8, 17,
                  Colors::text_secondary);
     }
+
+    // --- Draw pile widget (left side) ---
+    Color drawAccent = Color{ 80, 120, 200, 255 };
+    if (drawPileWidget(drawPileRect(), "DRAW", deck.getDrawPileSize(), drawAccent))
+        drawPileClicked = true;
+
+    // --- Discard pile widget (right side) ---
+    Color discardAccent = Color{ 200, 120, 50, 255 };
+    if (drawPileWidget(discardPileRect(), "DISCARD", deck.getDiscardPileSize(), discardAccent))
+        discardPileClicked = true;
 
     // --- ENEMY_TURN overlay ---
     if (!isPlayerTurn) {
@@ -121,34 +185,29 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
     // -------------------------------------------------------------------
     // Hand layout: arch + wiggle
     // -------------------------------------------------------------------
-    const auto& hand  = player.getHand();
-    const int   n     = (int)hand.size();
+    const auto& hand = player.getHand();
+    const int   n    = (int)hand.size();
 
     if (n == 0) return -1;
 
-    // Baseline Y: cards sit near the bottom with enough room for the scaled hover
     const int baseY = m_height - CARD_H - 50;
-
-    // Total width of the hand (un-scaled)
     const int totalW = n * CARD_W + (n - 1) * CARD_GAP;
     const int startX = (m_width - totalW) / 2;
 
-    // Per-card base X/Y (arch, no wiggle yet)
-    // We compute these upfront for hover detection
     std::vector<float> baseCardX(n), baseCardY(n);
     for (int i = 0; i < n; ++i) {
         baseCardX[i] = (float)(startX + i * (CARD_W + CARD_GAP));
         baseCardY[i] = (float)baseY + archOffset(i, n);
     }
 
-    // --- First pass: determine hovered card (use base rects for hit test) ---
+    // Determine hovered card
     m_hoveredCardIndex = -1;
     for (int i = 0; i < n; ++i) {
         Rectangle r = { baseCardX[i], baseCardY[i], (float)CARD_W, (float)CARD_H };
         if (mouseOver(r)) m_hoveredCardIndex = i;
     }
 
-    // --- Compute final positions with wiggle and hover displacement ---
+    // Wiggle offsets
     const float wX = std::sin(m_wiggleTime * 3.0f) * 3.0f;
     const float wY = std::cos(m_wiggleTime * 2.0f) * 2.0f;
 
@@ -159,13 +218,11 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
         float cy = baseCardY[i] + wY;
 
         if (i == m_hoveredCardIndex) {
-            // Scale 1.4×, move up 40 px
             float sw = CARD_W * 1.4f, sh = CARD_H * 1.4f;
             cx -= (sw - CARD_W) / 2.0f;
-            cy -= 40.0f + (sh - CARD_H); // raise so bottom stays roughly aligned
+            cy -= 40.0f + (sh - CARD_H);
             positions[i] = { cx, cy, sw, sh };
         } else {
-            // Adjacent cards slide sideways to make room
             float sideShift = 0.0f;
             if (m_hoveredCardIndex >= 0) {
                 int diff = i - m_hoveredCardIndex;
@@ -176,21 +233,19 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
         }
     }
 
-    // --- Draw non-hovered cards first ---
+    // Draw non-hovered cards first
     int clicked = -1;
     for (int i = 0; i < n; ++i) {
         if (i == m_hoveredCardIndex) continue;
-        Rectangle r = { positions[i].x, positions[i].y,
-                         positions[i].w, positions[i].h };
+        Rectangle r = { positions[i].x, positions[i].y, positions[i].w, positions[i].h };
         drawCardFace(r, hand[i], false);
         if (mouseOver(r) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) clicked = i;
     }
 
-    // --- Draw hovered card last (on top) with tooltip ---
+    // Hovered card on top
     if (m_hoveredCardIndex >= 0) {
         int i = m_hoveredCardIndex;
-        Rectangle r = { positions[i].x, positions[i].y,
-                         positions[i].w, positions[i].h };
+        Rectangle r = { positions[i].x, positions[i].y, positions[i].w, positions[i].h };
         drawCardFace(r, hand[i], true);
 
         float tipX = r.x + r.width + 8.0f;
@@ -201,6 +256,96 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked) {
     }
 
     return clicked;
+}
+
+// ---------------------------------------------------------------------------
+// Pile Viewer Overlay
+// ---------------------------------------------------------------------------
+
+int GameScreen::drawPileViewer(const std::string& title,
+                                const std::vector<Card>& cards,
+                                int scrollOffset,
+                                bool& closeClicked) {
+    closeClicked = false;
+    // Semi-transparent backdrop
+    DrawRectangle(0, 0, m_width, m_height, Color{ 0, 0, 0, 200 });
+
+    // Panel
+    const int panelW = 900, panelH = 560;
+    const int panelX = (m_width  - panelW) / 2;
+    const int panelY = (m_height - panelH) / 2;
+    Rectangle panel  = { (float)panelX, (float)panelY, (float)panelW, (float)panelH };
+    DrawRectangleRec(panel, Colors::dark_bg);
+    DrawRectangleLinesEx(panel, 2.0f, Colors::card_border);
+
+    // Title
+    int tw = MeasureText(title.c_str(), 28);
+    DrawText(title.c_str(), panelX + (panelW - tw) / 2, panelY + 12, 28, Colors::text_primary);
+
+    // Count subtitle
+    std::string sub = std::to_string((int)cards.size()) + " cards";
+    int sw = MeasureText(sub.c_str(), 16);
+    DrawText(sub.c_str(), panelX + (panelW - sw) / 2, panelY + 46, 16, Colors::text_secondary);
+
+    // X close button (top-right corner of panel)
+    {
+        const int btnSz = 36;
+        Rectangle xBtn = { (float)(panelX + panelW - btnSz - 8),
+                            (float)(panelY + 8),
+                            (float)btnSz, (float)btnSz };
+        bool xHovered = mouseOver(xBtn);
+        Color xBg  = xHovered ? Color{ 200, 60, 60, 255 } : Color{ 120, 40, 40, 200 };
+        DrawRectangleRec(xBtn, xBg);
+        DrawRectangleLinesEx(xBtn, 2.0f, Colors::damage_color);
+        int xw = MeasureText("X", 20);
+        DrawText("X",
+                 (int)xBtn.x + (btnSz - xw) / 2,
+                 (int)xBtn.y + (btnSz - 20) / 2,
+                 20, WHITE);
+        if (xHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            closeClicked = true;
+    }
+
+    // Divider
+    DrawLine(panelX + 10, panelY + 70, panelX + panelW - 10, panelY + 70, Colors::card_border);
+
+    // --- Grid layout: 4 columns, one cell per card (no grouping) ---
+    const int cols    = 4;
+    const int cellW   = 200, cellH = 220;
+    const int gridX   = panelX + (panelW - cols * cellW) / 2;
+    const int gridTop = panelY + 80;
+    const int gridH   = panelH - 90; // visible grid height
+
+    BeginScissorMode(panelX + 2, gridTop, panelW - 4, gridH);
+
+    int total     = (int)cards.size();
+    int rows      = (total + cols - 1) / cols;
+    int maxScroll = std::max(0, rows - (gridH / cellH));
+
+    for (int idx = 0; idx < total; ++idx) {
+        int col = idx % cols;
+        int row = idx / cols;
+        int cx  = gridX + col * cellW;
+        int cy  = gridTop + (row - scrollOffset) * cellH;
+
+        if (cy + cellH < gridTop || cy > gridTop + gridH) continue; // out of view
+
+        Rectangle r = { (float)cx + 4, (float)cy + 4,
+                         (float)cellW - 8, (float)cellH - 8 };
+        drawCardFace(r, cards[idx], false);
+    }
+
+    EndScissorMode();
+
+    // Scroll indicator
+    if (rows > gridH / cellH) {
+        std::string scrollHint = "Scroll: \x18/\x19 or wheel";
+        DrawText(scrollHint.c_str(),
+                 panelX + (panelW - MeasureText(scrollHint.c_str(), 13)) / 2,
+                 panelY + panelH - 22, 13, Colors::text_secondary);
+    }
+
+    return maxScroll;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,38 +444,29 @@ void GameScreen::drawEnemyBox(Rectangle box, const Enemy& enemy) const {
 }
 
 void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) const {
-    // Background
     Color bg = scaled ? Colors::button_hover : Colors::card_bg;
     DrawRectangleRec(rect, bg);
     DrawRectangleLinesEx(rect, 2.0f, Colors::card_border);
 
-    // --- Art area (top ART_H pixels of the card, scaled proportionally) ---
-    // Scale the art height proportionally to the card's current size
     float artH = ART_H * (rect.height / (float)CARD_H);
     Rectangle artRect = { rect.x + 2, rect.y + 2, rect.width - 4, artH - 2 };
 
     auto texOpt = card.getArtTexture();
     if (texOpt.has_value()) {
         const Texture2D& tex = texOpt.value();
-        // Draw texture scaled to fit art area
-        Rectangle src  = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
+        Rectangle src = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
         DrawTexturePro(tex, src, artRect, { 0.0f, 0.0f }, 0.0f, WHITE);
     } else {
-        // Placeholder: dark rectangle with subtle grid
         DrawRectangleRec(artRect, Color{ 28, 30, 42, 255 });
         DrawRectangleLinesEx(artRect, 1.0f, Colors::light_bg);
     }
 
-    // Divider between art and text area
     float divY = rect.y + artH;
-    DrawLine((int)rect.x, (int)divY, (int)(rect.x + rect.width), (int)divY,
-             Colors::card_border);
+    DrawLine((int)rect.x, (int)divY, (int)(rect.x + rect.width), (int)divY, Colors::card_border);
 
-    // --- Text area below art ---
     int textX = (int)rect.x + 5;
     int textY = (int)divY + 4;
 
-    // Card name (centred)
     int nameSz = scaled ? 14 : 12;
     int nameW  = MeasureText(card.getName().c_str(), nameSz);
     DrawText(card.getName().c_str(),
@@ -338,21 +474,19 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) con
              textY, nameSz, Colors::text_primary);
     textY += nameSz + 4;
 
-    // Short description (small, up to 2 lines)
     const std::string& desc = card.getDescription();
     if (!desc.empty()) {
         const int descSz  = 10;
-        const int lineLen = (int)rect.width / 6; // rough chars per line
-        int pos = 0;
-        int lines = 0;
+        const int lineLen = (int)rect.width / 6;
+        int pos = 0, lines = 0;
         while (pos < (int)desc.size() && lines < 2) {
             int end = std::min(pos + lineLen, (int)desc.size());
             if (end < (int)desc.size() && desc[end] != ' ') {
                 int sp = (int)desc.rfind(' ', end);
                 if (sp > pos) end = sp;
             }
-            DrawText(desc.substr(pos, end - pos).c_str(), textX, textY,
-                     descSz, Colors::text_secondary);
+            DrawText(desc.substr(pos, end - pos).c_str(), textX, textY, descSz,
+                     Colors::text_secondary);
             textY += descSz + 2;
             pos = end;
             while (pos < (int)desc.size() && desc[pos] == ' ') ++pos;
@@ -360,7 +494,6 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) con
         }
     }
 
-    // --- Footer: cost bottom-left, power/block bottom-right ---
     int footerY = (int)(rect.y + rect.height) - 20;
     int infoSz  = scaled ? 13 : 11;
 
@@ -370,14 +503,14 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled) con
     if (card.getPower() > 0) {
         std::string pwrStr = std::to_string(card.getPower()) + " dmg";
         int pw = MeasureText(pwrStr.c_str(), infoSz);
-        DrawText(pwrStr.c_str(), (int)(rect.x + rect.width) - pw - 4,
-                 footerY, infoSz, Colors::damage_color);
+        DrawText(pwrStr.c_str(), (int)(rect.x + rect.width) - pw - 4, footerY,
+                 infoSz, Colors::damage_color);
     }
     if (card.getBlockAmount() > 0) {
         std::string blkStr = std::to_string(card.getBlockAmount()) + " blk";
         int bw = MeasureText(blkStr.c_str(), infoSz);
-        DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - 4,
-                 footerY, infoSz, Color{ 80, 130, 220, 255 });
+        DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - 4, footerY,
+                 infoSz, Color{ 80, 130, 220, 255 });
     }
 }
 
@@ -391,12 +524,9 @@ void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
     DrawRectangleLinesEx(tip, 2.0f, Colors::card_border);
 
     int tx = (int)x + pad, ty = (int)y + pad;
-
-    // Title
     DrawText(card.getName().c_str(), tx, ty, 16, Colors::text_primary);
     ty += 22;
 
-    // Meta line
     std::string meta = card.getType() + "  Cost:" + std::to_string(card.getCost());
     if (card.getPower()       > 0) meta += "  Dmg:" + std::to_string(card.getPower());
     if (card.getBlockAmount() > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
@@ -406,7 +536,6 @@ void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
     DrawLine(tx, ty, tx + tipW - 2*pad, ty, Colors::card_border);
     ty += 6;
 
-    // Description word-wrap
     const std::string& desc = card.getDescription();
     const int lineLen = 26;
     int pos = 0;

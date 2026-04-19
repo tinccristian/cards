@@ -46,3 +46,8 @@ void Deck::reshuffleDiscard() {
 void Deck::discard(const Card& card) {
     m_discardPile.push_back(card);
 }
+
+int                      Deck::getDrawPileSize()     const { return static_cast<int>(m_drawPile.size());    }
+int                      Deck::getDiscardPileSize()  const { return static_cast<int>(m_discardPile.size()); }
+const std::vector<Card>& Deck::getDrawPileCards()    const { return m_drawPile;    }
+const std::vector<Card>& Deck::getDiscardPileCards() const { return m_discardPile; }

@@ -24,6 +24,10 @@ public:
     // These cards are NOT added to the player card registry.
     static Deck loadEnemyDeckFromJSON(const std::string& filePath);
 
+    // Parse a deck config JSON file and return the ordered list of card IDs.
+    // Each ID may appear multiple times to indicate duplicates.
+    static std::vector<std::string> loadDeckConfigFromJSON(const std::string& filePath);
+
 private:
     static std::vector<Card>                    s_cards;
     static std::unordered_map<std::string, int> s_index; // id -> index in s_cards

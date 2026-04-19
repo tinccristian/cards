@@ -2,7 +2,9 @@
 #include "CardDatabase.h"
 
 #include <cassert>
+#include <iostream>
 #include <random>
+#include <unordered_map>
 
 // ---------------------------------------------------------------------------
 // RNG
@@ -57,20 +59,48 @@ void GameState::startNewGame() {
     m_turnPhase  = TurnPhase::PLAYER_TURN;
     m_lastAction = "";
 
-    // Build 10-card medical starter deck
-    Deck& deck = m_player.getDeck();
-    for (int i = 0; i < 5; ++i) deck.addCard(CardDatabase::getCard("strike"));
-    for (int i = 0; i < 4; ++i) deck.addCard(CardDatabase::getCard("defend"));
-    deck.addCard(CardDatabase::getCard("cleanse"));
-    deck.shuffle();
+    // Load deck config — single source of truth for starter deck composition
+    std::vector<std::string> deckConfig =
+        CardDatabase::loadDeckConfigFromJSON("assets/decks/player/deck_config.json");
+    assert(!deckConfig.empty() && "deck_config.json is missing or empty");
+
+    // Tally for the summary line
+    std::unordered_map<std::string, int> tally;
+    for (const auto& id : deckConfig) tally[id]++;
+
+    std::cout << "[GameState] Starter deck config: " << deckConfig.size() << " cards total (";
+    bool first = true;
+    for (const auto& [id, cnt] : tally) {
+        if (!first) std::cout << ", ";
+        std::cout << cnt << "x " << id;
+        first = false;
+    }
+    std::cout << ")\n";
+
+    // Build deck — exact copy per entry, no deduplication
+    for (const auto& id : deckConfig)
+        m_player.addCardToDeck(CardDatabase::getCard(id));
+
+    std::cout << "[GameState] Player deck built with "
+              << m_player.getDeck().getDrawPileSize() << " cards\n";
+
+    m_player.getDeck().shuffle();
+
+    std::cout << "[GameState] Draw pile before drawing hand: "
+              << m_player.getDeck().getDrawPileSize() << " cards\n";
+
+    // Draw opening hand of 5
+    for (int i = 0; i < 5; ++i) m_player.drawCardFromDeck();
+
+    std::cout << "[GameState] After drawing hand: "
+              << m_player.getHand().size()             << " in hand, "
+              << m_player.getDeck().getDrawPileSize()  << " in draw pile, "
+              << m_player.getDeck().getDiscardPileSize() << " in discard\n";
 
     // Spawn first enemy with its own deck
     Deck enemyDeck = CardDatabase::loadEnemyDeckFromJSON("assets/decks/enemy/bacteria.json");
     m_enemy = std::make_unique<Enemy>("Bacteria", 30, 5, std::move(enemyDeck));
     m_enemy->decideIntent();
-
-    // Draw opening hand of 5
-    for (int i = 0; i < 5; ++i) m_player.drawCardFromDeck();
 }
 
 void GameState::playerDrawCard() {

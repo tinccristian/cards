@@ -96,5 +96,7 @@ bool Player::canDrawCard() const {
     return !m_deck.isEmpty() || !m_deck.getDiscard().empty();
 }
 
+void Player::addCardToDeck(const Card& card) { m_deck.addCard(card); }
+
 Deck&       Player::getDeck()       { return m_deck; }
 const Deck& Player::getDeck() const { return m_deck; }

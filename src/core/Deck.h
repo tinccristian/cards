@@ -33,6 +33,12 @@ public:
     // Add a card to the discard pile (called after a card is played)
     void discard(const Card& card);
 
+    // --- Pile inspection ---
+    int                      getDrawPileSize()    const;
+    int                      getDiscardPileSize() const;
+    const std::vector<Card>& getDrawPileCards()   const; // same as iterating m_drawPile
+    const std::vector<Card>& getDiscardPileCards() const;
+
 private:
     std::vector<Card> m_drawPile;
     std::vector<Card> m_discardPile;

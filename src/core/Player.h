@@ -54,6 +54,9 @@ public:
     // Returns true if a card can be drawn (deck or discard non-empty).
     bool canDrawCard() const;
 
+    // Add a card directly to the deck (used when building the starter deck).
+    void addCardToDeck(const Card& card);
+
     Deck& getDeck();
     const Deck& getDeck() const;
 

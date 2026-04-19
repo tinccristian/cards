@@ -57,6 +57,8 @@ add_executable(medical_deckbuilder
     src/core/CardDatabase.cpp
     src/core/GameState.cpp
     src/ui/GameScreen.cpp
+    src/ui/UIState.cpp
+    src/ui/InputHandler.cpp
 )
 
 target_include_directories(medical_deckbuilder PRIVATE
@@ -68,10 +70,14 @@ target_link_libraries(medical_deckbuilder
     nlohmann_json::nlohmann_json
 )
 
-# Copy assets next to the executable after every build so relative paths work
-add_custom_command(TARGET medical_deckbuilder POST_BUILD
+# Always refresh assets after every build, even if no source files changed.
+# add_custom_target(ALL) runs unconditionally on every cmake --build invocation.
+add_custom_target(copy_assets ALL
+    COMMAND ${CMAKE_COMMAND} -E remove_directory
+        $<TARGET_FILE_DIR:medical_deckbuilder>/assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/assets
         $<TARGET_FILE_DIR:medical_deckbuilder>/assets
-    COMMENT "Copying assets to build output directory"
+    DEPENDS medical_deckbuilder
+    COMMENT "Refreshing assets in build output directory"
 )

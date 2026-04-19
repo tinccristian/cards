@@ -79,7 +79,22 @@ void CardDatabase::loadCardsFromJSON(const std::string& filePath) {
     }
 
     std::cout << "[CardDatabase] Loaded " << s_cards.size()
-              << " player cards from " << filePath << "\n";
+              << " card definitions from " << filePath << "\n";
+}
+
+std::vector<std::string> CardDatabase::loadDeckConfigFromJSON(const std::string& filePath) {
+    std::vector<std::string> ids;
+    nlohmann::json root = readJSON(filePath);
+    if (!root.contains("starter_deck") || !root["starter_deck"].is_array()) {
+        std::cerr << "[CardDatabase] No 'starter_deck' array in " << filePath << "\n";
+        return ids;
+    }
+    for (const auto& entry : root["starter_deck"]) {
+        if (entry.is_string()) ids.push_back(entry.get<std::string>());
+    }
+    std::cout << "[CardDatabase] Loaded deck config with " << ids.size()
+              << " cards from " << filePath << "\n";
+    return ids;
 }
 
 Card CardDatabase::getCard(const std::string& cardId) {

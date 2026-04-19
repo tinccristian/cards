@@ -1,0 +1,26 @@
+#pragma once
+
+enum class UIMode {
+    NORMAL,
+    VIEWING_DRAW_PILE,
+    VIEWING_DISCARD_PILE
+};
+
+// Lightweight UI state: tracks which overlay (if any) is open and scroll position.
+class UIState {
+public:
+    UIState();
+
+    UIMode getCurrentMode() const;
+    void   setMode(UIMode mode);
+
+    // Scroll offset in card-rows for pile viewers
+    int  getScrollOffset() const;
+    void scrollUp();
+    void scrollDown(int maxOffset);
+    void resetScroll();
+
+private:
+    UIMode m_mode         = UIMode::NORMAL;
+    int    m_scrollOffset = 0;
+};

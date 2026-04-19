@@ -65,6 +65,8 @@ int         Enemy::getIntentBlock()   const { return m_intentBlock;  }
 
 const std::vector<Card>& Enemy::getPlayedCards() const { return m_playedCards; }
 
+void Enemy::addCardToDeck(const Card& card) { m_enemyDeck.addCard(card); }
+
 std::string Enemy::getIntentDescription() const {
     if (m_intentDamage > 0 && m_intentBlock > 0) {
         return "Intends to attack for " + std::to_string(m_intentDamage)

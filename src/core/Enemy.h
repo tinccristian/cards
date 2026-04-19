@@ -48,6 +48,9 @@ public:
     // Cards the enemy has drawn for this turn's intent
     const std::vector<Card>& getPlayedCards() const;
 
+    // Add a card directly to the enemy's deck.
+    void addCardToDeck(const Card& card);
+
 private:
     std::string       m_name;
     int               m_health;
