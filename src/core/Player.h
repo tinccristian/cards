@@ -1,14 +1,17 @@
 #pragma once
 
+#include "config/Defines.h"
 #include "Card.h"
 #include "Deck.h"
+#include "gameplay/StatusCollection.h"
 #include <optional>
 #include <vector>
 
 // Tracks all player state: health, mana, block, hand, and deck.
 class Player {
 public:
-    explicit Player(int maxHealth = 100, int maxMana = 3);
+    explicit Player(int maxHealth = CombatConfig::PlayerMaxHealth,
+                    int maxMana = CombatConfig::PlayerBaseMana);
 
     // --- Health ---
     int  getHealth()    const;
@@ -16,19 +19,20 @@ public:
     bool isDead()       const;
 
     // Block absorbs damage first; overflow reduces health.
-    void takeDamage(int amount);
-    void heal(int amount); // Clamps to maxHealth
+    int  takeDamage(int amount);
+    int  heal(int amount); // Clamps to maxHealth, returns HP restored
 
-    // --- Block (persists across turns until consumed by damage) ---
+    // --- Block (expires after the opposing side finishes its turn) ---
     int  getBlock()         const;
     void addBlock(int amount);
+    void clearBlock();
     // Absorbs 'damage' with block. Returns any overflow not covered by block.
     int  reduceBlock(int damage);
 
     // --- Mana ---
     int  getMana()    const;
     int  getMaxMana() const;
-    void resetMana(); // Set currentMana = maxMana
+    void startTurn();
     // Deduct 'amount' mana. Returns false (no change) if insufficient.
     bool useMana(int amount);
 
@@ -57,15 +61,20 @@ public:
     // Add a card directly to the deck (used when building the starter deck).
     void addCardToDeck(const Card& card);
 
+    void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
+    int  clearNegativeStatuses();
+    int  getStatusMagnitude(StatusType type) const;
+
     Deck& getDeck();
     const Deck& getDeck() const;
 
 private:
     int               m_health;
     int               m_maxHealth;
-    int               m_block = 0;   // persistent until consumed
+    int               m_block = 0;
     int               m_maxMana;
     int               m_currentMana;
+    StatusCollection  m_statuses;
     std::vector<Card> m_hand;
     Deck              m_deck;
 };

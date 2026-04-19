@@ -1,20 +1,13 @@
 #include "GameState.h"
+
+#include "config/Defines.h"
+#include "content/EnemyFactory.h"
 #include "CardDatabase.h"
+#include "gameplay/CombatResolver.h"
 
 #include <cassert>
 #include <iostream>
-#include <random>
 #include <unordered_map>
-
-// ---------------------------------------------------------------------------
-// RNG
-// ---------------------------------------------------------------------------
-
-int GameState::randomInt(int lo, int hi) {
-    static std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<int> dist(lo, hi);
-    return dist(rng);
-}
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -23,8 +16,8 @@ int GameState::randomInt(int lo, int hi) {
 GameState::GameState()
     : m_phase(GamePhase::MENU)
     , m_turnPhase(TurnPhase::PLAYER_TURN)
-    , m_turnNumber(1)
-    , m_player(100, 3)
+    , m_turnNumber(CombatConfig::StartingTurnNumber)
+    , m_player(CombatConfig::PlayerMaxHealth, CombatConfig::PlayerBaseMana)
 {}
 
 // ---------------------------------------------------------------------------
@@ -53,16 +46,23 @@ const Enemy& GameState::getEnemy() const {
 // Game flow
 // ---------------------------------------------------------------------------
 
-void GameState::startNewGame() {
-    m_player     = Player(100, 3);
-    m_turnNumber = 1;
+bool GameState::startNewGame(std::string& error) {
+    error.clear();
+    m_player     = Player(CombatConfig::PlayerMaxHealth, CombatConfig::PlayerBaseMana);
+    m_turnNumber = CombatConfig::StartingTurnNumber;
     m_turnPhase  = TurnPhase::PLAYER_TURN;
     m_lastAction = "";
+    m_enemy.reset();
 
     // Load deck config — single source of truth for starter deck composition
     std::vector<std::string> deckConfig =
-        CardDatabase::loadDeckConfigFromJSON("assets/decks/player/deck_config.json");
-    assert(!deckConfig.empty() && "deck_config.json is missing or empty");
+        CardDatabase::loadDeckConfigFromJSON(AssetPaths::PLAYER_STARTER_DECK, error);
+    if (deckConfig.empty()) {
+        if (error.empty()) {
+            error = "Starter deck is empty: " + std::string(AssetPaths::PLAYER_STARTER_DECK);
+        }
+        return false;
+    }
 
     // Tally for the summary line
     std::unordered_map<std::string, int> tally;
@@ -78,8 +78,14 @@ void GameState::startNewGame() {
     std::cout << ")\n";
 
     // Build deck — exact copy per entry, no deduplication
-    for (const auto& id : deckConfig)
-        m_player.addCardToDeck(CardDatabase::getCard(id));
+    for (const auto& id : deckConfig) {
+        auto card = CardDatabase::findCard(id);
+        if (!card) {
+            error = "Starter deck references unknown card id: " + id;
+            return false;
+        }
+        m_player.addCardToDeck(*card);
+    }
 
     std::cout << "[GameState] Player deck built with "
               << m_player.getDeck().getDrawPileSize() << " cards\n";
@@ -89,8 +95,10 @@ void GameState::startNewGame() {
     std::cout << "[GameState] Draw pile before drawing hand: "
               << m_player.getDeck().getDrawPileSize() << " cards\n";
 
-    // Draw opening hand of 5
-    for (int i = 0; i < 5; ++i) m_player.drawCardFromDeck();
+    // Draw the opening hand
+    for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
+        m_player.drawCardFromDeck();
+    }
 
     std::cout << "[GameState] After drawing hand: "
               << m_player.getHand().size()             << " in hand, "
@@ -98,18 +106,23 @@ void GameState::startNewGame() {
               << m_player.getDeck().getDiscardPileSize() << " in discard\n";
 
     // Spawn first enemy with its own deck
-    Deck enemyDeck = CardDatabase::loadEnemyDeckFromJSON("assets/decks/enemy/bacteria.json");
-    m_enemy = std::make_unique<Enemy>("Bacteria", 30, 5, std::move(enemyDeck));
+    m_enemy = EnemyFactory::loadFromJSON(AssetPaths::DEFAULT_ENEMY, error);
+    if (!m_enemy) {
+        return false;
+    }
+
     m_enemy->decideIntent();
+    return true;
 }
 
 void GameState::playerDrawCard() {
     m_player.drawCardFromDeck();
 }
 
-bool GameState::playerAttack(int cardIndex) {
-    assert(m_enemy && "No enemy present");
-    assert(m_turnPhase == TurnPhase::PLAYER_TURN && "Not player's turn");
+bool GameState::playCard(int cardIndex) {
+    if (!m_enemy || m_turnPhase != TurnPhase::PLAYER_TURN) {
+        return false;
+    }
 
     // Player::playCard handles mana check, hand removal, and discard
     auto optCard = m_player.playCard(cardIndex);
@@ -118,48 +131,55 @@ bool GameState::playerAttack(int cardIndex) {
         return false;
     }
 
-    const Card& card = *optCard;
+    const CardResolutionSummary summary =
+        CombatResolver::applyPlayerCard(*optCard, m_player, *m_enemy);
 
-    if (card.getType() == "attack" && card.getPower() > 0) {
-        int damage = card.getPower() + randomInt(0, 2);
-        m_enemy->takeDamage(damage);
-        m_lastAction = "You played " + card.getName()
-                     + " for " + std::to_string(damage) + " damage!";
-    } else if (card.getBlockAmount() > 0) {
-        m_player.addBlock(card.getBlockAmount());
-        m_lastAction = "You played " + card.getName()
-                     + ", gained " + std::to_string(card.getBlockAmount()) + " block!";
-    } else {
-        m_lastAction = "You played " + card.getName() + "!";
-    }
+    m_lastAction = CombatResolver::buildPlayerActionText(*optCard, summary);
 
     return true;
 }
 
 void GameState::endPlayerTurn() {
+    if (m_enemy) {
+        m_enemy->clearBlock();
+    }
     m_turnPhase  = TurnPhase::ENEMY_TURN;
     m_lastAction = m_enemy->getName() + " – " + m_enemy->getIntentDescription() + "!";
 }
 
 void GameState::executeEnemyTurn() {
-    assert(m_enemy && "No enemy present");
-
-    // Execute intent (player block absorbs damage — block is NOT reset here)
-    int dmg = m_enemy->executeIntent(m_player);
-
-    if (dmg > 0) {
-        m_lastAction = m_enemy->getName() + " attacked for "
-                     + std::to_string(dmg) + " damage!";
-    } else {
-        m_lastAction = m_enemy->getName() + " defended!";
+    if (!m_enemy) {
+        return;
     }
 
-    // Discard entire player hand, reset mana
-    m_player.discardHand();
-    m_player.resetMana();
+    const EnemyTurnResult result = m_enemy->executeTurn(m_player);
 
-    // Draw a fresh hand of 5 cards (reshuffles discard automatically if needed)
-    for (int i = 0; i < 5; ++i) m_player.drawCardFromDeck();
+    if (result.skipped) {
+        m_lastAction = m_enemy->getName() + " could not act.";
+    } else if (result.damageDealt > 0 && result.blockGained > 0) {
+        m_lastAction = m_enemy->getName() + " attacked for "
+                     + std::to_string(result.damageDealt) + " damage and gained "
+                     + std::to_string(result.blockGained) + " block!";
+    } else if (result.damageDealt > 0) {
+        m_lastAction = m_enemy->getName() + " attacked for "
+                     + std::to_string(result.damageDealt) + " damage!";
+    } else if (result.blockGained > 0) {
+        m_lastAction = m_enemy->getName() + " gained "
+                     + std::to_string(result.blockGained) + " block!";
+    } else {
+        m_lastAction = m_enemy->getName() + " repositioned.";
+    }
+
+    m_player.clearBlock();
+
+    // Discard entire player hand, then begin the next player turn.
+    m_player.discardHand();
+    m_player.startTurn();
+
+    // Draw a fresh hand for the next player turn
+    for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
+        m_player.drawCardFromDeck();
+    }
 
     // Enemy plans next turn
     m_enemy->decideIntent();

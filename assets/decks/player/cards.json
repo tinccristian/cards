@@ -5,88 +5,96 @@
       "name": "Strike",
       "description": "Deal 6 damage",
       "cost": 1,
-      "power": 6,
-      "blockAmount": 0,
       "type": "attack",
       "tags": ["strike"],
-      "artPath": "assets/cards/strike.png"
+      "artPath": "assets/cards/pill.png",
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 6 }
+      ]
     },
     {
       "id": "defend",
       "name": "Defend",
       "description": "Gain 5 block",
       "cost": 1,
-      "power": 0,
-      "blockAmount": 5,
       "type": "skill",
       "tags": ["defense"],
-      "artPath": "assets/cards/defend.png"
+      "artPath": "assets/cards/vaccine.png",
+      "effects": [
+        { "type": "block", "target": "self", "amount": 5 }
+      ]
     },
     {
       "id": "cleanse",
       "name": "Cleanse",
       "description": "Remove all negative effects",
       "cost": 2,
-      "power": 0,
-      "blockAmount": 0,
       "type": "skill",
       "tags": ["medicine"],
-      "artPath": "assets/cards/pill.png"
+      "artPath": "assets/cards/pill.png",
+      "effects": [
+        { "type": "cleanse_debuffs", "target": "self", "amount": 1 }
+      ]
     },
     {
       "id": "antibiotic",
       "name": "Antibiotic",
       "description": "Deal 8 damage",
       "cost": 2,
-      "power": 8,
-      "blockAmount": 0,
       "type": "attack",
       "tags": ["medicine", "antibiotic"],
-      "artPath": "assets/cards/antibiotic.png"
+      "artPath": "assets/cards/pill.png",
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 8 }
+      ]
     },
     {
       "id": "vaccine",
       "name": "Vaccine",
       "description": "Gain 8 block",
       "cost": 3,
-      "power": 0,
-      "blockAmount": 8,
       "type": "skill",
       "tags": ["medicine", "defense"],
-      "artPath": "assets/cards/vaccine.png"
+      "artPath": "assets/cards/vaccine.png",
+      "effects": [
+        { "type": "block", "target": "self", "amount": 8 }
+      ]
     },
     {
       "id": "antiviral",
       "name": "Antiviral",
       "description": "Deal 7 damage",
       "cost": 2,
-      "power": 7,
-      "blockAmount": 0,
       "type": "attack",
       "tags": ["medicine", "antiviral"],
-      "artPath": "assets/cards/antiviral.png"
+      "artPath": "assets/cards/pill.png",
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 7 }
+      ]
     },
     {
       "id": "immune_boost",
       "name": "Immune Boost",
       "description": "Gain 1 extra mana next turn",
       "cost": 1,
-      "power": 0,
-      "blockAmount": 0,
       "type": "skill",
       "tags": ["medicine", "buff"],
-      "artPath": "assets/cards/immune_boost.png"
+      "artPath": "assets/cards/vaccine.png",
+      "effects": [
+        { "type": "gain_mana_next_turn", "target": "self", "amount": 1, "duration": 1 }
+      ]
     },
     {
       "id": "quarantine",
       "name": "Quarantine",
       "description": "Prevent the enemy from acting for 1 turn",
       "cost": 2,
-      "power": 0,
-      "blockAmount": 0,
       "type": "skill",
       "tags": ["defense", "medicine"],
-      "artPath": "assets/cards/quarantine.png"
+      "artPath": "assets/cards/vaccine.png",
+      "effects": [
+        { "type": "skip_enemy_turn", "target": "opponent", "amount": 1, "duration": 1 }
+      ]
     }
   ]
 }

@@ -55,15 +55,27 @@ Or delete the `build/` directory and repeat the build steps.
 
 ```
 .
-├── CMakeLists.txt      # Build configuration (self-contained, fetches all deps)
-├── README.md
+├── CMakeLists.txt
+├── assets/
+│   ├── decks/
+│   │   └── player/     # Player card library + starter deck config
+│   └── enemies/        # Enemy definitions and their deck data
 ├── src/
-│   ├── main.cpp        # Entry point — opens the raylib window
-│   └── ui/
-│       └── Colors.h    # Central color palette (raylib Color constants)
-├── assets/             # JSON data files (cards, enemies, locations)
-└── tests/              # Unit tests
+│   ├── config/         # Shared constants and asset paths
+│   ├── content/        # JSON-driven content loaders / factories
+│   ├── core/           # Cards, decks, player, enemy, game state
+│   ├── gameplay/       # Card effects, combat resolution, statuses
+│   ├── ui/             # Rendering, UI state, input wrappers, art cache
+│   └── main.cpp        # Application entry point
+└── tests/              # Lightweight gameplay regression tests
 ```
+
+## Architecture Notes
+
+- Cards are data-driven and resolve through an effect list instead of hardcoded `attack/block` branches.
+- Enemies load from JSON definitions, so adding a new enemy no longer requires new constructor constants in code.
+- Shared gameplay and layout constants live in [`src/config/Defines.h`](src/config/Defines.h).
+- Card art is cached in the UI layer instead of being copied around with gameplay data.
 
 ## Dependencies (auto-fetched by CMake)
 

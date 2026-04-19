@@ -18,6 +18,7 @@ else()
 endif()
 
 include(FetchContent)
+include(CTest)
 
 # Fetch raylib 4.5.0
 FetchContent_Declare(
@@ -50,15 +51,20 @@ FetchContent_MakeAvailable(nlohmann_json)
 # Main executable
 add_executable(medical_deckbuilder
     src/main.cpp
+    src/content/EnemyFactory.cpp
+    src/gameplay/CardEffect.cpp
+    src/gameplay/CombatResolver.cpp
+    src/gameplay/StatusCollection.cpp
     src/core/Card.cpp
-    src/core/Deck.cpp
-    src/core/Player.cpp
-    src/core/Enemy.cpp
     src/core/CardDatabase.cpp
+    src/core/Deck.cpp
+    src/core/Enemy.cpp
     src/core/GameState.cpp
+    src/core/Player.cpp
+    src/ui/CardArtCache.cpp
     src/ui/GameScreen.cpp
-    src/ui/UIState.cpp
     src/ui/InputHandler.cpp
+    src/ui/UIState.cpp
 )
 
 target_include_directories(medical_deckbuilder PRIVATE
@@ -81,3 +87,32 @@ add_custom_target(copy_assets ALL
     DEPENDS medical_deckbuilder
     COMMENT "Refreshing assets in build output directory"
 )
+
+if(BUILD_TESTING)
+    add_executable(medical_deckbuilder_tests
+        tests/core_tests.cpp
+        src/content/EnemyFactory.cpp
+        src/gameplay/CardEffect.cpp
+        src/gameplay/CombatResolver.cpp
+        src/gameplay/StatusCollection.cpp
+        src/core/Card.cpp
+        src/core/CardDatabase.cpp
+        src/core/Deck.cpp
+        src/core/Enemy.cpp
+        src/core/GameState.cpp
+        src/core/Player.cpp
+    )
+
+    target_include_directories(medical_deckbuilder_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(medical_deckbuilder_tests
+        nlohmann_json::nlohmann_json
+    )
+
+    add_test(NAME medical_deckbuilder_tests COMMAND medical_deckbuilder_tests)
+    set_tests_properties(medical_deckbuilder_tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+endif()

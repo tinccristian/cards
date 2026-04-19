@@ -1,39 +1,48 @@
 #include "raylib.h"
+#include "config/Defines.h"
 #include "core/CardDatabase.h"
 #include "core/GameState.h"
+#include "ui/Colors.h"
 #include "ui/GameScreen.h"
 #include "ui/InputHandler.h"
 #include "ui/UIState.h"
 
+#include <string>
+
 int main() {
-    const int screenWidth  = 1280;
-    const int screenHeight = 720;
+    const int screenWidth  = WindowConfig::Width;
+    const int screenHeight = WindowConfig::Height;
 
     InitWindow(screenWidth, screenHeight, "Medical Deckbuilder");
-    SetTargetFPS(60);
+    SetTargetFPS(WindowConfig::TargetFps);
     SetExitKey(KEY_NULL); // Disable ESC-closes-window; handled manually per context
 
-    CardDatabase::loadCardsFromJSON("assets/decks/player/cards.json");
+    std::string startupError;
+    if (!CardDatabase::loadCardsFromJSON(AssetPaths::PLAYER_CARD_LIBRARY, startupError)) {
+        TraceLog(LOG_ERROR, "%s", startupError.c_str());
+        CloseWindow();
+        return 1;
+    }
 
     GameState  state;
     GameScreen screen(screenWidth, screenHeight);
     UIState    uiState;
 
     float       enemyTurnElapsed    = 0.0f;
-    const float ENEMY_TURN_DURATION = 1.0f;
+    const float enemyTurnDuration   = CombatConfig::EnemyTurnDelaySecs;
 
     while (!WindowShouldClose()) {
         BeginDrawing();
-        ClearBackground({ 18, 18, 24, 255 });
+        ClearBackground(Colors::dark_bg);
 
         switch (state.getPhase()) {
 
         // -------------------------------------------------------------------
         case GamePhase::MENU: {
-            int btn = screen.drawMenu();
-            if (btn == 0) {
+            const MenuAction action = screen.drawMenu();
+            if (action == MenuAction::NewGame) {
                 state.setPhase(GamePhase::NEW_GAME);
-            } else if (btn == 2) {
+            } else if (action == MenuAction::Quit) {
                 EndDrawing();
                 CloseWindow();
                 return 0;
@@ -43,7 +52,12 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::NEW_GAME: {
-            state.startNewGame();
+            std::string newGameError;
+            if (!state.startNewGame(newGameError)) {
+                TraceLog(LOG_ERROR, "%s", newGameError.c_str());
+                state.setPhase(GamePhase::MENU);
+                break;
+            }
             uiState.setMode(UIMode::NORMAL);
             enemyTurnElapsed = 0.0f;
             state.setPhase(GamePhase::COMBAT);
@@ -95,7 +109,7 @@ int main() {
                 } else if (discardClicked) {
                     uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
                 } else if (cardIdx >= 0 && !state.isGameOver()) {
-                    state.playerAttack(cardIdx);
+                    state.playCard(cardIdx);
                 } else if (endTurn && !state.isGameOver()) {
                     state.endPlayerTurn();
                     enemyTurnElapsed = 0.0f;
@@ -104,7 +118,7 @@ int main() {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3);
                 enemyTurnElapsed += GetFrameTime();
-                if (enemyTurnElapsed >= ENEMY_TURN_DURATION) {
+                if (enemyTurnElapsed >= enemyTurnDuration) {
                     state.executeEnemyTurn();
                     enemyTurnElapsed = 0.0f;
                 }
@@ -130,6 +144,7 @@ int main() {
         EndDrawing();
     }
 
+    screen.unloadAssets();
     CloseWindow();
     return 0;
 }

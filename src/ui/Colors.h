@@ -37,5 +37,16 @@ namespace Colors {
     constexpr Color damage_color = { 220, 100,  30, 255 };
     // Healing / restore indicator
     constexpr Color heal_color   = {  60, 180,  80, 255 };
+    constexpr Color block_color  = {  80, 130, 220, 255 };
+    constexpr Color mixed_intent_color = { 200, 180,  40, 255 };
+
+    // --- Overlay / utility ---
+    constexpr Color overlay_bg          = {   0,   0,   0, 200 };
+    constexpr Color empty_pile_bg       = {  28,  28,  36, 255 };
+    constexpr Color placeholder_art_bg  = {  28,  30,  42, 255 };
+    constexpr Color draw_pile_accent    = {  80, 120, 200, 255 };
+    constexpr Color discard_pile_accent = { 200, 120,  50, 255 };
+    constexpr Color close_button_bg     = { 120,  40,  40, 200 };
+    constexpr Color close_button_hover  = { 200,  60,  60, 255 };
 
 } // namespace Colors

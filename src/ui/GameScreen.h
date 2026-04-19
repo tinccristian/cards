@@ -1,6 +1,8 @@
 #pragma once
 
+#include "CardArtCache.h"
 #include "Colors.h"
+#include "config/Defines.h"
 #include "core/Card.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
@@ -9,12 +11,19 @@
 #include <vector>
 
 // Handles all rendering and input detection for every game screen.
+enum class MenuAction {
+    None = -1,
+    NewGame = 0,
+    Continue = 1,
+    Quit = 2
+};
+
 class GameScreen {
 public:
     GameScreen(int screenWidth, int screenHeight);
 
-    // Draw the main menu. Returns clicked button (-1=none, 0=New Game, 1=Continue, 2=Quit).
-    int drawMenu();
+    // Draw the main menu and report the clicked action for this frame.
+    MenuAction drawMenu();
 
     // Draw the combat screen.
     //   endTurnClicked: set to true if End Turn was pressed (only during PLAYER_TURN).
@@ -37,26 +46,18 @@ public:
     // Draw the game-over screen. Returns true when "Return to Menu" is clicked.
     bool drawGameOver(const GameState& state);
 
+    void unloadAssets();
+
     // Pile widget rectangles (needed by main.cpp for click detection)
     Rectangle drawPileRect()    const;
     Rectangle discardPileRect() const;
 
 private:
-    int   m_width;
-    int   m_height;
-    int   m_hoveredCardIndex = -1;
-    float m_wiggleTime       = 0.0f;
-
-    // Card dimensions
-    static constexpr int CARD_W   = 120;
-    static constexpr int CARD_H   = 180;
-    static constexpr int CARD_GAP = 12;
-    static constexpr int ART_H    = 80;
-
-    // Pile widget dimensions
-    static constexpr int PILE_W = 100;
-    static constexpr int PILE_H = 150;
-    static constexpr int PILE_Y = 260; // vertical centre of widget
+    int          m_width;
+    int          m_height;
+    int          m_hoveredCardIndex = -1;
+    float        m_wiggleTime       = 0.0f;
+    mutable CardArtCache m_artCache;
 
     // --- helpers ---
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Card.h"
+#include <optional>
 #include <vector>
 
 // Manages a collection of cards split into draw pile, hand, and discard pile.
@@ -11,9 +12,9 @@ public:
     // Add a card to the draw pile
     void addCard(const Card& card);
 
-    // Draw the top card from the draw pile into the draw pile iterator;
-    // returns the card drawn. Asserts that the draw pile is not empty.
-    Card draw();
+    // Draw the top card from the draw pile.
+    // Returns empty when the draw pile has no remaining cards.
+    std::optional<Card> draw();
 
     // Returns true when the draw pile is empty
     bool isEmpty() const;

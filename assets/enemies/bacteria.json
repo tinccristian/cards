@@ -1,0 +1,31 @@
+{
+  "id": "bacteria",
+  "name": "Bacteria",
+  "maxHealth": 30,
+  "cards": [
+    {
+      "id": "bacteria_attack",
+      "name": "Bacteria Attack",
+      "description": "Deal 4 damage",
+      "cost": 0,
+      "type": "attack",
+      "tags": ["bacteria"],
+      "artPath": "",
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 4 }
+      ]
+    },
+    {
+      "id": "bacteria_defend",
+      "name": "Bacteria Shield",
+      "description": "Gain 3 block",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["bacteria"],
+      "artPath": "",
+      "effects": [
+        { "type": "block", "target": "self", "amount": 3 }
+      ]
+    }
+  ]
+}

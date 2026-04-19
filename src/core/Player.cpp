@@ -15,13 +15,16 @@ int  Player::getHealth()    const { return m_health;    }
 int  Player::getMaxHealth() const { return m_maxHealth; }
 bool Player::isDead()       const { return m_health <= 0; }
 
-void Player::takeDamage(int amount) {
+int Player::takeDamage(int amount) {
     int overflow = reduceBlock(amount);
     m_health = std::max(0, m_health - overflow);
+    return overflow;
 }
 
-void Player::heal(int amount) {
+int Player::heal(int amount) {
+    const int previousHealth = m_health;
     m_health = std::min(m_maxHealth, m_health + amount);
+    return m_health - previousHealth;
 }
 
 // --- Block ---
@@ -30,6 +33,10 @@ int Player::getBlock() const { return m_block; }
 
 void Player::addBlock(int amount) {
     m_block += amount;
+}
+
+void Player::clearBlock() {
+    m_block = 0;
 }
 
 int Player::reduceBlock(int damage) {
@@ -47,7 +54,9 @@ int Player::reduceBlock(int damage) {
 int  Player::getMana()    const { return m_currentMana; }
 int  Player::getMaxMana() const { return m_maxMana;     }
 
-void Player::resetMana() { m_currentMana = m_maxMana; }
+void Player::startTurn() {
+    m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
+}
 
 bool Player::useMana(int amount) {
     if (m_currentMana < amount) return false;
@@ -65,8 +74,9 @@ bool Player::drawCardFromDeck() {
         if (m_deck.getDiscard().empty()) return false;
         m_deck.reshuffleDiscard();
     }
-    if (!m_deck.isEmpty()) {
-        m_hand.push_back(m_deck.draw());
+    auto drawnCard = m_deck.draw();
+    if (drawnCard.has_value()) {
+        m_hand.push_back(*drawnCard);
         return true;
     }
     return false;
@@ -97,6 +107,18 @@ bool Player::canDrawCard() const {
 }
 
 void Player::addCardToDeck(const Card& card) { m_deck.addCard(card); }
+
+void Player::addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition) {
+    m_statuses.add(type, magnitude, duration, disposition);
+}
+
+int Player::clearNegativeStatuses() {
+    return m_statuses.clearNegative();
+}
+
+int Player::getStatusMagnitude(StatusType type) const {
+    return m_statuses.getMagnitude(type);
+}
 
 Deck&       Player::getDeck()       { return m_deck; }
 const Deck& Player::getDeck() const { return m_deck; }

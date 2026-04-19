@@ -1,7 +1,6 @@
 #include "Deck.h"
 
 #include <algorithm>
-#include <cassert>
 #include <random>
 
 Deck::Deck() = default;
@@ -10,8 +9,11 @@ void Deck::addCard(const Card& card) {
     m_drawPile.push_back(card);
 }
 
-Card Deck::draw() {
-    assert(!m_drawPile.empty() && "Cannot draw from an empty deck");
+std::optional<Card> Deck::draw() {
+    if (m_drawPile.empty()) {
+        return std::nullopt;
+    }
+
     Card top = m_drawPile.back();
     m_drawPile.pop_back();
     return top;

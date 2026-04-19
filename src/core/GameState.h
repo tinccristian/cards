@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Player.h"
 #include "Enemy.h"
+#include "Player.h"
 #include <memory>
 #include <string>
 
@@ -41,16 +41,16 @@ public:
     // --- Game flow ---
 
     // Initialise a fresh run: player, starter deck from CardDatabase, enemy with
-    // its deck, opening hand of 5 cards, first enemy intent decided.
-    void startNewGame();
+    // its deck, opening hand, first enemy intent decided.
+    bool startNewGame(std::string& error);
 
     // Draw one card from player's deck to hand (reshuffles discard if needed).
     void playerDrawCard();
 
     // Attempt to play the card at handIndex.
-    // Applies attack damage or block depending on card type.
+    // Resolves the card's effects and updates the combat log.
     // Returns false if the player has insufficient mana.
-    bool playerAttack(int cardIndex);
+    bool playCard(int cardIndex);
 
     // Signal end of player turn: sets phase to ENEMY_TURN.
     void endPlayerTurn();
@@ -70,6 +70,4 @@ private:
     Player                 m_player;
     std::unique_ptr<Enemy> m_enemy;
     std::string            m_lastAction;
-
-    static int randomInt(int lo, int hi);
 };
