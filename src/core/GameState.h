@@ -7,6 +7,7 @@
 
 enum class GamePhase {
     MENU,
+    MAP,
     NEW_GAME,
     COMBAT,
     GAME_OVER

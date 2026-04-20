@@ -73,6 +73,119 @@ MenuAction GameScreen::drawMenu(bool allowInteraction) {
     return clicked;
 }
 
+MapAction GameScreen::drawMapScreen() {
+    syncWindowSize();
+    ensureMapTextureLoaded();
+
+    if (!m_mapTextureLoaded || m_mapTexture.id == 0) {
+        const char* errorText = "Map texture missing";
+        const int errorFontSize = scalei(LayoutConfig::MapTitleFontSize);
+        const int errorWidth = MeasureText(errorText, errorFontSize);
+        DrawText(errorText,
+                 (m_width - errorWidth) / 2,
+                 m_height / 2 - errorFontSize / 2,
+                 errorFontSize,
+                 Colors::damage_color);
+        return MapAction::None;
+    }
+
+    Rectangle mapRect = mapTextureRect();
+
+    const float wheelMove = GetMouseWheelMove();
+    if (std::fabs(wheelMove) > 0.0f) {
+        m_mapScrollOffset = clampedMapOffset(
+            m_mapScrollOffset + wheelMove * scalef(LayoutConfig::MapScrollWheelStep));
+    }
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(GetMousePosition(), mapRect)) {
+        m_mapDragging = true;
+        m_mapDragStartMouseY = (float)GetMouseY();
+        m_mapDragStartOffset = m_mapScrollOffset;
+    }
+
+    if (m_mapDragging) {
+        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+            const float dragDelta = (float)GetMouseY() - m_mapDragStartMouseY;
+            m_mapScrollOffset = clampedMapOffset(m_mapDragStartOffset + dragDelta);
+            mapRect = mapTextureRect();
+        } else {
+            m_mapDragging = false;
+        }
+    }
+
+    DrawTexturePro(
+        m_mapTexture,
+        { 0.0f, 0.0f, (float)m_mapTexture.width, (float)m_mapTexture.height },
+        mapRect,
+        { 0.0f, 0.0f },
+        0.0f,
+        WHITE
+    );
+
+    const char* title = "Choose Entry Point";
+    const char* hint = "Mouse wheel or drag to scroll";
+    const int titleFontSize = scalei(LayoutConfig::MapTitleFontSize);
+    const int hintFontSize = scalei(LayoutConfig::MapHintFontSize);
+    DrawText(title,
+             (m_width - MeasureText(title, titleFontSize)) / 2,
+             scalei(LayoutConfig::MapTitleTopMargin),
+             titleFontSize,
+             Colors::text_primary);
+    DrawText(hint,
+             m_width - MeasureText(hint, hintFontSize) - scalei(LayoutConfig::MapHintSideMargin),
+             m_height - scalei(LayoutConfig::MapHintBottomMargin),
+             hintFontSize,
+             Colors::text_secondary);
+
+    const Vector2 nodePositions[2] = {
+        {
+            mapRect.x + (MapConfig::StartNodeOneX / MapConfig::SourceWidth) * mapRect.width,
+            mapRect.y + (MapConfig::StartNodeOneY / MapConfig::SourceHeight) * mapRect.height
+        },
+        {
+            mapRect.x + (MapConfig::StartNodeTwoX / MapConfig::SourceWidth) * mapRect.width,
+            mapRect.y + (MapConfig::StartNodeTwoY / MapConfig::SourceHeight) * mapRect.height
+        }
+    };
+
+    const float nodeRadius = (float)scalei(LayoutConfig::MapNodeRadius);
+    const float outlineRadius = (float)scalei(LayoutConfig::MapNodeOutlineRadius);
+    const float outlineThickness = scalef(LayoutConfig::MapNodeOutlineThickness);
+
+    for (const Vector2& nodePosition : nodePositions) {
+        const bool hovered = CheckCollisionPointCircle(GetMousePosition(), nodePosition, outlineRadius);
+        DrawCircleV(nodePosition, outlineRadius, ColorAlpha(Colors::button_hover, hovered ? 0.95f : 0.70f));
+        DrawCircleLines((int)std::lround(nodePosition.x),
+                        (int)std::lround(nodePosition.y),
+                        outlineRadius,
+                        hovered ? Colors::text_primary : Colors::card_border);
+        DrawCircleV(nodePosition, nodeRadius, hovered ? Colors::heal_color : Colors::button_bg);
+        DrawRing(nodePosition,
+                 outlineRadius - outlineThickness,
+                 outlineRadius,
+                 0.0f,
+                 360.0f,
+                 32,
+                 hovered ? Colors::text_primary : Colors::card_border);
+
+        if (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)
+            && std::fabs((float)GetMouseY() - m_mapDragStartMouseY) <= scalef(LayoutConfig::MapDragThreshold)) {
+            m_mapDragging = false;
+            return MapAction::StartCombat;
+        }
+    }
+
+    return MapAction::None;
+}
+
+void GameScreen::resetMapView() {
+    m_mapScrollOffset = 0.0f;
+    m_mapDragging = false;
+    m_mapViewInitialized = false;
+    m_mapDragStartMouseY = 0.0f;
+    m_mapDragStartOffset = 0.0f;
+}
+
 // ---------------------------------------------------------------------------
 // Arch offset helper
 // ---------------------------------------------------------------------------
@@ -667,6 +780,11 @@ OptionsMenuAction GameScreen::drawOptionsMenu(AppSettings& settings,
 
 void GameScreen::unloadAssets() {
     m_artCache.unloadAll();
+    if (m_mapTextureLoaded && m_mapTexture.id != 0) {
+        UnloadTexture(m_mapTexture);
+        m_mapTexture = {};
+        m_mapTextureLoaded = false;
+    }
 }
 
 Rectangle GameScreen::handDropZone() const {
@@ -801,6 +919,59 @@ int GameScreen::scalei(int value) const {
 
 float GameScreen::scalef(float value) const {
     return value * uiScale();
+}
+
+void GameScreen::ensureMapTextureLoaded() {
+    if (m_mapTextureLoaded) {
+        return;
+    }
+
+    m_mapTexture = LoadTexture(AssetPaths::LEG_MAP);
+    if (m_mapTexture.id != 0) {
+        SetTextureFilter(m_mapTexture, TEXTURE_FILTER_BILINEAR);
+        m_mapTextureLoaded = true;
+    }
+}
+
+float GameScreen::clampedMapOffset(float offset) const {
+    if (!m_mapTextureLoaded || m_mapTexture.id == 0) {
+        return 0.0f;
+    }
+
+    const float scaleToCover = std::max(
+        (float)m_width / (float)m_mapTexture.width,
+        (float)m_height / (float)m_mapTexture.height);
+    const float drawHeight = (float)m_mapTexture.height * scaleToCover * LayoutConfig::MapZoomFactor;
+    const float baseY = ((float)m_height - drawHeight) / 2.0f;
+    const float minY = std::min(0.0f, (float)m_height - drawHeight);
+    const float maxY = std::max(0.0f, (float)m_height - drawHeight);
+    return std::clamp(offset, minY - baseY, maxY - baseY);
+}
+
+Rectangle GameScreen::mapTextureRect() const {
+    if (!m_mapTextureLoaded || m_mapTexture.id == 0) {
+        return { 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+
+    const float scaleToCover = std::max(
+        (float)m_width / (float)m_mapTexture.width,
+        (float)m_height / (float)m_mapTexture.height);
+    const float drawScale = scaleToCover * LayoutConfig::MapZoomFactor;
+    const float drawWidth = (float)m_mapTexture.width * drawScale;
+    const float drawHeight = (float)m_mapTexture.height * drawScale;
+    const float x = ((float)m_width - drawWidth) / 2.0f;
+    const float baseY = ((float)m_height - drawHeight) / 2.0f;
+
+    if (!m_mapViewInitialized) {
+        const float minY = std::min(0.0f, (float)m_height - drawHeight);
+        const float maxY = std::max(0.0f, (float)m_height - drawHeight);
+        const float targetY = maxY + (minY - maxY) * LayoutConfig::MapInitialAnchor;
+        const_cast<GameScreen*>(this)->m_mapScrollOffset = targetY - baseY;
+        const_cast<GameScreen*>(this)->m_mapViewInitialized = true;
+    }
+
+    const float y = baseY + clampedMapOffset(m_mapScrollOffset);
+    return snapRect({ x, y, drawWidth, drawHeight });
 }
 
 void GameScreen::syncWindowSize() {

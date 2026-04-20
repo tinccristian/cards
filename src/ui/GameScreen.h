@@ -33,6 +33,11 @@ enum class OptionsMenuAction {
     Back
 };
 
+enum class MapAction {
+    None,
+    StartCombat
+};
+
 class GameScreen {
 public:
     GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio = nullptr);
@@ -52,6 +57,8 @@ public:
     OptionsMenuAction drawOptionsMenu(AppSettings& settings,
                                       OptionsSection& activeSection,
                                       bool openedFromPause);
+    MapAction drawMapScreen();
+    void resetMapView();
 
     // Draw a full-screen overlay listing cards in a pile.
     //   title: heading text ("Draw Pile" / "Discard Pile")
@@ -82,13 +89,23 @@ private:
 
     int          m_width;
     int          m_height;
-    int          m_hoveredCardIndex   = -1;
-    float        m_wiggleTime         = 0.0f;
+    int          m_hoveredCardIndex = -1;
     float        m_hoverProgress      = 0.0f;
     int          m_hoverProgressIndex = -1;
-    int          m_draggedCardIndex   = -1;
+    int          m_selectedCardIndex = -1;
+    float        m_wiggleTime       = 0.0f;
+    float        m_selectedCardBlend = 0.0f;
+    int          m_draggedCardIndex = -1;
+    bool         m_selectedCardPinned = false;
+    float        m_mapScrollOffset  = 0.0f;
+    bool         m_mapDragging      = false;
+    bool         m_mapViewInitialized = false;
+    float        m_mapDragStartMouseY = 0.0f;
+    float        m_mapDragStartOffset = 0.0f;
     Vector2      m_dragGrabOffset   = { 0.0f, 0.0f };
     CardAudio*   m_cardAudio        = nullptr;
+    Texture2D    m_mapTexture       = {};
+    bool         m_mapTextureLoaded = false;
     mutable CardArtCache m_artCache;
 
     // --- helpers ---
@@ -96,6 +113,9 @@ private:
     float uiScale() const;
     int scalei(int value) const;
     float scalef(float value) const;
+    void ensureMapTextureLoaded();
+    float clampedMapOffset(float offset) const;
+    Rectangle mapTextureRect() const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
     void drawHealthBar(Rectangle bar, float ratio) const;
     void drawPlayerBox(Rectangle box, const Player& player) const;
@@ -114,6 +134,8 @@ private:
     Rectangle drawPileButtonRect() const;
     Rectangle endTurnButtonRect() const;
     std::vector<HandLayoutCard> buildHandLayout(int cardCount, int draggedCardIndex) const;
+    HandLayoutCard selectedCardLayout(const HandLayoutCard& baseLayout) const;
+    HandLayoutCard blendLayout(const HandLayoutCard& from, const HandLayoutCard& to, float blend) const;
     int handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const;
 
     static float archOffset(int i, int n);

@@ -5,6 +5,7 @@ namespace AssetPaths {
 inline constexpr const char* PLAYER_CARD_LIBRARY = "assets/decks/player/cards.json";
 inline constexpr const char* PLAYER_STARTER_DECK = "assets/decks/player/deck_config.json";
 inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json";
+inline constexpr const char* LEG_MAP             = "assets/maps/leg.png";
 } // namespace AssetPaths
 
 // ## Audio ##
@@ -47,6 +48,16 @@ inline constexpr int EnemyCardsPerTurn     = 2;
 inline constexpr int DefaultEffectDuration = 1;
 inline constexpr float EnemyTurnDelaySecs  = 1.0f;
 } // namespace CombatConfig
+
+// ## Map ##
+namespace MapConfig {
+inline constexpr float SourceWidth            = 2560.0f;
+inline constexpr float SourceHeight           = 1536.0f;
+inline constexpr float StartNodeOneX          = 1178.0f;
+inline constexpr float StartNodeOneY          = 1390.0f;
+inline constexpr float StartNodeTwoX          = 1390.0f;
+inline constexpr float StartNodeTwoY          = 1390.0f;
+} // namespace MapConfig
 
 // ## UI ##
 namespace LayoutConfig {
@@ -154,6 +165,20 @@ inline constexpr int GameOverFontSize      = 60;
 inline constexpr int GameOverButtonWidth   = 240;
 inline constexpr int GameOverButtonHeight  = 60;
 inline constexpr int GameOverButtonOffsetY = 20;
+
+// ## UI / Map ##
+inline constexpr float MapZoomFactor       = 1.35f;
+inline constexpr float MapInitialAnchor    = 1.0f;
+inline constexpr float MapScrollWheelStep  = 80.0f;
+inline constexpr float MapDragThreshold    = 4.0f;
+inline constexpr int MapNodeRadius         = 18;
+inline constexpr int MapNodeOutlineRadius  = 24;
+inline constexpr int MapNodeOutlineThickness = 3;
+inline constexpr int MapTitleFontSize      = 26;
+inline constexpr int MapHintFontSize       = 16;
+inline constexpr int MapTitleTopMargin     = 24;
+inline constexpr int MapHintBottomMargin   = 22;
+inline constexpr int MapHintSideMargin     = 24;
 
 // ## UI / Pile Viewer ##
 inline constexpr int PileViewerPanelWidth  = 900;

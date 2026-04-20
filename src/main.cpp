@@ -101,13 +101,27 @@ int main() {
             } else {
                 const MenuAction action = screen.drawMenu();
                 if (action == MenuAction::NewGame) {
-                    state.setPhase(GamePhase::NEW_GAME);
+                    screen.resetMapView();
+                    state.setPhase(GamePhase::MAP);
                 } else if (action == MenuAction::Options) {
                     showMainMenuOptions = true;
                     mainMenuOptionsSection = OptionsSection::Display;
                 } else if (action == MenuAction::Quit) {
                     shouldQuit = true;
                 }
+            }
+            break;
+        }
+
+        // -------------------------------------------------------------------
+        case GamePhase::MAP: {
+            if (InputHandler::getEscapePressed()) {
+                state.setPhase(GamePhase::MENU);
+                break;
+            }
+
+            if (screen.drawMapScreen() == MapAction::StartCombat) {
+                state.setPhase(GamePhase::NEW_GAME);
             }
             break;
         }
