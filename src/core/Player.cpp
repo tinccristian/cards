@@ -58,6 +58,13 @@ void Player::startTurn() {
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
 }
 
+void Player::gainMana(int amount) {
+    if (amount <= 0) {
+        return;
+    }
+    m_currentMana += amount;
+}
+
 bool Player::useMana(int amount) {
     if (m_currentMana < amount) return false;
     m_currentMana -= amount;

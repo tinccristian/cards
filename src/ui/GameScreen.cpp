@@ -5,15 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
-
-namespace {
-constexpr int CARD_W   = LayoutConfig::CardWidth;
-constexpr int CARD_H   = LayoutConfig::CardHeight;
-constexpr int CARD_GAP = LayoutConfig::CardGap;
-constexpr int ART_H    = LayoutConfig::CardArtHeight;
-constexpr int PILE_W   = LayoutConfig::PileWidgetWidth;
-constexpr int PILE_H   = LayoutConfig::PileWidgetHeight;
-} // namespace
+#include <iostream>
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -30,32 +22,37 @@ GameScreen::GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio)
 // ---------------------------------------------------------------------------
 
 Rectangle GameScreen::drawPileRect() const {
+    const float pileWidth = (float)scalei(LayoutConfig::PileWidgetWidth);
+    const float pileHeight = (float)scalei(LayoutConfig::PileWidgetHeight);
     const float marginX = m_width * LayoutConfig::PileSideMarginPercent;
-    const float y = m_height - PILE_H - (m_height * LayoutConfig::PileBottomMarginPercent);
-    return { marginX, y, (float)PILE_W, (float)PILE_H };
+    const float y = m_height - pileHeight - (m_height * LayoutConfig::PileBottomMarginPercent);
+    return { marginX, y, pileWidth, pileHeight };
 }
 
 Rectangle GameScreen::discardPileRect() const {
+    const float pileWidth = (float)scalei(LayoutConfig::PileWidgetWidth);
+    const float pileHeight = (float)scalei(LayoutConfig::PileWidgetHeight);
     const float marginX = m_width * LayoutConfig::PileSideMarginPercent;
-    const float y = m_height - PILE_H - (m_height * LayoutConfig::PileBottomMarginPercent);
-    return { (float)(m_width - marginX - PILE_W), y,
-             (float)PILE_W, (float)PILE_H };
+    const float y = m_height - pileHeight - (m_height * LayoutConfig::PileBottomMarginPercent);
+    return { (float)(m_width - marginX - pileWidth), y, pileWidth, pileHeight };
 }
 
 // ---------------------------------------------------------------------------
 // Main Menu
 // ---------------------------------------------------------------------------
 
-MenuAction GameScreen::drawMenu() {
+MenuAction GameScreen::drawMenu(bool allowInteraction) {
+    syncWindowSize();
+
     const char* title   = "Medical Deckbuilder";
-    const int   titleSz = LayoutConfig::MenuTitleFontSize;
+    const int   titleSz = scalei(LayoutConfig::MenuTitleFontSize);
     int titleW = MeasureText(title, titleSz);
     DrawText(title, (m_width - titleW) / 2, m_height / 5, titleSz, Colors::text_primary);
 
-    const int btnW = LayoutConfig::MenuButtonWidth;
-    const int btnH = LayoutConfig::MenuButtonHeight;
-    const int gap = LayoutConfig::MenuButtonGap;
-    const int startY  = m_height / 2 - btnH - gap;
+    const int btnW = scalei(LayoutConfig::MenuButtonWidth);
+    const int btnH = scalei(LayoutConfig::MenuButtonHeight);
+    const int gap = scalei(LayoutConfig::MenuButtonGap);
+    const int startY  = m_height / 2 - btnH - gap / 2;
     const int centerX = (m_width - btnW) / 2;
 
     Rectangle rects[3] = {
@@ -63,13 +60,13 @@ MenuAction GameScreen::drawMenu() {
         { (float)centerX, (float)(startY + btnH + gap),  (float)btnW, (float)btnH },
         { (float)centerX, (float)(startY + 2*(btnH+gap)),(float)btnW, (float)btnH },
     };
-    const char* labels[3] = { "New Game", "Continue", "Quit" };
+    const char* labels[3] = { "New Game", "Options", "Quit" };
 
     MenuAction clicked = MenuAction::None;
     for (int i = 0; i < 3; ++i) {
         bool hovered = mouseOver(rects[i]);
         drawButton(rects[i], labels[i], hovered);
-        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        if (allowInteraction && hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             clicked = static_cast<MenuAction>(i);
         }
     }
@@ -88,6 +85,18 @@ float GameScreen::archOffset(int i, int n) {
 }
 
 namespace {
+float snapToPixel(float value) {
+    return std::round(value);
+}
+
+Rectangle snapRect(Rectangle rect) {
+    rect.x = snapToPixel(rect.x);
+    rect.y = snapToPixel(rect.y);
+    rect.width = snapToPixel(rect.width);
+    rect.height = snapToPixel(rect.height);
+    return rect;
+}
+
 float handTValue(int index, int count) {
     if (count <= 1) {
         return 0.5f;
@@ -102,6 +111,14 @@ float handTValue(int index, int count) {
 
 bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
                                 int count, Color accentColor) const {
+    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
+    const float shadowOffset = scalef(LayoutConfig::PileShadowOffset);
+    const int labelFontSize = scalei(LayoutConfig::PileLabelFontSize);
+    const int labelOffsetY = scalei(LayoutConfig::PileLabelOffsetY);
+    const int emptyFontSize = scalei(LayoutConfig::PileEmptyFontSize);
+    const int countFontSize = scalei(LayoutConfig::PileCountFontSize);
+    const int hintFontSize = scalei(LayoutConfig::PileHintFontSize);
+    const int hintOffsetY = scalei(LayoutConfig::PileHintOffsetY);
     bool empty   = (count == 0);
     Color bg     = empty ? Colors::empty_pile_bg : Colors::card_bg;
     Color border = empty ? Colors::text_secondary   : accentColor;
@@ -109,7 +126,7 @@ bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
     // Stack shadow (3 offset rectangles behind the widget)
     if (!empty) {
         for (int s = LayoutConfig::PileShadowLayers; s >= 1; --s) {
-            Rectangle shadow = { rect.x + s * LayoutConfig::PileShadowOffset, rect.y + s * LayoutConfig::PileShadowOffset,
+            Rectangle shadow = { rect.x + s * shadowOffset, rect.y + s * shadowOffset,
                                   rect.width, rect.height };
             DrawRectangleRec(shadow, Color{ (unsigned char)(accentColor.r / 2),
                                             (unsigned char)(accentColor.g / 2),
@@ -119,18 +136,18 @@ bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
     }
 
     DrawRectangleRec(rect, bg);
-    DrawRectangleLinesEx(rect, (float)LayoutConfig::PanelBorderThickness, border);
+    DrawRectangleLinesEx(rect, borderThickness, border);
 
     // Label (top)
-    int lw = MeasureText(label.c_str(), LayoutConfig::PileLabelFontSize);
+    int lw = MeasureText(label.c_str(), labelFontSize);
     DrawText(label.c_str(), (int)rect.x + ((int)rect.width - lw) / 2,
-             (int)rect.y + LayoutConfig::PileLabelOffsetY,
-             LayoutConfig::PileLabelFontSize,
+             (int)rect.y + labelOffsetY,
+             labelFontSize,
              Colors::text_primary);
 
     // Count (centre, large)
     std::string countStr = empty ? "EMPTY" : std::to_string(count);
-    int cSz  = empty ? LayoutConfig::PileEmptyFontSize : LayoutConfig::PileCountFontSize;
+    int cSz  = empty ? emptyFontSize : countFontSize;
     Color cCol = empty ? Colors::text_secondary : accentColor;
     int cw = MeasureText(countStr.c_str(), cSz);
     DrawText(countStr.c_str(), (int)rect.x + ((int)rect.width - cw) / 2,
@@ -139,10 +156,10 @@ bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
     // Hover highlight
     bool hovered = mouseOver(rect);
     if (hovered) {
-        DrawRectangleLinesEx(rect, (float)(LayoutConfig::PanelBorderThickness + 1), Colors::text_primary);
+        DrawRectangleLinesEx(rect, borderThickness + scalef(1.0f), Colors::text_primary);
         // Tooltip hint
-        DrawText("Click to view", (int)rect.x, (int)rect.y + (int)rect.height + LayoutConfig::PileHintOffsetY,
-                 LayoutConfig::PileHintFontSize, Colors::text_secondary);
+        DrawText("Click to view", (int)rect.x, (int)rect.y + (int)rect.height + hintOffsetY,
+                 hintFontSize, Colors::text_secondary);
     }
 
     return hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
@@ -153,7 +170,10 @@ bool GameScreen::drawPileWidget(Rectangle rect, const std::string& label,
 // ---------------------------------------------------------------------------
 
 int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
-                            bool& drawPileClicked, bool& discardPileClicked) {
+                            bool& drawPileClicked, bool& discardPileClicked,
+                            bool allowInteraction) {
+    syncWindowSize();
+
     endTurnClicked     = false;
     drawPileClicked    = false;
     discardPileClicked = false;
@@ -163,23 +183,41 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const Enemy&  enemy  = state.getEnemy();
     const Deck&   deck   = player.getDeck();
 
-    m_wiggleTime += GetFrameTime();
+    const float dt = GetFrameTime();
+    m_wiggleTime += dt;
+    {
+        const bool isHovering = (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0);
+        if (isHovering) {
+            if (m_hoveredCardIndex != m_hoverProgressIndex) {
+                m_hoverProgress = 0.0f;
+                m_hoverProgressIndex = m_hoveredCardIndex;
+            }
+            m_hoverProgress = std::min(1.0f, m_hoverProgress + dt * LayoutConfig::HoverAnimSpeed);
+        } else {
+            m_hoverProgress = std::max(0.0f, m_hoverProgress - dt * LayoutConfig::HoverAnimSpeed);
+            if (m_hoverProgress <= 0.0f)
+                m_hoverProgressIndex = -1;
+        }
+    }
+    const int turnFontSize = scalei(LayoutConfig::CombatTurnFontSize);
+    const int boxW = scalei(LayoutConfig::CombatantBoxWidth);
+    const int boxH = scalei(LayoutConfig::CombatantBoxHeight);
+    const int boxY = scalei(LayoutConfig::CombatantBoxTop);
+    const int boxMargin = scalei(LayoutConfig::CombatantBoxMargin);
+    const int combatLogFontSize = scalei(LayoutConfig::CombatLogFontSize);
 
     // --- Turn number ---
     std::string turnStr = "Turn " + std::to_string(state.getTurnNumber());
-    int turnW = MeasureText(turnStr.c_str(), LayoutConfig::CombatTurnFontSize);
+    int turnW = MeasureText(turnStr.c_str(), turnFontSize);
     DrawText(turnStr.c_str(),
              (m_width - turnW) / 2,
-             LayoutConfig::HealthBarHeight,
-             LayoutConfig::CombatTurnFontSize,
+             scalei(LayoutConfig::HealthBarHeight),
+             turnFontSize,
              Colors::text_secondary);
 
     // --- Combatant boxes ---
-    const int boxW = LayoutConfig::CombatantBoxWidth;
-    const int boxH = LayoutConfig::CombatantBoxHeight;
-    const int boxY = LayoutConfig::CombatantBoxTop;
-    Rectangle playerBox = { (float)LayoutConfig::CombatantBoxMargin, (float)boxY, (float)boxW, (float)boxH };
-    Rectangle enemyBox  = { (float)(m_width - LayoutConfig::CombatantBoxMargin - boxW), (float)boxY,
+    Rectangle playerBox = { (float)boxMargin, (float)boxY, (float)boxW, (float)boxH };
+    Rectangle enemyBox  = { (float)(m_width - boxMargin - boxW), (float)boxY,
                              (float)boxW, (float)boxH };
 
     drawPlayerBox(playerBox, player);
@@ -189,25 +227,32 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     // --- Combat log ---
     const std::string& action = state.getLastAction();
     if (!action.empty()) {
-        int aw = MeasureText(action.c_str(), LayoutConfig::CombatLogFontSize);
-        DrawText(action.c_str(), (m_width - aw) / 2, boxY + boxH + LayoutConfig::CombatLogOffsetY, LayoutConfig::CombatLogFontSize,
+        int aw = MeasureText(action.c_str(), combatLogFontSize);
+        DrawText(action.c_str(), (m_width - aw) / 2, boxY + boxH + scalei(LayoutConfig::CombatLogOffsetY), combatLogFontSize,
                  Colors::text_secondary);
     }
 
     // --- Draw pile widget (left side) ---
-    if (drawPileWidget(drawPileRect(), "DRAW", deck.getDrawPileSize(), Colors::draw_pile_accent))
+    if (allowInteraction
+        && drawPileWidget(drawPileRect(), "DRAW", deck.getDrawPileSize(), Colors::draw_pile_accent))
         drawPileClicked = true;
+    else
+        drawPileWidget(drawPileRect(), "DRAW", deck.getDrawPileSize(), Colors::draw_pile_accent);
 
     // --- Discard pile widget (right side) ---
-    if (drawPileWidget(discardPileRect(), "DISCARD", deck.getDiscardPileSize(), Colors::discard_pile_accent))
+    if (allowInteraction
+        && drawPileWidget(discardPileRect(), "DISCARD", deck.getDiscardPileSize(), Colors::discard_pile_accent))
         discardPileClicked = true;
+    else
+        drawPileWidget(discardPileRect(), "DISCARD", deck.getDiscardPileSize(), Colors::discard_pile_accent);
 
     // --- ENEMY_TURN overlay ---
     if (!isPlayerTurn) {
         const char* msg = "Enemy is acting...";
-        int msgW = MeasureText(msg, LayoutConfig::PileViewerTitleSize);
-        DrawText(msg, (m_width - msgW) / 2, m_height / 2 - LayoutConfig::TooltipTextSize,
-                 LayoutConfig::PileViewerTitleSize, Colors::damage_color);
+        const int actingFontSize = scalei(LayoutConfig::PileViewerTitleSize);
+        int msgW = MeasureText(msg, actingFontSize);
+        DrawText(msg, (m_width - msgW) / 2, m_height / 2 - scalei(LayoutConfig::TooltipTextSize),
+                 actingFontSize, Colors::damage_color);
         return -1;
     }
 
@@ -215,7 +260,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     Rectangle etBtn = endTurnButtonRect();
     bool etHovered = mouseOver(etBtn);
     drawButton(etBtn, "End Turn", etHovered);
-    if (etHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) endTurnClicked = true;
+    if (allowInteraction && etHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) endTurnClicked = true;
 
     // -------------------------------------------------------------------
     // Hand layout: arch + wiggle
@@ -230,7 +275,9 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     // Determine hovered card
     const int previousHoveredCardIndex = m_hoveredCardIndex;
     m_hoveredCardIndex = -1;
-    if (m_draggedCardIndex < 0) {
+    if (!allowInteraction) {
+        m_draggedCardIndex = -1;
+    } else if (m_draggedCardIndex < 0) {
         for (int i = 0; i < n; ++i) {
             if (mouseOver(layout[i].bounds)) {
                 m_hoveredCardIndex = i;
@@ -245,7 +292,10 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         m_cardAudio->playHover();
     }
 
-    if (m_draggedCardIndex < 0 && m_hoveredCardIndex >= 0 && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (allowInteraction
+        && m_draggedCardIndex < 0
+        && m_hoveredCardIndex >= 0
+        && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         m_draggedCardIndex = m_hoveredCardIndex;
         m_dragGrabOffset = {
             GetMouseX() - layout[m_draggedCardIndex].bounds.x,
@@ -254,7 +304,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         layout = buildHandLayout(n, m_draggedCardIndex);
     }
 
-    if (m_draggedCardIndex >= 0 && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+    if (allowInteraction && m_draggedCardIndex >= 0 && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
         const int draggedIndex = m_draggedCardIndex;
         const bool releasedInHand = CheckCollisionPointRec(GetMousePosition(), handDropZone());
         m_draggedCardIndex = -1;
@@ -275,20 +325,20 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     }
 
     // Hovered card on top
-    if (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0) {
+    if (allowInteraction && m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0) {
         int i = m_hoveredCardIndex;
         Rectangle r = layout[i].bounds;
         drawCardFace(r, hand[i], true, layout[i].rotation);
 
-        float tipX = r.x + r.width + LayoutConfig::TooltipHorizontalGap;
-        if (tipX + LayoutConfig::TooltipWidth > m_width) {
-            tipX = r.x - LayoutConfig::TooltipWidth - LayoutConfig::TooltipScreenMargin;
+        float tipX = r.x + r.width + scalef(LayoutConfig::TooltipHorizontalGap);
+        if (tipX + scalei(LayoutConfig::TooltipWidth) > m_width) {
+            tipX = r.x - scalei(LayoutConfig::TooltipWidth) - scalei(LayoutConfig::TooltipScreenMargin);
         }
         drawCardTooltip(hand[i], tipX, r.y);
 
     }
 
-    if (m_draggedCardIndex >= 0) {
+    if (allowInteraction && m_draggedCardIndex >= 0) {
         const int dragIndex = m_draggedCardIndex;
         const float t = handTValue(dragIndex, n);
         const float normalizedOffset = (t - 0.5f) * 2.0f;
@@ -298,6 +348,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             layout[dragIndex].bounds.width,
             layout[dragIndex].bounds.height
         };
+        draggedRect = snapRect(draggedRect);
         drawCardFace(draggedRect, hand[dragIndex], true,
                      normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor);
     }
@@ -313,6 +364,7 @@ int GameScreen::drawPileViewer(const std::string& title,
                                 const std::vector<Card>& cards,
                                 int scrollOffset,
                                 bool& closeClicked) {
+    syncWindowSize();
     closeClicked = false;
     // Semi-transparent backdrop
     DrawRectangle(0, 0, m_width, m_height, Colors::overlay_bg);
@@ -414,21 +466,203 @@ int GameScreen::drawPileViewer(const std::string& title,
 // ---------------------------------------------------------------------------
 
 bool GameScreen::drawGameOver(const GameState& state) {
+    syncWindowSize();
+
     std::string winner   = state.getWinner();
     std::string msg      = (winner == "Player") ? "You Win!" : "You Lose!";
     Color       msgColor = (winner == "Player") ? Colors::heal_color : Colors::damage_color;
 
-    const int msgSz = LayoutConfig::GameOverFontSize;
+    const int msgSz = scalei(LayoutConfig::GameOverFontSize);
     DrawText(msg.c_str(), (m_width - MeasureText(msg.c_str(), msgSz)) / 2,
              m_height / 3, msgSz, msgColor);
 
-    const int btnW = LayoutConfig::GameOverButtonWidth;
-    const int btnH = LayoutConfig::GameOverButtonHeight;
-    Rectangle btn = { (float)((m_width - btnW) / 2), (float)(m_height / 2 + LayoutConfig::GameOverButtonOffsetY),
+    const int btnW = scalei(LayoutConfig::GameOverButtonWidth);
+    const int btnH = scalei(LayoutConfig::GameOverButtonHeight);
+    Rectangle btn = { (float)((m_width - btnW) / 2), (float)(m_height / 2 + scalei(LayoutConfig::GameOverButtonOffsetY)),
                        (float)btnW, (float)btnH };
     bool hovered = mouseOver(btn);
     drawButton(btn, "Return to Menu", hovered);
     return hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+}
+
+PauseAction GameScreen::drawPauseMenu() {
+    syncWindowSize();
+    const int panelWidth = scalei(LayoutConfig::OverlayPanelWidth);
+    const int panelHeight = scalei(LayoutConfig::PausePanelHeight);
+    const int titleFontSize = scalei(LayoutConfig::OverlayTitleFontSize);
+    const int contentInset = scalei(LayoutConfig::OverlayContentInset);
+    const int buttonWidth = scalei(LayoutConfig::OverlayButtonWidth);
+    const int buttonHeight = scalei(LayoutConfig::OverlayButtonHeight);
+    const int buttonGap = scalei(LayoutConfig::OverlayButtonGap);
+    const int buttonsTopOffset = scalei(LayoutConfig::PauseButtonsTopOffset);
+
+    DrawRectangle(0, 0, m_width, m_height, Colors::overlay_bg);
+
+    const float panelX = (m_width - panelWidth) / 2.0f;
+    const float panelY = (m_height - panelHeight) / 2.0f;
+    Rectangle panel = {
+        panelX,
+        panelY,
+        (float)panelWidth,
+        (float)panelHeight
+    };
+
+    DrawRectangleRec(panel, Colors::light_bg);
+    DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+
+    const char* title = "Paused";
+    const int titleWidth = MeasureText(title, titleFontSize);
+    DrawText(title,
+             (int)(panelX + (panel.width - titleWidth) / 2.0f),
+             (int)panelY + contentInset,
+             titleFontSize,
+             Colors::text_primary);
+
+    const float buttonX = panelX + (panel.width - buttonWidth) / 2.0f;
+    const float buttonStartY = panelY + buttonsTopOffset;
+    const char* labels[4] = { "Resume", "Options", "Main Menu", "Quit" };
+
+    for (int index = 0; index < 4; ++index) {
+        Rectangle button = {
+            buttonX,
+            buttonStartY + index * (buttonHeight + buttonGap),
+            (float)buttonWidth,
+            (float)buttonHeight
+        };
+        const bool hovered = mouseOver(button);
+        drawButton(button, labels[index], hovered);
+        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            return static_cast<PauseAction>(index + 1);
+        }
+    }
+
+    return PauseAction::None;
+}
+
+OptionsMenuAction GameScreen::drawOptionsMenu(AppSettings& settings,
+                                              OptionsSection& activeSection,
+                                              bool openedFromPause) {
+    syncWindowSize();
+    const int panelWidth = scalei(LayoutConfig::OverlayPanelWidth);
+    const int panelHeight = scalei(LayoutConfig::OptionsPanelHeight);
+    const int titleFontSize = scalei(LayoutConfig::OverlayTitleFontSize);
+    const int contentInset = scalei(LayoutConfig::OverlayContentInset);
+    const int tabWidth = scalei(LayoutConfig::OptionsTabWidth);
+    const int tabHeight = scalei(LayoutConfig::OptionsTabHeight);
+    const int tabGap = scalei(LayoutConfig::OptionsTabGap);
+    const int tabTopOffset = scalei(LayoutConfig::OptionsTabTopOffset);
+    const int rowsTopOffset = scalei(LayoutConfig::OptionsRowsTopOffset);
+    const int rowHeight = scalei(LayoutConfig::OptionsRowHeight);
+    const int buttonWidth = scalei(LayoutConfig::OverlayButtonWidth);
+    const int buttonHeight = scalei(LayoutConfig::OverlayButtonHeight);
+    const int footerOffsetY = scalei(LayoutConfig::OptionsFooterOffsetY);
+    const int buttonFontSize = scalei(LayoutConfig::DefaultButtonFontSize);
+
+    DrawRectangle(0, 0, m_width, m_height, Colors::overlay_bg);
+
+    const float panelX = (m_width - panelWidth) / 2.0f;
+    const float panelY = (m_height - panelHeight) / 2.0f;
+    Rectangle panel = {
+        panelX,
+        panelY,
+        (float)panelWidth,
+        (float)panelHeight
+    };
+
+    DrawRectangleRec(panel, Colors::light_bg);
+    DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+
+    const char* title = "Options";
+    const int titleWidth = MeasureText(title, titleFontSize);
+    DrawText(title,
+             (int)(panelX + (panel.width - titleWidth) / 2.0f),
+             (int)panelY + contentInset,
+             titleFontSize,
+             Colors::text_primary);
+
+    const float totalTabsWidth = tabWidth * 2.0f + tabGap;
+    const float tabsX = panelX + (panel.width - totalTabsWidth) / 2.0f;
+    const float tabsY = panelY + tabTopOffset;
+    const char* tabLabels[2] = { "Display", "Sounds" };
+
+    for (int index = 0; index < 2; ++index) {
+        Rectangle tab = {
+            tabsX + index * (tabWidth + tabGap),
+            tabsY,
+            (float)tabWidth,
+            (float)tabHeight
+        };
+        const bool selected = activeSection == static_cast<OptionsSection>(index);
+        const bool hovered = mouseOver(tab);
+        DrawRectangleRec(tab, selected ? Colors::button_hover : Colors::button_bg);
+        DrawRectangleLinesEx(tab, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+        const int labelWidth = MeasureText(tabLabels[index], buttonFontSize);
+        DrawText(tabLabels[index],
+                 (int)(tab.x + (tab.width - labelWidth) / 2.0f),
+                 (int)(tab.y + (tab.height - buttonFontSize) / 2.0f),
+                 buttonFontSize,
+                 Colors::text_primary);
+        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            activeSection = static_cast<OptionsSection>(index);
+        }
+    }
+
+    float rowY = panelY + rowsTopOffset;
+    if (activeSection == OptionsSection::Display) {
+        settings.resolutionIndex = std::clamp(
+            settings.resolutionIndex + drawStepperRow(rowY, "Resolution",
+                SettingsManager::resolutionLabel(settings.resolutionIndex)),
+            0,
+            static_cast<int>(SettingsManager::resolutionOptions().size()) - 1
+        );
+        rowY += rowHeight;
+
+        int windowModeIndex = static_cast<int>(settings.windowMode);
+        windowModeIndex = (windowModeIndex + drawStepperRow(rowY, "Window Mode",
+            SettingsManager::windowModeLabel(settings.windowMode)) + 3) % 3;
+        settings.windowMode = static_cast<WindowMode>(windowModeIndex);
+        rowY += rowHeight;
+
+        const int monitorCount = std::max(1, GetMonitorCount());
+        const int safeMonitorIndex = std::clamp(settings.monitorIndex, 0, monitorCount - 1);
+        const std::string displayValue =
+            std::to_string(safeMonitorIndex + 1) + " / " + std::to_string(monitorCount)
+            + "  (" + std::to_string(GetMonitorWidth(safeMonitorIndex))
+            + " x " + std::to_string(GetMonitorHeight(safeMonitorIndex)) + ")";
+        settings.monitorIndex = (safeMonitorIndex + drawStepperRow(rowY, "Display", displayValue) + monitorCount) % monitorCount;
+        rowY += rowHeight;
+
+        if (drawCheckboxRow(rowY, "VSync", settings.vsyncEnabled)) {
+            settings.vsyncEnabled = !settings.vsyncEnabled;
+        }
+        rowY += rowHeight;
+
+        if (drawCheckboxRow(rowY, "Show FPS", settings.showFps)) {
+            settings.showFps = !settings.showFps;
+        }
+    } else {
+        settings.masterVolume = std::clamp(
+            settings.masterVolume
+                + drawStepperRow(rowY, "Master Volume", std::to_string(settings.masterVolume) + "%") * AudioConfig::MasterVolumeStep,
+            0,
+            100
+        );
+    }
+
+    Rectangle backButton = {
+        panelX + (panel.width - buttonWidth) / 2.0f,
+        panelY + panel.height - footerOffsetY,
+        (float)buttonWidth,
+        (float)buttonHeight
+    };
+    const std::string backLabel = openedFromPause ? "Back to Pause" : "Back";
+    const bool backHovered = mouseOver(backButton);
+    drawButton(backButton, backLabel, backHovered);
+    if (backHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return OptionsMenuAction::Back;
+    }
+
+    return OptionsMenuAction::None;
 }
 
 void GameScreen::unloadAssets() {
@@ -436,9 +670,13 @@ void GameScreen::unloadAssets() {
 }
 
 Rectangle GameScreen::handDropZone() const {
+    const float cardHeight = (float)scalei(LayoutConfig::CardHeight);
     const float left = m_width * LayoutConfig::HandLeftBoundPercent;
     const float right = m_width * LayoutConfig::HandRightBoundPercent;
-    const float top = m_height - CARD_H - LayoutConfig::HandBottomMargin - LayoutConfig::HandDropZoneTopPadding;
+    const float top = m_height - cardHeight
+        + cardHeight * LayoutConfig::HandBottomOverflowPercent
+        - scalef(LayoutConfig::HandBottomMargin)
+        - scalef(LayoutConfig::HandDropZoneTopPadding);
     const float bottom = (float)m_height;
     return { left, top, right - left, bottom - top };
 }
@@ -448,12 +686,14 @@ Rectangle GameScreen::drawPileButtonRect() const {
 }
 
 Rectangle GameScreen::endTurnButtonRect() const {
+    const float buttonWidth = (float)scalei(LayoutConfig::EndTurnButtonWidth);
+    const float buttonHeight = (float)scalei(LayoutConfig::EndTurnButtonHeight);
     const Rectangle discardRect = discardPileRect();
     return {
-        discardRect.x + (discardRect.width - LayoutConfig::EndTurnButtonWidth) / 2.0f,
-        discardRect.y - LayoutConfig::EndTurnButtonHeight - LayoutConfig::EndTurnToPileGap,
-        (float)LayoutConfig::EndTurnButtonWidth,
-        (float)LayoutConfig::EndTurnButtonHeight
+        discardRect.x + (discardRect.width - buttonWidth) / 2.0f,
+        discardRect.y - buttonHeight - scalef(LayoutConfig::EndTurnToPileGap),
+        buttonWidth,
+        buttonHeight
     };
 }
 
@@ -463,48 +703,63 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCoun
         return layout;
     }
 
+    const float cardWidth = (float)scalei(LayoutConfig::CardWidth);
+    const float cardHeight = (float)scalei(LayoutConfig::CardHeight);
     const float handLeftBound  = m_width * LayoutConfig::HandLeftBoundPercent;
     const float handRightBound = m_width * LayoutConfig::HandRightBoundPercent;
-    const float handUsableWidth = std::max((float)CARD_W, handRightBound - handLeftBound);
-    const int baseY = m_height - CARD_H - LayoutConfig::HandBottomMargin;
+    const float handUsableWidth = std::max(cardWidth, handRightBound - handLeftBound);
+    const float baseY = m_height - cardHeight + cardHeight * LayoutConfig::HandBottomOverflowPercent - scalef(LayoutConfig::HandBottomMargin);
     float cardSpacing = (cardCount > 1)
-        ? (handUsableWidth - CARD_W * cardCount) / (float)(cardCount - 1)
+        ? (handUsableWidth - cardWidth * cardCount) / (float)(cardCount - 1)
         : 0.0f;
-    cardSpacing = std::min((float)CARD_GAP, cardSpacing);
-    const float totalW = CARD_W * cardCount + cardSpacing * (cardCount - 1);
+    cardSpacing = std::min(scalef(LayoutConfig::CardGap), cardSpacing);
+    const float totalW = cardWidth * cardCount + cardSpacing * (cardCount - 1);
     const float startX = handLeftBound + (handUsableWidth - totalW) / 2.0f;
 
-    const float wX = std::sin(m_wiggleTime * LayoutConfig::WiggleXFrequency) * LayoutConfig::WiggleXAmplitude;
-    const float wY = std::cos(m_wiggleTime * LayoutConfig::WiggleYFrequency) * LayoutConfig::WiggleYAmplitude;
+    const float wX = std::sin(m_wiggleTime * LayoutConfig::WiggleXFrequency) * scalef(LayoutConfig::WiggleXAmplitude);
+    const float wY = std::cos(m_wiggleTime * LayoutConfig::WiggleYFrequency) * scalef(LayoutConfig::WiggleYAmplitude);
+
+    const int activeHoverIndex = (draggedCardIndex < 0) ? m_hoverProgressIndex : -1;
 
     for (int index = 0; index < cardCount; ++index) {
-        float cx = startX + index * (CARD_W + cardSpacing) + wX;
-        float cy = (float)baseY + archOffset(index, cardCount) + wY;
+        const float cx_base = startX + index * (cardWidth + cardSpacing);
+        const float cy_base = baseY + archOffset(index, cardCount) * uiScale();
         const float t = handTValue(index, cardCount);
         const float normalizedOffset = (t - 0.5f) * 2.0f;
-        float rotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees;
-        bool scaled = false;
+        const float restRotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees;
 
-        if (index == m_hoveredCardIndex && draggedCardIndex < 0) {
-            const float sw = CARD_W * LayoutConfig::HoveredCardScale;
-            const float sh = CARD_H * LayoutConfig::HoveredCardScale;
-            cx -= (sw - CARD_W) / 2.0f;
-            cy -= LayoutConfig::HoveredCardLift + (sh - CARD_H);
-            rotation *= LayoutConfig::HoveredTiltFactor;
-            layout[index] = { { cx, cy, sw, sh }, rotation, true };
+        float cx = cx_base + wX;
+        float cy = cy_base + wY;
+        float rotation = restRotation;
+
+        if (index == activeHoverIndex && m_hoverProgress > 0.0f) {
+            const float hp = m_hoverProgress;
+            const float restCy = cy_base + wY;
+            const float snappedCardHeight = std::round(cardHeight);
+            const float hoverCy = std::round((float)m_height - snappedCardHeight);
+            cy = restCy + (hoverCy - restCy) * hp;
+            cx = cx_base + wX * (1.0f - hp);
+            rotation = restRotation * (1.0f - hp);
+            Rectangle hoverRect = { std::round(cx), cy, snappedCardHeight > 0 ? cardWidth : cardWidth, snappedCardHeight };
+            if (hp >= 0.999f) {
+                hoverRect.y = hoverCy;
+            } else {
+                hoverRect.y = std::round(cy);
+            }
+            hoverRect.x = std::round(cx);
+            hoverRect.width = cardWidth;
+            hoverRect.height = snappedCardHeight;
+            layout[index] = { hoverRect, rotation, false };
             continue;
         }
 
         if (m_hoveredCardIndex >= 0 && draggedCardIndex < 0) {
             const int diff = index - m_hoveredCardIndex;
-            if (diff == -1) {
-                cx -= LayoutConfig::NeighborCardShift;
-            } else if (diff == 1) {
-                cx += LayoutConfig::NeighborCardShift;
-            }
+            if (diff == -1) cx -= scalef(LayoutConfig::NeighborCardShift);
+            else if (diff == 1) cx += scalef(LayoutConfig::NeighborCardShift);
         }
 
-        layout[index] = { { cx, cy, (float)CARD_W, (float)CARD_H }, rotation, scaled };
+        layout[index] = { snapRect({ cx, cy, cardWidth, cardHeight }), rotation, false };
     }
 
     return layout;
@@ -534,15 +789,115 @@ int GameScreen::handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& lay
 // Private helpers
 // ---------------------------------------------------------------------------
 
+float GameScreen::uiScale() const {
+    const float widthScale = (float)m_width / (float)WindowConfig::Width;
+    const float heightScale = (float)m_height / (float)WindowConfig::Height;
+    return std::clamp(std::min(widthScale, heightScale), LayoutConfig::UiMinScale, LayoutConfig::UiMaxScale);
+}
+
+int GameScreen::scalei(int value) const {
+    return std::max(1, (int)std::lround((float)value * uiScale()));
+}
+
+float GameScreen::scalef(float value) const {
+    return value * uiScale();
+}
+
+void GameScreen::syncWindowSize() {
+    m_width = GetScreenWidth();
+    m_height = GetScreenHeight();
+}
+
 void GameScreen::drawButton(Rectangle rect, const std::string& text, bool hovered) const {
+    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
+    const int fontSize = scalei(LayoutConfig::DefaultButtonFontSize);
     DrawRectangleRec(rect, hovered ? Colors::button_hover : Colors::button_bg);
-    DrawRectangleLinesEx(rect, (float)LayoutConfig::PanelBorderThickness, Colors::card_border);
-    const int fs = LayoutConfig::DefaultButtonFontSize;
-    int tw = MeasureText(text.c_str(), fs);
+    DrawRectangleLinesEx(rect, borderThickness, Colors::card_border);
+    int tw = MeasureText(text.c_str(), fontSize);
     DrawText(text.c_str(),
              (int)rect.x + ((int)rect.width  - tw) / 2,
-             (int)rect.y + ((int)rect.height - fs) / 2,
-             fs, Colors::text_primary);
+             (int)rect.y + ((int)rect.height - fontSize) / 2,
+             fontSize, Colors::text_primary);
+}
+
+int GameScreen::drawStepperRow(float y, const std::string& label, const std::string& value) const {
+    const float panelX = (m_width - scalei(LayoutConfig::OverlayPanelWidth)) / 2.0f;
+    const float contentLeft = panelX + scalei(LayoutConfig::OverlayContentInset);
+    const float contentRight = panelX + scalei(LayoutConfig::OverlayPanelWidth) - scalei(LayoutConfig::OverlayContentInset);
+    const float arrowSize = (float)scalei(LayoutConfig::OptionsArrowButtonSize);
+    const float valueAreaWidth = (float)scalei(LayoutConfig::OptionsValueAreaWidth);
+    const float valueAreaX = contentRight - valueAreaWidth;
+    const float textY = y + scalei(LayoutConfig::OptionsRowTextOffsetY);
+    const int labelFontSize = scalei(LayoutConfig::OptionsLabelFontSize);
+    const int valueFontSize = scalei(LayoutConfig::OptionsValueFontSize);
+    const float valuePadding = (float)scalei(LayoutConfig::OptionsValuePadding);
+
+    DrawText(label.c_str(),
+             (int)contentLeft,
+             (int)textY,
+             labelFontSize,
+             Colors::text_primary);
+
+    Rectangle leftButton = { valueAreaX, y, arrowSize, arrowSize };
+    Rectangle rightButton = { contentRight - arrowSize, y, arrowSize, arrowSize };
+    const bool leftHovered = mouseOver(leftButton);
+    const bool rightHovered = mouseOver(rightButton);
+    drawButton(leftButton, "<", leftHovered);
+    drawButton(rightButton, ">", rightHovered);
+
+    const float valueTextX = valueAreaX + arrowSize + valuePadding;
+    const float valueTextWidth = valueAreaWidth - arrowSize * 2.0f - valuePadding * 2.0f;
+    const int valueWidth = MeasureText(value.c_str(), valueFontSize);
+    DrawText(value.c_str(),
+             (int)(valueTextX + (valueTextWidth - valueWidth) / 2.0f),
+             (int)(textY + scalei(LayoutConfig::OptionsValueTextOffsetY)),
+             valueFontSize,
+             Colors::text_secondary);
+
+    if (leftHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return -1;
+    }
+    if (rightHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return 1;
+    }
+    return 0;
+}
+
+bool GameScreen::drawCheckboxRow(float y, const std::string& label, bool checked) const {
+    const float panelX = (m_width - scalei(LayoutConfig::OverlayPanelWidth)) / 2.0f;
+    const float contentLeft = panelX + scalei(LayoutConfig::OverlayContentInset);
+    const float contentRight = panelX + scalei(LayoutConfig::OverlayPanelWidth) - scalei(LayoutConfig::OverlayContentInset);
+    const float boxSize = (float)scalei(LayoutConfig::OptionsCheckboxSize);
+    const float tickInset = (float)scalei(LayoutConfig::OptionsCheckboxTickInset);
+    const float textY = y + tickInset;
+    const int labelFontSize = scalei(LayoutConfig::OptionsLabelFontSize);
+
+    DrawText(label.c_str(),
+             (int)contentLeft,
+             (int)textY,
+             labelFontSize,
+             Colors::text_primary);
+
+    Rectangle checkbox = {
+        contentRight - boxSize,
+        y,
+        boxSize,
+        boxSize
+    };
+    DrawRectangleRec(checkbox, Colors::card_bg);
+    DrawRectangleLinesEx(checkbox, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+    if (checked) {
+        DrawLineEx({ checkbox.x + tickInset, checkbox.y + boxSize / 2.0f },
+                   { checkbox.x + boxSize / 2.2f, checkbox.y + boxSize - tickInset },
+                   scalef(LayoutConfig::OptionsCheckboxTickThickness),
+                   Colors::heal_color);
+        DrawLineEx({ checkbox.x + boxSize / 2.2f, checkbox.y + boxSize - tickInset },
+                   { checkbox.x + boxSize - tickInset, checkbox.y + tickInset },
+                   scalef(LayoutConfig::OptionsCheckboxTickThickness),
+                   Colors::heal_color);
+    }
+
+    return mouseOver(checkbox) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
 }
 
 void GameScreen::drawHealthBar(Rectangle bar, float ratio) const {
@@ -553,21 +908,32 @@ void GameScreen::drawHealthBar(Rectangle bar, float ratio) const {
                :                   Colors::health_color;
     Rectangle filled = { bar.x, bar.y, bar.width * ratio, bar.height };
     DrawRectangleRec(filled, fill);
-    DrawRectangleLinesEx(bar, (float)LayoutConfig::ThinBorderThickness, Colors::card_border);
+    DrawRectangleLinesEx(bar, scalef(LayoutConfig::ThinBorderThickness), Colors::card_border);
 }
 
 void GameScreen::drawPlayerBox(Rectangle box, const Player& player) const {
-    DrawRectangleRec(box, Colors::card_bg);
-    DrawRectangleLinesEx(box, 2.0f, Colors::card_border);
+    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
+    const int textPadding = scalei(LayoutConfig::EntityTextPadding);
+    const int screenMargin = scalei(LayoutConfig::TooltipScreenMargin);
+    const int nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
+    const int healthBarOffsetY = scalei(LayoutConfig::HealthBarOffsetY);
+    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
+    const int healthTextOffsetY = scalei(LayoutConfig::HealthTextOffsetY);
+    const int manaTextOffsetY = scalei(LayoutConfig::ManaTextOffsetY);
+    const int blockTextOffsetY = scalei(LayoutConfig::BlockTextOffsetY);
+    const int statFontSize = scalei(LayoutConfig::EntityStatFontSize);
 
-    DrawText("You", (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::TooltipScreenMargin,
-             LayoutConfig::EntityNameFontSize, Colors::text_primary);
+    DrawRectangleRec(box, Colors::card_bg);
+    DrawRectangleLinesEx(box, borderThickness, Colors::card_border);
+
+    DrawText("You", (int)box.x + textPadding, (int)box.y + screenMargin,
+             nameFontSize, Colors::text_primary);
 
     Rectangle bar = {
-        box.x + LayoutConfig::EntityTextPadding,
-        box.y + LayoutConfig::HealthBarOffsetY,
-        box.width - LayoutConfig::EntityTextPadding * 2,
-        (float)LayoutConfig::HealthBarHeight
+        box.x + textPadding,
+        box.y + healthBarOffsetY,
+        box.width - textPadding * 2,
+        (float)healthBarHeight
     };
     float hpRatio = (player.getMaxHealth() > 0)
                   ? (float)player.getHealth() / player.getMaxHealth() : 0.0f;
@@ -575,34 +941,44 @@ void GameScreen::drawPlayerBox(Rectangle box, const Player& player) const {
 
     std::string hpStr = std::to_string(player.getHealth()) + " / "
                       + std::to_string(player.getMaxHealth()) + " HP";
-    DrawText(hpStr.c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::HealthTextOffsetY,
-             LayoutConfig::EntityStatFontSize, Colors::text_secondary);
+    DrawText(hpStr.c_str(), (int)box.x + textPadding, (int)box.y + healthTextOffsetY,
+             statFontSize, Colors::text_secondary);
 
     std::string manaStr = "MANA: " + std::to_string(player.getMana())
                         + " / " + std::to_string(player.getMaxMana());
-    DrawText(manaStr.c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::ManaTextOffsetY,
-             LayoutConfig::EntityStatFontSize, Colors::text_secondary);
+    DrawText(manaStr.c_str(), (int)box.x + textPadding, (int)box.y + manaTextOffsetY,
+             statFontSize, Colors::text_secondary);
 
     if (player.getBlock() > 0) {
         std::string blkStr = "BLOCK: " + std::to_string(player.getBlock());
-        DrawText(blkStr.c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::BlockTextOffsetY,
-                 LayoutConfig::EntityStatFontSize,
+        DrawText(blkStr.c_str(), (int)box.x + textPadding, (int)box.y + blockTextOffsetY,
+                 statFontSize,
                  Colors::block_color);
     }
 }
 
 void GameScreen::drawEnemyBox(Rectangle box, const Enemy& enemy) const {
-    DrawRectangleRec(box, Colors::card_bg);
-    DrawRectangleLinesEx(box, 2.0f, Colors::card_border);
+    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
+    const int textPadding = scalei(LayoutConfig::EntityTextPadding);
+    const int screenMargin = scalei(LayoutConfig::TooltipScreenMargin);
+    const int nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
+    const int healthBarOffsetY = scalei(LayoutConfig::HealthBarOffsetY);
+    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
+    const int healthTextOffsetY = scalei(LayoutConfig::HealthTextOffsetY);
+    const int manaTextOffsetY = scalei(LayoutConfig::ManaTextOffsetY);
+    const int statFontSize = scalei(LayoutConfig::EntityStatFontSize);
 
-    DrawText(enemy.getName().c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::TooltipScreenMargin,
-             LayoutConfig::EntityNameFontSize, Colors::text_primary);
+    DrawRectangleRec(box, Colors::card_bg);
+    DrawRectangleLinesEx(box, borderThickness, Colors::card_border);
+
+    DrawText(enemy.getName().c_str(), (int)box.x + textPadding, (int)box.y + screenMargin,
+             nameFontSize, Colors::text_primary);
 
     Rectangle bar = {
-        box.x + LayoutConfig::EntityTextPadding,
-        box.y + LayoutConfig::HealthBarOffsetY,
-        box.width - LayoutConfig::EntityTextPadding * 2,
-        (float)LayoutConfig::HealthBarHeight
+        box.x + textPadding,
+        box.y + healthBarOffsetY,
+        box.width - textPadding * 2,
+        (float)healthBarHeight
     };
     float hpRatio = (enemy.getMaxHealth() > 0)
                   ? (float)enemy.getHealth() / enemy.getMaxHealth() : 0.0f;
@@ -610,18 +986,29 @@ void GameScreen::drawEnemyBox(Rectangle box, const Enemy& enemy) const {
 
     std::string hpStr = std::to_string(enemy.getHealth()) + " / "
                       + std::to_string(enemy.getMaxHealth()) + " HP";
-    DrawText(hpStr.c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::HealthTextOffsetY,
-             LayoutConfig::EntityStatFontSize, Colors::text_secondary);
+    DrawText(hpStr.c_str(), (int)box.x + textPadding, (int)box.y + healthTextOffsetY,
+             statFontSize, Colors::text_secondary);
 
     if (enemy.getEnemyBlock() > 0) {
         std::string blkStr = "BLOCK: " + std::to_string(enemy.getEnemyBlock());
-        DrawText(blkStr.c_str(), (int)box.x + LayoutConfig::EntityTextPadding, (int)box.y + LayoutConfig::ManaTextOffsetY,
-                 LayoutConfig::EntityStatFontSize,
+        DrawText(blkStr.c_str(), (int)box.x + textPadding, (int)box.y + manaTextOffsetY,
+                 statFontSize,
                  Colors::block_color);
     }
 }
 
 void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const {
+    rect = snapRect(rect);
+    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
+    const float thinBorderThickness = scalef(LayoutConfig::ThinBorderThickness);
+    const float baseCardHeight = (float)scalei(LayoutConfig::CardHeight);
+    const float baseArtHeight = (float)scalei(LayoutConfig::CardArtHeight);
+    const int textPadding = scalei(LayoutConfig::CardTextPadding);
+    const int textTopPadding = scalei(LayoutConfig::CardTextTopPadding);
+    const int textGap = scalei(LayoutConfig::CardTextGap);
+    const int descriptionGap = scalei(LayoutConfig::CardDescriptionGap);
+    const int footerMargin = scalei(LayoutConfig::CardFooterMargin);
+    const int rightStatPadding = scalei(LayoutConfig::CardRightStatPadding);
     const Vector2 pivot = { rect.x + rect.width / 2.0f, rect.y + rect.height };
 
     rlPushMatrix();
@@ -631,10 +1018,10 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
 
     Color bg = scaled ? Colors::button_hover : Colors::card_bg;
     DrawRectangleRec(rect, bg);
-    DrawRectangleLinesEx(rect, (float)LayoutConfig::PanelBorderThickness, Colors::card_border);
+    DrawRectangleLinesEx(rect, borderThickness, Colors::card_border);
 
-    float artH = ART_H * (rect.height / (float)CARD_H);
-    Rectangle artRect = { rect.x + 2, rect.y + 2, rect.width - 4, artH - 2 };
+    float artH = baseArtHeight * (rect.height / baseCardHeight);
+    Rectangle artRect = snapRect({ rect.x + 2, rect.y + 2, rect.width - 4, artH - 2 });
 
     auto texOpt = m_artCache.getTexture(card.getArtPath());
     if (texOpt.has_value()) {
@@ -643,25 +1030,25 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
         DrawTexturePro(tex, src, artRect, { 0.0f, 0.0f }, 0.0f, WHITE);
     } else {
         DrawRectangleRec(artRect, Colors::placeholder_art_bg);
-        DrawRectangleLinesEx(artRect, (float)LayoutConfig::ThinBorderThickness, Colors::light_bg);
+        DrawRectangleLinesEx(artRect, thinBorderThickness, Colors::light_bg);
     }
 
     float divY = rect.y + artH;
     DrawLine((int)rect.x, (int)divY, (int)(rect.x + rect.width), (int)divY, Colors::card_border);
 
-    int textX = (int)rect.x + LayoutConfig::CardTextPadding;
-    int textY = (int)divY + LayoutConfig::CardTextTopPadding;
+    int textX = (int)rect.x + textPadding;
+    int textY = (int)divY + textTopPadding;
 
-    int nameSz = scaled ? LayoutConfig::HoveredCardNameSize : LayoutConfig::CardNameFontSize;
+    int nameSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize : LayoutConfig::CardNameFontSize);
     int nameW  = MeasureText(card.getName().c_str(), nameSz);
     DrawText(card.getName().c_str(),
              (int)rect.x + ((int)rect.width - nameW) / 2,
              textY, nameSz, Colors::text_primary);
-    textY += nameSz + LayoutConfig::CardTextGap;
+    textY += nameSz + textGap;
 
     const std::string& desc = card.getDescription();
     if (!desc.empty()) {
-        const int descSz  = LayoutConfig::CardDescriptionSize;
+        const int descSz  = scalei(LayoutConfig::CardDescriptionSize);
         const int lineLen = (int)rect.width / 6;
         int pos = 0, lines = 0;
         while (pos < (int)desc.size() && lines < LayoutConfig::CardDescriptionLines) {
@@ -672,15 +1059,15 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
             }
             DrawText(desc.substr(pos, end - pos).c_str(), textX, textY, descSz,
                      Colors::text_secondary);
-            textY += descSz + LayoutConfig::CardDescriptionGap;
+            textY += descSz + descriptionGap;
             pos = end;
             while (pos < (int)desc.size() && desc[pos] == ' ') ++pos;
             ++lines;
         }
     }
 
-    int footerY = (int)(rect.y + rect.height) - LayoutConfig::CardFooterMargin;
-    int infoSz  = scaled ? LayoutConfig::HoveredCardFooterSize : LayoutConfig::CardFooterSize;
+    int footerY = (int)(rect.y + rect.height) - footerMargin;
+    int infoSz  = scalei(scaled ? LayoutConfig::HoveredCardFooterSize : LayoutConfig::CardFooterSize);
 
     std::string costStr = std::to_string(card.getCost()) + " mana";
     DrawText(costStr.c_str(), textX, footerY, infoSz, Colors::text_secondary);
@@ -688,13 +1075,13 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     if (card.getDamageAmount() > 0) {
         std::string pwrStr = std::to_string(card.getDamageAmount()) + " dmg";
         int pw = MeasureText(pwrStr.c_str(), infoSz);
-        DrawText(pwrStr.c_str(), (int)(rect.x + rect.width) - pw - LayoutConfig::CardRightStatPadding, footerY,
+        DrawText(pwrStr.c_str(), (int)(rect.x + rect.width) - pw - rightStatPadding, footerY,
                  infoSz, Colors::damage_color);
     }
     if (card.getBlockAmount() > 0) {
         std::string blkStr = std::to_string(card.getBlockAmount()) + " blk";
         int bw = MeasureText(blkStr.c_str(), infoSz);
-        DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - LayoutConfig::CardRightStatPadding, footerY,
+        DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - rightStatPadding, footerY,
                  infoSz, Colors::block_color);
     }
 
@@ -702,27 +1089,27 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
 }
 
 void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
-    const int tipW = LayoutConfig::TooltipWidth;
-    const int tipH = LayoutConfig::TooltipHeight;
-    const int pad = LayoutConfig::TooltipPadding;
-    const int sz = LayoutConfig::TooltipTextSize;
+    const int tipW = scalei(LayoutConfig::TooltipWidth);
+    const int tipH = scalei(LayoutConfig::TooltipHeight);
+    const int pad = scalei(LayoutConfig::TooltipPadding);
+    const int sz = scalei(LayoutConfig::TooltipTextSize);
     if (y + tipH > m_height) y = (float)(m_height - tipH - 4);
     if (x < 0) x = 4.0f;
 
     Rectangle tip = { x, y, (float)tipW, (float)tipH };
     DrawRectangleRec(tip, Colors::light_bg);
-    DrawRectangleLinesEx(tip, (float)LayoutConfig::PanelBorderThickness, Colors::card_border);
+    DrawRectangleLinesEx(tip, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
 
     int tx = (int)x + pad, ty = (int)y + pad;
-    DrawText(card.getName().c_str(), tx, ty, LayoutConfig::TooltipTitleSize, Colors::text_primary);
-    ty += LayoutConfig::TooltipTitleSpacing;
+    DrawText(card.getName().c_str(), tx, ty, scalei(LayoutConfig::TooltipTitleSize), Colors::text_primary);
+    ty += scalei(LayoutConfig::TooltipTitleSpacing);
 
     std::string meta = std::string(card.getTypeLabel()) + "  Cost:" + std::to_string(card.getCost());
     if (card.getDamageAmount() > 0) meta += "  Dmg:" + std::to_string(card.getDamageAmount());
     if (card.getBlockAmount() > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
     if (card.getHealAmount() > 0)  meta += "  Heal:" + std::to_string(card.getHealAmount());
-    DrawText(meta.c_str(), tx, ty, LayoutConfig::TooltipMetaSize, Colors::text_secondary);
-    ty += LayoutConfig::TooltipMetaSpacing;
+    DrawText(meta.c_str(), tx, ty, scalei(LayoutConfig::TooltipMetaSize), Colors::text_secondary);
+    ty += scalei(LayoutConfig::TooltipMetaSpacing);
 
     DrawLine(tx, ty, tx + tipW - 2*pad, ty, Colors::card_border);
     ty += 6;
@@ -752,31 +1139,35 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemyBox) con
     else if (dmg > 0)             intentColor = Colors::damage_color;
     else                          intentColor = Colors::block_color;
 
-    const int iH = LayoutConfig::IntentHeight;
-    Rectangle iRect = { enemyBox.x, enemyBox.y + enemyBox.height + 6,
+    const int iH = scalei(LayoutConfig::IntentHeight);
+    const int fontSize = scalei(LayoutConfig::IntentFontSize);
+    Rectangle iRect = { enemyBox.x, enemyBox.y + enemyBox.height + scalef(6.0f),
                          enemyBox.width, (float)iH };
     DrawRectangleRec(iRect, Colors::light_bg);
-    DrawRectangleLinesEx(iRect, (float)LayoutConfig::PanelBorderThickness, intentColor);
+    DrawRectangleLinesEx(iRect, scalef(LayoutConfig::PanelBorderThickness), intentColor);
 
     std::string desc = enemy.getIntentDescription();
-    int dw = MeasureText(desc.c_str(), LayoutConfig::IntentFontSize);
+    int dw = MeasureText(desc.c_str(), fontSize);
     DrawText(desc.c_str(),
              (int)iRect.x + ((int)iRect.width - dw) / 2,
-             (int)iRect.y + (iH - LayoutConfig::IntentFontSize) / 2,
-             LayoutConfig::IntentFontSize, intentColor);
+             (int)iRect.y + (iH - fontSize) / 2,
+             fontSize, intentColor);
 
     if (mouseOver(iRect)) {
-        float tipX = iRect.x + iRect.width + 4.0f;
-        if (tipX + LayoutConfig::IntentTooltipWidth > m_width) {
-            tipX = iRect.x - LayoutConfig::IntentTooltipWidth - LayoutConfig::TooltipScreenMargin;
+        const int tooltipWidth = scalei(LayoutConfig::IntentTooltipWidth);
+        const int tooltipHeight = scalei(LayoutConfig::IntentTooltipHeight);
+        const int tooltipFontSize = scalei(LayoutConfig::IntentTooltipFontSize);
+        float tipX = iRect.x + iRect.width + scalef(4.0f);
+        if (tipX + tooltipWidth > m_width) {
+            tipX = iRect.x - tooltipWidth - scalei(LayoutConfig::TooltipScreenMargin);
         }
-        Rectangle tipRect = { tipX, iRect.y, (float)LayoutConfig::IntentTooltipWidth, (float)LayoutConfig::IntentTooltipHeight };
+        Rectangle tipRect = { tipX, iRect.y, (float)tooltipWidth, (float)tooltipHeight };
         DrawRectangleRec(tipRect, Colors::light_bg);
-        DrawRectangleLinesEx(tipRect, (float)LayoutConfig::ThinBorderThickness, intentColor);
+        DrawRectangleLinesEx(tipRect, scalef(LayoutConfig::ThinBorderThickness), intentColor);
         DrawText(desc.c_str(),
-                 (int)tipX + LayoutConfig::IntentTooltipPadding,
-                 (int)iRect.y + LayoutConfig::TooltipPadding,
-                 LayoutConfig::IntentTooltipFontSize,
+                 (int)tipX + scalei(LayoutConfig::IntentTooltipPadding),
+                 (int)iRect.y + scalei(LayoutConfig::TooltipPadding),
+                 tooltipFontSize,
                  intentColor);
     }
 }

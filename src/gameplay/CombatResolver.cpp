@@ -11,7 +11,7 @@
 
 bool CardResolutionSummary::hasGameplayEffect() const {
     return damageDealt > 0 || blockGained > 0 || healingDone > 0 || cardsDrawn > 0
-        || bonusManaGranted > 0 || debuffsCleared > 0 || enemyTurnSkipped;
+        || manaGained > 0 || bonusManaGranted > 0 || debuffsCleared > 0 || enemyTurnSkipped;
 }
 
 namespace CombatResolver {
@@ -47,6 +47,13 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
         case EffectType::CleanseDebuffs:
             if (effect.target == EffectTarget::Self) {
                 summary.debuffsCleared += player.clearNegativeStatuses();
+            }
+            break;
+
+        case EffectType::GainMana:
+            if (effect.target == EffectTarget::Self) {
+                player.gainMana(effect.amount);
+                summary.manaGained += effect.amount;
             }
             break;
 
@@ -103,6 +110,9 @@ std::string buildPlayerActionText(const Card& card, const CardResolutionSummary&
         if (summary.cardsDrawn > 1) {
             fragments.back() += "s";
         }
+    }
+    if (summary.manaGained > 0) {
+        fragments.push_back("gained +" + std::to_string(summary.manaGained) + " mana");
     }
     if (summary.bonusManaGranted > 0) {
         fragments.push_back("banked +" + std::to_string(summary.bonusManaGranted) + " mana for next turn");

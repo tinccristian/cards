@@ -97,6 +97,18 @@
       ]
     },
     {
+      "id": "heartbeat",
+      "name": "Heartbeat",
+      "description": "Gain 2 mana",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["medicine", "utility", "cardio"],
+      "artPath": "assets/cards/heart.png",
+      "effects": [
+        { "type": "gain_mana", "target": "self", "amount": 2 }
+      ]
+    },
+    {
       "id": "quarantine",
       "name": "Quarantine",
       "description": "Prevent the enemy from acting for 1 turn",

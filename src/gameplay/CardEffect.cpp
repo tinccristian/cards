@@ -20,6 +20,7 @@ std::optional<EffectType> effectTypeFromString(const std::string& value) {
     if (value == "block")               return EffectType::Block;
     if (value == "heal")                return EffectType::Heal;
     if (value == "cleanse_debuffs")     return EffectType::CleanseDebuffs;
+    if (value == "gain_mana")           return EffectType::GainMana;
     if (value == "gain_mana_next_turn") return EffectType::GainManaNextTurn;
     if (value == "skip_enemy_turn")     return EffectType::SkipEnemyTurn;
     if (value == "draw_cards")          return EffectType::DrawCards;
@@ -32,6 +33,7 @@ const char* toString(EffectType type) {
     case EffectType::Block:            return "Block";
     case EffectType::Heal:             return "Heal";
     case EffectType::CleanseDebuffs:   return "Cleanse Debuffs";
+    case EffectType::GainMana:         return "Gain Mana";
     case EffectType::GainManaNextTurn: return "Gain Mana Next Turn";
     case EffectType::SkipEnemyTurn:    return "Skip Enemy Turn";
     case EffectType::DrawCards:        return "Draw Cards";

@@ -15,13 +15,20 @@ inline constexpr const char* CARD_SHUFFLE_SOUND = "assets/sounds/cards/card_shuf
 
 namespace AudioConfig {
 // ## Audio / Levels ##
-inline constexpr float MasterVolume      = 78.0f;
-inline constexpr float CardHoverVolume   = 42.0f;
-inline constexpr float CardShuffleVolume = 68.0f;
+inline constexpr float MasterVolume      = 50.0f;
+inline constexpr float CardHoverVolume   = 15.0f;
+inline constexpr float CardShuffleVolume = 25.0f;
+inline constexpr int MasterVolumeStep    = 5;
 
 // ## Audio / Card SFX ##
 inline constexpr int CardHoverVoiceCount = 6;
 } // namespace AudioConfig
+
+// ## Settings ##
+namespace SettingsConfig {
+inline constexpr const char* AppFolderName   = "MedicalDeckbuilder";
+inline constexpr const char* SettingsFileName = "settings.json";
+} // namespace SettingsConfig
 
 // ## Window ##
 namespace WindowConfig {
@@ -47,6 +54,8 @@ namespace LayoutConfig {
 inline constexpr int DefaultButtonFontSize = 22;
 inline constexpr int PanelBorderThickness  = 2;
 inline constexpr int ThinBorderThickness   = 1;
+inline constexpr float UiMinScale          = 1.0f;
+inline constexpr float UiMaxScale          = 1.8f;
 
 // ## UI / Menu ##
 inline constexpr int MenuTitleFontSize     = 48;
@@ -66,22 +75,24 @@ inline constexpr int CombatLogFontSize     = 17;
 // ## UI / Cards ##
 inline constexpr int CardWidth             = 120;
 inline constexpr int CardHeight            = 180;
-inline constexpr int CardGap               = 6;
+inline constexpr float CardGap             = -40.0f;
 inline constexpr int CardArtHeight         = 80;
 inline constexpr float HandLeftBoundPercent  = 0.14f;
 inline constexpr float HandRightBoundPercent = 0.86f;
-inline constexpr float HoveredCardScale    = 1.4f;
-inline constexpr float HoveredCardLift     = 40.0f;
-inline constexpr float HandArchHeight      = 24.0f;
+inline constexpr float HoveredCardScale    = 2.0f;
+inline constexpr float HoveredCardLift     = 250.0f;
+inline constexpr float HandArchHeight      = 50.0f;
 inline constexpr float HandMaxTiltDegrees  = 14.0f;
-inline constexpr float HoveredTiltFactor   = 0.35f;
-inline constexpr int HandBottomMargin      = 50;
+inline constexpr float HoveredTiltFactor   = 0.5f;
+inline constexpr int HandBottomMargin      = -20;
 inline constexpr int HandDropZoneTopPadding = 90;
+inline constexpr float HandBottomOverflowPercent = 0.30f;
+inline constexpr float HoverAnimSpeed       = 15.0f;
 inline constexpr float WiggleXAmplitude    = 3.0f;
 inline constexpr float WiggleYAmplitude    = 2.0f;
 inline constexpr float WiggleXFrequency    = 3.0f;
 inline constexpr float WiggleYFrequency    = 2.0f;
-inline constexpr float NeighborCardShift   = 20.0f;
+inline constexpr float NeighborCardShift   = 15.0f;
 
 // ## UI / Piles ##
 inline constexpr int PileWidgetWidth       = 86;
@@ -103,6 +114,40 @@ inline constexpr int EndTurnButtonWidth    = 160;
 inline constexpr int EndTurnButtonHeight   = 50;
 inline constexpr int EndTurnButtonMargin   = 24;
 inline constexpr int EndTurnToPileGap      = 14;
+
+// ## UI / Overlays ##
+inline constexpr int OverlayTitleFontSize  = 34;
+inline constexpr int OverlayPanelWidth     = 760;
+inline constexpr int PausePanelHeight      = 380;
+inline constexpr int OptionsPanelHeight    = 540;
+inline constexpr int OverlayButtonWidth    = 220;
+inline constexpr int OverlayButtonHeight   = 48;
+inline constexpr int OverlayButtonGap      = 14;
+inline constexpr int OverlayContentInset   = 36;
+inline constexpr int PauseButtonsTopOffset = 92;
+
+// ## UI / Options ##
+inline constexpr int OptionsTabWidth       = 140;
+inline constexpr int OptionsTabHeight      = 40;
+inline constexpr int OptionsTabGap         = 10;
+inline constexpr int OptionsTabTopOffset   = 70;
+inline constexpr int OptionsRowsTopOffset  = 140;
+inline constexpr int OptionsRowHeight      = 58;
+inline constexpr int OptionsLabelFontSize  = 22;
+inline constexpr int OptionsValueFontSize  = 20;
+inline constexpr int OptionsArrowButtonSize = 34;
+inline constexpr int OptionsCheckboxSize   = 24;
+inline constexpr int OptionsValueAreaWidth = 280;
+inline constexpr int OptionsValuePadding   = 12;
+inline constexpr int OptionsRowTextOffsetY = 6;
+inline constexpr int OptionsValueTextOffsetY = 2;
+inline constexpr int OptionsCheckboxTickInset = 4;
+inline constexpr float OptionsCheckboxTickThickness = 3.0f;
+inline constexpr int OptionsFooterOffsetY  = 72;
+
+// ## UI / Debug ##
+inline constexpr int FpsCounterX           = 16;
+inline constexpr int FpsCounterY           = 16;
 
 // ## UI / Game Over ##
 inline constexpr int GameOverFontSize      = 60;

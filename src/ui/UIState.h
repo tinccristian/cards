@@ -3,7 +3,9 @@
 enum class UIMode {
     NORMAL,
     VIEWING_DRAW_PILE,
-    VIEWING_DISCARD_PILE
+    VIEWING_DISCARD_PILE,
+    PAUSED,
+    OPTIONS
 };
 
 // Lightweight UI state: tracks which overlay (if any) is open and scroll position.

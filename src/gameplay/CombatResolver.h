@@ -11,6 +11,7 @@ struct CardResolutionSummary {
     int blockGained       = 0;
     int healingDone       = 0;
     int cardsDrawn        = 0;
+    int manaGained        = 0;
     int bonusManaGranted  = 0;
     int debuffsCleared    = 0;
     bool enemyTurnSkipped = false;

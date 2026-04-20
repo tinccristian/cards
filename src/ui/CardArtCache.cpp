@@ -21,6 +21,10 @@ std::optional<Texture2D> CardArtCache::getTexture(const std::string& path) {
         return std::nullopt;
     }
 
+    // Card art is frequently scaled and slightly rotated in-hand, so linear filtering
+    // avoids harsh shimmering from per-pixel resampling while moving.
+    SetTextureFilter(texture, TEXTURE_FILTER_BILINEAR);
+
     m_textures.emplace(path, texture);
     return texture;
 }

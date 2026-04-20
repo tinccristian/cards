@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/AppSettings.h"
 #include "audio/CardAudio.h"
 #include "CardArtCache.h"
 #include "Colors.h"
@@ -15,8 +16,21 @@
 enum class MenuAction {
     None = -1,
     NewGame = 0,
-    Continue = 1,
+    Options = 1,
     Quit = 2
+};
+
+enum class PauseAction {
+    None,
+    Resume,
+    Options,
+    MainMenu,
+    Quit
+};
+
+enum class OptionsMenuAction {
+    None,
+    Back
 };
 
 class GameScreen {
@@ -24,14 +38,20 @@ public:
     GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio = nullptr);
 
     // Draw the main menu and report the clicked action for this frame.
-    MenuAction drawMenu();
+    MenuAction drawMenu(bool allowInteraction = true);
 
     // Draw the combat screen.
     //   endTurnClicked: set to true if End Turn was pressed (only during PLAYER_TURN).
     //   drawPileClicked / discardPileClicked: set if corresponding widget was clicked.
     //   Returns hand index of card clicked (-1 if none).
     int drawCombat(GameState& state, bool& endTurnClicked,
-                   bool& drawPileClicked, bool& discardPileClicked);
+                   bool& drawPileClicked, bool& discardPileClicked,
+                   bool allowInteraction = true);
+
+    PauseAction drawPauseMenu();
+    OptionsMenuAction drawOptionsMenu(AppSettings& settings,
+                                      OptionsSection& activeSection,
+                                      bool openedFromPause);
 
     // Draw a full-screen overlay listing cards in a pile.
     //   title: heading text ("Draw Pile" / "Discard Pile")
@@ -62,14 +82,20 @@ private:
 
     int          m_width;
     int          m_height;
-    int          m_hoveredCardIndex = -1;
-    float        m_wiggleTime       = 0.0f;
-    int          m_draggedCardIndex = -1;
+    int          m_hoveredCardIndex   = -1;
+    float        m_wiggleTime         = 0.0f;
+    float        m_hoverProgress      = 0.0f;
+    int          m_hoverProgressIndex = -1;
+    int          m_draggedCardIndex   = -1;
     Vector2      m_dragGrabOffset   = { 0.0f, 0.0f };
     CardAudio*   m_cardAudio        = nullptr;
     mutable CardArtCache m_artCache;
 
     // --- helpers ---
+    void syncWindowSize();
+    float uiScale() const;
+    int scalei(int value) const;
+    float scalef(float value) const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
     void drawHealthBar(Rectangle bar, float ratio) const;
     void drawPlayerBox(Rectangle box, const Player& player) const;
@@ -81,6 +107,8 @@ private:
     // Draw a pile widget (stack visual + label + count). Returns true if clicked.
     bool drawPileWidget(Rectangle rect, const std::string& label,
                         int count, Color accentColor) const;
+    int drawStepperRow(float y, const std::string& label, const std::string& value) const;
+    bool drawCheckboxRow(float y, const std::string& label, bool checked) const;
 
     Rectangle handDropZone() const;
     Rectangle drawPileButtonRect() const;

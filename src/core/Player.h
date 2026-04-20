@@ -33,6 +33,7 @@ public:
     int  getMana()    const;
     int  getMaxMana() const;
     void startTurn();
+    void gainMana(int amount);
     // Deduct 'amount' mana. Returns false (no change) if insufficient.
     bool useMana(int amount);
 

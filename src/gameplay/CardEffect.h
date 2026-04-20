@@ -14,6 +14,7 @@ enum class EffectType {
     Block,
     Heal,
     CleanseDebuffs,
+    GainMana,
     GainManaNextTurn,
     SkipEnemyTurn,
     DrawCards,

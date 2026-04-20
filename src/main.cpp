@@ -1,3 +1,4 @@
+#include "app/AppSettings.h"
 #include "audio/CardAudio.h"
 #include "raylib.h"
 #include "config/Defines.h"
@@ -12,9 +13,19 @@
 #include <string>
 
 int main() {
-    const int screenWidth  = WindowConfig::Width;
-    const int screenHeight = WindowConfig::Height;
+    std::string settingsWarning;
+    AppSettings appSettings = SettingsManager::loadOrCreate(settingsWarning);
+    if (!settingsWarning.empty()) {
+        TraceLog(LOG_WARNING, "%s", settingsWarning.c_str());
+    }
 
+    SettingsManager::clamp(appSettings);
+    const ResolutionOption startupResolution =
+        SettingsManager::resolutionOptions()[appSettings.resolutionIndex];
+    const int screenWidth  = startupResolution.width;
+    const int screenHeight = startupResolution.height;
+
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | (appSettings.vsyncEnabled ? FLAG_VSYNC_HINT : 0));
     InitWindow(screenWidth, screenHeight, "Medical Deckbuilder");
     InitAudioDevice();
     SetTargetFPS(WindowConfig::TargetFps);
@@ -25,6 +36,8 @@ int main() {
     if (!cardAudio.initialize(audioWarning)) {
         TraceLog(LOG_WARNING, "%s", audioWarning.c_str());
     }
+    SettingsManager::applyDisplaySettings(appSettings);
+    SettingsManager::applyAudioSettings(appSettings);
     Deck::setShuffleCallback([&cardAudio]() {
         cardAudio.playShuffle();
     });
@@ -40,13 +53,31 @@ int main() {
     }
 
     GameState  state;
-    GameScreen screen(screenWidth, screenHeight, &cardAudio);
+    GameScreen screen(GetScreenWidth(), GetScreenHeight(), &cardAudio);
     UIState    uiState;
+    bool       showMainMenuOptions = false;
+    bool       shouldQuit = false;
+    OptionsSection mainMenuOptionsSection = OptionsSection::Display;
+    OptionsSection pauseOptionsSection = OptionsSection::Display;
 
     float       enemyTurnElapsed    = 0.0f;
     const float enemyTurnDuration   = CombatConfig::EnemyTurnDelaySecs;
 
-    while (!WindowShouldClose()) {
+    const auto saveSettings = [&appSettings]() {
+        std::string saveError;
+        if (!SettingsManager::save(appSettings, saveError) && !saveError.empty()) {
+            TraceLog(LOG_WARNING, "%s", saveError.c_str());
+        }
+    };
+
+    const auto applySettings = [&appSettings, &saveSettings]() {
+        SettingsManager::clamp(appSettings);
+        SettingsManager::applyDisplaySettings(appSettings);
+        SettingsManager::applyAudioSettings(appSettings);
+        saveSettings();
+    };
+
+    while (!WindowShouldClose() && !shouldQuit) {
         BeginDrawing();
         ClearBackground(Colors::dark_bg);
 
@@ -54,16 +85,29 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::MENU: {
-            const MenuAction action = screen.drawMenu();
-            if (action == MenuAction::NewGame) {
-                state.setPhase(GamePhase::NEW_GAME);
-            } else if (action == MenuAction::Quit) {
-                EndDrawing();
-                Deck::setShuffleCallback({});
-                cardAudio.shutdown();
-                CloseAudioDevice();
-                CloseWindow();
-                return 0;
+            if (showMainMenuOptions) {
+                if (InputHandler::getEscapePressed()) {
+                    showMainMenuOptions = false;
+                    break;
+                }
+                const AppSettings previousSettings = appSettings;
+                screen.drawMenu(false);
+                if (screen.drawOptionsMenu(appSettings, mainMenuOptionsSection, false) == OptionsMenuAction::Back) {
+                    showMainMenuOptions = false;
+                }
+                if (appSettings != previousSettings) {
+                    applySettings();
+                }
+            } else {
+                const MenuAction action = screen.drawMenu();
+                if (action == MenuAction::NewGame) {
+                    state.setPhase(GamePhase::NEW_GAME);
+                } else if (action == MenuAction::Options) {
+                    showMainMenuOptions = true;
+                    mainMenuOptionsSection = OptionsSection::Display;
+                } else if (action == MenuAction::Quit) {
+                    shouldQuit = true;
+                }
             }
             break;
         }
@@ -77,6 +121,7 @@ int main() {
                 break;
             }
             uiState.setMode(UIMode::NORMAL);
+            showMainMenuOptions = false;
             enemyTurnElapsed = 0.0f;
             state.setPhase(GamePhase::COMBAT);
             break;
@@ -84,11 +129,63 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::COMBAT: {
+            if (InputHandler::getEscapePressed()) {
+                if (uiState.getCurrentMode() == UIMode::NORMAL) {
+                    uiState.setMode(UIMode::PAUSED);
+                } else if (uiState.getCurrentMode() == UIMode::PAUSED) {
+                    uiState.setMode(UIMode::NORMAL);
+                } else if (uiState.getCurrentMode() == UIMode::OPTIONS) {
+                    uiState.setMode(UIMode::PAUSED);
+                } else {
+                    uiState.setMode(UIMode::NORMAL);
+                }
+            }
+
+            if (uiState.getCurrentMode() == UIMode::PAUSED) {
+                bool unused1 = false, unused2 = false, unused3 = false;
+                screen.drawCombat(state, unused1, unused2, unused3, false);
+
+                switch (screen.drawPauseMenu()) {
+                case PauseAction::Resume:
+                    uiState.setMode(UIMode::NORMAL);
+                    break;
+                case PauseAction::Options:
+                    uiState.setMode(UIMode::OPTIONS);
+                    pauseOptionsSection = OptionsSection::Display;
+                    break;
+                case PauseAction::MainMenu:
+                    uiState.setMode(UIMode::NORMAL);
+                    state.setPhase(GamePhase::MENU);
+                    enemyTurnElapsed = 0.0f;
+                    break;
+                case PauseAction::Quit:
+                    shouldQuit = true;
+                    break;
+                case PauseAction::None:
+                    break;
+                }
+                break;
+            }
+
+            if (uiState.getCurrentMode() == UIMode::OPTIONS) {
+                const AppSettings previousSettings = appSettings;
+                bool unused1 = false, unused2 = false, unused3 = false;
+                screen.drawCombat(state, unused1, unused2, unused3, false);
+                if (screen.drawOptionsMenu(appSettings, pauseOptionsSection, true) == OptionsMenuAction::Back) {
+                    uiState.setMode(UIMode::PAUSED);
+                }
+                if (appSettings != previousSettings) {
+                    applySettings();
+                }
+                break;
+            }
+
             // Handle pile-viewer overlay (drawn on top of combat screen)
-            if (uiState.getCurrentMode() != UIMode::NORMAL) {
+            if (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE
+                || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE) {
                 // Still draw the combat screen beneath the overlay
                 bool unused1 = false, unused2 = false, unused3 = false;
-                screen.drawCombat(state, unused1, unused2, unused3);
+                screen.drawCombat(state, unused1, unused2, unused3, false);
 
                 // Determine which pile to show
                 const Deck& deck = state.getPlayer().getDeck();
@@ -158,6 +255,10 @@ int main() {
         }
 
         } // switch
+
+        if (appSettings.showFps) {
+            DrawFPS(LayoutConfig::FpsCounterX, LayoutConfig::FpsCounterY);
+        }
 
         EndDrawing();
     }

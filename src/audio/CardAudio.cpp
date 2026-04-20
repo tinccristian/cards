@@ -103,8 +103,6 @@ void CardAudio::playShuffle() {
 }
 
 void CardAudio::applyConfiguredVolumes() const {
-    SetMasterVolume(clampPercent(AudioConfig::MasterVolume) / 100.0f);
-
     if (m_hoverLoaded) {
         const float hoverVolume = clampPercent(AudioConfig::CardHoverVolume) / 100.0f;
         for (Sound& hoverVoice : g_hoverVoices) {
