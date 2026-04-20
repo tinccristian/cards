@@ -2,7 +2,6 @@
   "starter_deck": [
     "strike",
     "strike",
-    "strike",
     "defend",
     "defend",
     "defend",
@@ -10,13 +9,12 @@
     "immune_boost",
     "heartbeat",
     "heartbeat",
-    "rapid_assessment",
-    "rapid_assessment",
-    "rapid_assessment",
-    "rapid_assessment",
+    "heartbeat",
     "rapid_assessment",
     "antibiotic",
     "antiviral",
+    "antiviral",
+    "quarantine",
     "quarantine",
     "vaccine"
   ]

@@ -63,13 +63,13 @@
     {
       "id": "antiviral",
       "name": "Antiviral",
-      "description": "Deal 7 damage",
+      "description": "Deal 10 damage",
       "cost": 2,
       "type": "attack",
       "tags": ["medicine", "antiviral"],
-      "artPath": "assets/cards/pill.png",
+      "artPath": "assets/cards/antiviral.png",
       "effects": [
-        { "type": "damage", "target": "opponent", "amount": 7 }
+        { "type": "damage", "target": "opponent", "amount": 10 }
       ]
     },
     {
@@ -112,10 +112,10 @@
       "id": "quarantine",
       "name": "Quarantine",
       "description": "Prevent the enemy from acting for 1 turn",
-      "cost": 2,
+      "cost": 4,
       "type": "skill",
       "tags": ["defense", "medicine"],
-      "artPath": "assets/cards/vaccine.png",
+      "artPath": "assets/cards/quarantine.png",
       "effects": [
         { "type": "skip_enemy_turn", "target": "opponent", "amount": 1, "duration": 1 }
       ]
