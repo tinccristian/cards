@@ -1,0 +1,11 @@
+{
+  "nodeTypes": [
+    {
+      "id": "enemy",
+      "label": "Enemy",
+      "kind": "enemy",
+      "fillColor": [214, 74, 73, 255],
+      "outlineColor": [255, 225, 157, 255]
+    }
+  ]
+}

@@ -73,9 +73,11 @@ MenuAction GameScreen::drawMenu(bool allowInteraction) {
     return clicked;
 }
 
-MapAction GameScreen::drawMapScreen() {
+int GameScreen::drawMapScreen(const MapData& mapData,
+                              const MapRunState& runState,
+                              bool allowInteraction) {
     syncWindowSize();
-    ensureMapTextureLoaded();
+    ensureMapTextureLoaded(mapData.texturePath);
 
     if (!m_mapTextureLoaded || m_mapTexture.id == 0) {
         const char* errorText = "Map texture missing";
@@ -86,29 +88,33 @@ MapAction GameScreen::drawMapScreen() {
                  m_height / 2 - errorFontSize / 2,
                  errorFontSize,
                  Colors::damage_color);
-        return MapAction::None;
+        return -1;
     }
 
     Rectangle mapRect = mapTextureRect();
 
-    const float wheelMove = GetMouseWheelMove();
+    const float wheelMove = allowInteraction ? GetMouseWheelMove() : 0.0f;
     if (std::fabs(wheelMove) > 0.0f) {
         m_mapScrollOffset = clampedMapOffset(
             m_mapScrollOffset + wheelMove * scalef(LayoutConfig::MapScrollWheelStep));
     }
 
-    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(GetMousePosition(), mapRect)) {
+    if (allowInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)
+        && CheckCollisionPointRec(GetMousePosition(), mapRect)) {
         m_mapDragging = true;
         m_mapDragStartMouseY = (float)GetMouseY();
         m_mapDragStartOffset = m_mapScrollOffset;
     }
 
+    bool releasedWithoutDrag = false;
     if (m_mapDragging) {
         if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             const float dragDelta = (float)GetMouseY() - m_mapDragStartMouseY;
             m_mapScrollOffset = clampedMapOffset(m_mapDragStartOffset + dragDelta);
             mapRect = mapTextureRect();
         } else {
+            releasedWithoutDrag = std::fabs((float)GetMouseY() - m_mapDragStartMouseY)
+                <= scalef(LayoutConfig::MapDragThreshold);
             m_mapDragging = false;
         }
     }
@@ -122,7 +128,7 @@ MapAction GameScreen::drawMapScreen() {
         WHITE
     );
 
-    const char* title = "Choose Entry Point";
+    const char* title = "Select Next Node";
     const char* hint = "Mouse wheel or drag to scroll";
     const int titleFontSize = scalei(LayoutConfig::MapTitleFontSize);
     const int hintFontSize = scalei(LayoutConfig::MapHintFontSize);
@@ -137,45 +143,94 @@ MapAction GameScreen::drawMapScreen() {
              hintFontSize,
              Colors::text_secondary);
 
-    const Vector2 nodePositions[2] = {
-        {
-            mapRect.x + (MapConfig::StartNodeOneX / MapConfig::SourceWidth) * mapRect.width,
-            mapRect.y + (MapConfig::StartNodeOneY / MapConfig::SourceHeight) * mapRect.height
-        },
-        {
-            mapRect.x + (MapConfig::StartNodeTwoX / MapConfig::SourceWidth) * mapRect.width,
-            mapRect.y + (MapConfig::StartNodeTwoY / MapConfig::SourceHeight) * mapRect.height
-        }
-    };
+    std::vector<Vector2> nodePositions;
+    nodePositions.reserve(mapData.nodes.size());
+    for (const auto& node : mapData.nodes) {
+        nodePositions.push_back({
+            mapRect.x + (node.x / mapData.sourceWidth) * mapRect.width,
+            mapRect.y + (node.y / mapData.sourceHeight) * mapRect.height
+        });
+    }
 
     const float nodeRadius = (float)scalei(LayoutConfig::MapNodeRadius);
     const float outlineRadius = (float)scalei(LayoutConfig::MapNodeOutlineRadius);
     const float outlineThickness = scalef(LayoutConfig::MapNodeOutlineThickness);
+    const float connectionThickness = scalef(LayoutConfig::MapConnectionThickness);
+    const int nodeLabelFontSize = scalei(LayoutConfig::MapNodeLabelFontSize);
 
-    for (const Vector2& nodePosition : nodePositions) {
-        const bool hovered = CheckCollisionPointCircle(GetMousePosition(), nodePosition, outlineRadius);
-        DrawCircleV(nodePosition, outlineRadius, ColorAlpha(Colors::button_hover, hovered ? 0.95f : 0.70f));
-        DrawCircleLines((int)std::lround(nodePosition.x),
-                        (int)std::lround(nodePosition.y),
-                        outlineRadius,
-                        hovered ? Colors::text_primary : Colors::card_border);
-        DrawCircleV(nodePosition, nodeRadius, hovered ? Colors::heal_color : Colors::button_bg);
-        DrawRing(nodePosition,
+    for (const auto& connection : mapData.connections) {
+        const int fromIndex = mapData.findNodeIndex(connection.fromId);
+        const int toIndex = mapData.findNodeIndex(connection.toId);
+        if (fromIndex < 0 || toIndex < 0) {
+            continue;
+        }
+
+        const bool pathUnlocked = runState.isCompleted(fromIndex) && runState.isUnlocked(toIndex);
+        const Color lineColor = pathUnlocked
+            ? Colors::text_primary
+            : ColorAlpha(Colors::card_border, 0.35f);
+        DrawLineEx(nodePositions[fromIndex], nodePositions[toIndex], connectionThickness, lineColor);
+    }
+
+    int hoveredNodeIndex = -1;
+    for (int index = 0; index < static_cast<int>(mapData.nodes.size()); ++index) {
+        const auto* nodeType = mapData.findNodeType(mapData.nodes[index].typeId);
+        if (nodeType == nullptr) {
+            continue;
+        }
+
+        const bool unlocked = runState.isUnlocked(index);
+        const bool completed = runState.isCompleted(index);
+        const bool canEnter = allowInteraction && runState.canEnterNode(mapData, index);
+        const bool hovered = canEnter && CheckCollisionPointCircle(GetMousePosition(), nodePositions[index], outlineRadius);
+        if (hovered) {
+            hoveredNodeIndex = index;
+        }
+
+        Color fillColor = nodeType->fillColor;
+        Color outlineColor = nodeType->outlineColor;
+        if (!unlocked) {
+            fillColor = ColorAlpha(fillColor, 0.20f);
+            outlineColor = ColorAlpha(outlineColor, 0.20f);
+        } else if (completed) {
+            fillColor = ColorAlpha(fillColor, 0.55f);
+            outlineColor = ColorAlpha(outlineColor, 0.55f);
+        } else if (!canEnter) {
+            fillColor = ColorAlpha(fillColor, 0.75f);
+        }
+
+        DrawCircleV(nodePositions[index], outlineRadius, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
+        DrawRing(nodePositions[index],
                  outlineRadius - outlineThickness,
                  outlineRadius,
                  0.0f,
                  360.0f,
                  32,
-                 hovered ? Colors::text_primary : Colors::card_border);
+                 hovered ? Colors::text_primary : outlineColor);
+        DrawCircleV(nodePositions[index], nodeRadius, fillColor);
 
-        if (hovered && IsMouseButtonReleased(MOUSE_LEFT_BUTTON)
-            && std::fabs((float)GetMouseY() - m_mapDragStartMouseY) <= scalef(LayoutConfig::MapDragThreshold)) {
-            m_mapDragging = false;
-            return MapAction::StartCombat;
+        if (completed) {
+            DrawCircleV(nodePositions[index], nodeRadius * 0.45f, Colors::light_bg);
         }
     }
 
-    return MapAction::None;
+    if (hoveredNodeIndex >= 0) {
+        const auto* nodeType = mapData.findNodeType(mapData.nodes[hoveredNodeIndex].typeId);
+        if (nodeType != nullptr) {
+            const std::string label = nodeType->label;
+            DrawText(label.c_str(),
+                     (int)std::lround(nodePositions[hoveredNodeIndex].x - MeasureText(label.c_str(), nodeLabelFontSize) / 2.0f),
+                     (int)std::lround(nodePositions[hoveredNodeIndex].y - outlineRadius - scalei(LayoutConfig::MapNodeLabelFontSize) - 6),
+                     nodeLabelFontSize,
+                     Colors::text_primary);
+        }
+    }
+
+    if (allowInteraction && releasedWithoutDrag && hoveredNodeIndex >= 0) {
+        return hoveredNodeIndex;
+    }
+
+    return -1;
 }
 
 void GameScreen::resetMapView() {
@@ -784,6 +839,7 @@ void GameScreen::unloadAssets() {
         UnloadTexture(m_mapTexture);
         m_mapTexture = {};
         m_mapTextureLoaded = false;
+        m_loadedMapTexturePath.clear();
     }
 }
 
@@ -921,15 +977,23 @@ float GameScreen::scalef(float value) const {
     return value * uiScale();
 }
 
-void GameScreen::ensureMapTextureLoaded() {
-    if (m_mapTextureLoaded) {
+void GameScreen::ensureMapTextureLoaded(const std::string& texturePath) {
+    if (m_mapTextureLoaded && m_loadedMapTexturePath == texturePath) {
         return;
     }
 
-    m_mapTexture = LoadTexture(AssetPaths::LEG_MAP);
+    if (m_mapTextureLoaded && m_mapTexture.id != 0) {
+        UnloadTexture(m_mapTexture);
+        m_mapTexture = {};
+        m_mapTextureLoaded = false;
+        m_loadedMapTexturePath.clear();
+    }
+
+    m_mapTexture = LoadTexture(texturePath.c_str());
     if (m_mapTexture.id != 0) {
         SetTextureFilter(m_mapTexture, TEXTURE_FILTER_BILINEAR);
         m_mapTextureLoaded = true;
+        m_loadedMapTexturePath = texturePath;
     }
 }
 

@@ -34,11 +34,11 @@ Player&       GameState::getPlayer()       { return m_player; }
 const Player& GameState::getPlayer() const { return m_player; }
 
 Enemy& GameState::getEnemy() {
-    assert(m_enemy && "No enemy – call startNewGame() first");
+    assert(m_enemy && "No enemy – call startCombatForEnemy() first");
     return *m_enemy;
 }
 const Enemy& GameState::getEnemy() const {
-    assert(m_enemy && "No enemy – call startNewGame() first");
+    assert(m_enemy && "No enemy – call startCombatForEnemy() first");
     return *m_enemy;
 }
 
@@ -47,6 +47,14 @@ const Enemy& GameState::getEnemy() const {
 // ---------------------------------------------------------------------------
 
 bool GameState::startNewGame(std::string& error) {
+    if (!startNewRun(error)) {
+        return false;
+    }
+
+    return startCombatForEnemy("bacteria", error);
+}
+
+bool GameState::startNewRun(std::string& error) {
     error.clear();
     m_player     = Player(CombatConfig::PlayerMaxHealth, CombatConfig::PlayerBaseMana);
     m_turnNumber = CombatConfig::StartingTurnNumber;
@@ -87,32 +95,44 @@ bool GameState::startNewGame(std::string& error) {
         m_player.addCardToDeck(*card);
     }
 
-    std::cout << "[GameState] Player deck built with "
-              << m_player.getDeck().getDrawPileSize() << " cards\n";
+    return true;
+}
 
-    m_player.getDeck().shuffle();
+bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& error) {
+    error.clear();
+    m_turnNumber = CombatConfig::StartingTurnNumber;
+    m_turnPhase = TurnPhase::PLAYER_TURN;
+    m_lastAction.clear();
+    m_enemy.reset();
+
+    m_player.rebuildCombatDeck();
 
     std::cout << "[GameState] Draw pile before drawing hand: "
               << m_player.getDeck().getDrawPileSize() << " cards\n";
 
-    // Draw the opening hand
     for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
         m_player.drawCardFromDeck();
     }
 
     std::cout << "[GameState] After drawing hand: "
-              << m_player.getHand().size()             << " in hand, "
-              << m_player.getDeck().getDrawPileSize()  << " in draw pile, "
+              << m_player.getHand().size()               << " in hand, "
+              << m_player.getDeck().getDrawPileSize()    << " in draw pile, "
               << m_player.getDeck().getDiscardPileSize() << " in discard\n";
 
-    // Spawn first enemy with its own deck
-    m_enemy = EnemyFactory::loadFromJSON(AssetPaths::DEFAULT_ENEMY, error);
+    m_enemy = EnemyFactory::loadById(enemyId, error);
     if (!m_enemy) {
         return false;
     }
 
     m_enemy->decideIntent();
     return true;
+}
+
+void GameState::endCombat() {
+    m_enemy.reset();
+    m_turnPhase = TurnPhase::PLAYER_TURN;
+    m_turnNumber = CombatConfig::StartingTurnNumber;
+    m_lastAction.clear();
 }
 
 void GameState::playerDrawCard() {
@@ -193,6 +213,14 @@ void GameState::executeEnemyTurn() {
 
 bool GameState::isGameOver() const {
     return m_player.isDead() || (m_enemy && m_enemy->isDead());
+}
+
+bool GameState::isCombatWon() const {
+    return m_enemy && m_enemy->isDead() && !m_player.isDead();
+}
+
+bool GameState::isPlayerDefeated() const {
+    return m_player.isDead();
 }
 
 std::string GameState::getWinner() const {

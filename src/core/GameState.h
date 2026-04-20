@@ -44,6 +44,9 @@ public:
     // Initialise a fresh run: player, starter deck from CardDatabase, enemy with
     // its deck, opening hand, first enemy intent decided.
     bool startNewGame(std::string& error);
+    bool startNewRun(std::string& error);
+    bool startCombatForEnemy(const std::string& enemyId, std::string& error);
+    void endCombat();
 
     // Draw one card from player's deck to hand (reshuffles discard if needed).
     void playerDrawCard();
@@ -62,6 +65,8 @@ public:
     void executeEnemyTurn();
 
     bool        isGameOver() const;
+    bool        isCombatWon() const;
+    bool        isPlayerDefeated() const;
     std::string getWinner()  const;
 
 private:

@@ -124,3 +124,12 @@ std::unique_ptr<Enemy> EnemyFactory::loadFromJSON(const std::string& filePath, s
     enemyDeck.shuffle();
     return std::make_unique<Enemy>(name, maxHealth, std::move(enemyDeck));
 }
+
+std::unique_ptr<Enemy> EnemyFactory::loadById(const std::string& enemyId, std::string& error) {
+    if (enemyId.empty()) {
+        error = "Enemy id cannot be empty";
+        return nullptr;
+    }
+
+    return loadFromJSON(std::string(AssetPaths::ENEMY_DIRECTORY) + "/" + enemyId + ".json", error);
+}

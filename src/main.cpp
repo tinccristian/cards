@@ -2,9 +2,11 @@
 #include "audio/CardAudio.h"
 #include "raylib.h"
 #include "config/Defines.h"
+#include "content/MapData.h"
 #include "core/CardDatabase.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
+#include "gameplay/MapRunState.h"
 #include "ui/Colors.h"
 #include "ui/GameScreen.h"
 #include "ui/InputHandler.h"
@@ -52,8 +54,19 @@ int main() {
         return 1;
     }
 
+    MapData activeMap;
+    if (!MapContentLoader::loadMap(AssetPaths::MAP_NODE_TYPES, AssetPaths::LEG_MAP_DATA, activeMap, startupError)) {
+        TraceLog(LOG_ERROR, "%s", startupError.c_str());
+        Deck::setShuffleCallback({});
+        cardAudio.shutdown();
+        CloseAudioDevice();
+        CloseWindow();
+        return 1;
+    }
+
     GameState  state;
     GameScreen screen(GetScreenWidth(), GetScreenHeight(), &cardAudio);
+    MapRunState mapRun;
     UIState    uiState;
     bool       showMainMenuOptions = false;
     bool       shouldQuit = false;
@@ -101,6 +114,12 @@ int main() {
             } else {
                 const MenuAction action = screen.drawMenu();
                 if (action == MenuAction::NewGame) {
+                    std::string newRunError;
+                    if (!state.startNewRun(newRunError)) {
+                        TraceLog(LOG_ERROR, "%s", newRunError.c_str());
+                        break;
+                    }
+                    mapRun.initialize(activeMap);
                     screen.resetMapView();
                     state.setPhase(GamePhase::MAP);
                 } else if (action == MenuAction::Options) {
@@ -117,27 +136,23 @@ int main() {
         case GamePhase::MAP: {
             if (InputHandler::getEscapePressed()) {
                 state.setPhase(GamePhase::MENU);
+                mapRun = MapRunState{};
                 break;
             }
 
-            if (screen.drawMapScreen() == MapAction::StartCombat) {
-                state.setPhase(GamePhase::NEW_GAME);
+            const int selectedNodeIndex = screen.drawMapScreen(activeMap, mapRun);
+            if (selectedNodeIndex >= 0 && mapRun.selectNode(activeMap, selectedNodeIndex)) {
+                const std::string encounterId = activeMap.nodes[selectedNodeIndex].encounterId;
+                std::string combatError;
+                if (!state.startCombatForEnemy(encounterId, combatError)) {
+                    TraceLog(LOG_ERROR, "%s", combatError.c_str());
+                    mapRun.clearActiveNode();
+                    break;
+                }
+                uiState.setMode(UIMode::NORMAL);
+                enemyTurnElapsed = 0.0f;
+                state.setPhase(GamePhase::COMBAT);
             }
-            break;
-        }
-
-        // -------------------------------------------------------------------
-        case GamePhase::NEW_GAME: {
-            std::string newGameError;
-            if (!state.startNewGame(newGameError)) {
-                TraceLog(LOG_ERROR, "%s", newGameError.c_str());
-                state.setPhase(GamePhase::MENU);
-                break;
-            }
-            uiState.setMode(UIMode::NORMAL);
-            showMainMenuOptions = false;
-            enemyTurnElapsed = 0.0f;
-            state.setPhase(GamePhase::COMBAT);
             break;
         }
 
@@ -254,7 +269,15 @@ int main() {
             }
 
             if (state.isGameOver()) {
-                state.setPhase(GamePhase::GAME_OVER);
+                if (state.isPlayerDefeated()) {
+                    state.setPhase(GamePhase::GAME_OVER);
+                } else if (state.isCombatWon()) {
+                    mapRun.completeActiveNode(activeMap);
+                    state.endCombat();
+                    uiState.setMode(UIMode::NORMAL);
+                    enemyTurnElapsed = 0.0f;
+                    state.setPhase(GamePhase::MAP);
+                }
             }
             break;
         }

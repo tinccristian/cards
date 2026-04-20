@@ -113,7 +113,23 @@ bool Player::canDrawCard() const {
     return !m_deck.isEmpty() || !m_deck.getDiscard().empty();
 }
 
-void Player::addCardToDeck(const Card& card) { m_deck.addCard(card); }
+void Player::addCardToDeck(const Card& card) {
+    m_ownedCards.push_back(card);
+}
+
+void Player::rebuildCombatDeck() {
+    m_block = 0;
+    m_currentMana = m_maxMana;
+    m_statuses = StatusCollection{};
+    m_hand.clear();
+    m_deck = Deck{};
+
+    for (const auto& card : m_ownedCards) {
+        m_deck.addCard(card);
+    }
+
+    m_deck.shuffle();
+}
 
 void Player::moveCardInHand(int fromIndex, int toIndex) {
     if (fromIndex < 0 || toIndex < 0) {

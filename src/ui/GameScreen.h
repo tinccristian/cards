@@ -5,9 +5,11 @@
 #include "CardArtCache.h"
 #include "Colors.h"
 #include "config/Defines.h"
+#include "content/MapData.h"
 #include "core/Card.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
+#include "gameplay/MapRunState.h"
 #include "raylib.h"
 #include <string>
 #include <vector>
@@ -33,11 +35,6 @@ enum class OptionsMenuAction {
     Back
 };
 
-enum class MapAction {
-    None,
-    StartCombat
-};
-
 class GameScreen {
 public:
     GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio = nullptr);
@@ -57,7 +54,9 @@ public:
     OptionsMenuAction drawOptionsMenu(AppSettings& settings,
                                       OptionsSection& activeSection,
                                       bool openedFromPause);
-    MapAction drawMapScreen();
+    int drawMapScreen(const MapData& mapData,
+                      const MapRunState& runState,
+                      bool allowInteraction = true);
     void resetMapView();
 
     // Draw a full-screen overlay listing cards in a pile.
@@ -106,6 +105,7 @@ private:
     CardAudio*   m_cardAudio        = nullptr;
     Texture2D    m_mapTexture       = {};
     bool         m_mapTextureLoaded = false;
+    std::string  m_loadedMapTexturePath;
     mutable CardArtCache m_artCache;
 
     // --- helpers ---
@@ -113,7 +113,7 @@ private:
     float uiScale() const;
     int scalei(int value) const;
     float scalef(float value) const;
-    void ensureMapTextureLoaded();
+    void ensureMapTextureLoaded(const std::string& texturePath);
     float clampedMapOffset(float offset) const;
     Rectangle mapTextureRect() const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;

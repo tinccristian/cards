@@ -54,7 +54,9 @@ add_executable(medical_deckbuilder
     src/app/AppSettings.cpp
     src/audio/CardAudio.cpp
     src/content/EnemyFactory.cpp
+    src/content/MapData.cpp
     src/gameplay/CardEffect.cpp
+    src/gameplay/MapRunState.cpp
     src/gameplay/CombatResolver.cpp
     src/gameplay/StatusCollection.cpp
     src/core/Card.cpp

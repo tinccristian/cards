@@ -5,7 +5,9 @@ namespace AssetPaths {
 inline constexpr const char* PLAYER_CARD_LIBRARY = "assets/decks/player/cards.json";
 inline constexpr const char* PLAYER_STARTER_DECK = "assets/decks/player/deck_config.json";
 inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json";
-inline constexpr const char* LEG_MAP             = "assets/maps/leg.png";
+inline constexpr const char* ENEMY_DIRECTORY     = "assets/enemies";
+inline constexpr const char* MAP_NODE_TYPES      = "assets/maps/nodes.json";
+inline constexpr const char* LEG_MAP_DATA        = "assets/maps/leg/leg.json";
 } // namespace AssetPaths
 
 // ## Audio ##
@@ -53,10 +55,6 @@ inline constexpr float EnemyTurnDelaySecs  = 1.0f;
 namespace MapConfig {
 inline constexpr float SourceWidth            = 2560.0f;
 inline constexpr float SourceHeight           = 1536.0f;
-inline constexpr float StartNodeOneX          = 1178.0f;
-inline constexpr float StartNodeOneY          = 1390.0f;
-inline constexpr float StartNodeTwoX          = 1390.0f;
-inline constexpr float StartNodeTwoY          = 1390.0f;
 } // namespace MapConfig
 
 // ## UI ##
@@ -174,6 +172,8 @@ inline constexpr float MapDragThreshold    = 4.0f;
 inline constexpr int MapNodeRadius         = 18;
 inline constexpr int MapNodeOutlineRadius  = 24;
 inline constexpr int MapNodeOutlineThickness = 3;
+inline constexpr float MapConnectionThickness = 5.0f;
+inline constexpr int MapNodeLabelFontSize  = 14;
 inline constexpr int MapTitleFontSize      = 26;
 inline constexpr int MapHintFontSize       = 16;
 inline constexpr int MapTitleTopMargin     = 24;

@@ -1,0 +1,84 @@
+{
+  "id": "leg",
+  "texturePath": "assets/maps/leg/leg.png",
+  "sourceWidth": 2560,
+  "sourceHeight": 1536,
+  "nodes": [
+    {
+      "id": "toe_left",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1178,
+      "y": 1390,
+      "initiallyUnlocked": true
+    },
+    {
+      "id": "toe_right",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1390,
+      "y": 1390,
+      "initiallyUnlocked": true
+    },
+    {
+      "id": "shin_left",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1140,
+      "y": 1230,
+      "initiallyUnlocked": false
+    },
+    {
+      "id": "shin_center",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1280,
+      "y": 1190,
+      "initiallyUnlocked": false
+    },
+    {
+      "id": "shin_right",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1435,
+      "y": 1230,
+      "initiallyUnlocked": false
+    },
+    {
+      "id": "knee_left",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1185,
+      "y": 1045,
+      "initiallyUnlocked": false
+    },
+    {
+      "id": "knee_right",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1370,
+      "y": 1015,
+      "initiallyUnlocked": false
+    },
+    {
+      "id": "thigh_peak",
+      "type": "enemy",
+      "encounterId": "bacteria",
+      "x": 1285,
+      "y": 835,
+      "initiallyUnlocked": false
+    }
+  ],
+  "connections": [
+    { "from": "toe_left", "to": "shin_left" },
+    { "from": "toe_left", "to": "shin_center" },
+    { "from": "toe_right", "to": "shin_center" },
+    { "from": "toe_right", "to": "shin_right" },
+    { "from": "shin_left", "to": "knee_left" },
+    { "from": "shin_center", "to": "knee_left" },
+    { "from": "shin_center", "to": "knee_right" },
+    { "from": "shin_right", "to": "knee_right" },
+    { "from": "knee_left", "to": "thigh_peak" },
+    { "from": "knee_right", "to": "thigh_peak" }
+  ]
+}
