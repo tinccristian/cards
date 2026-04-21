@@ -58,7 +58,12 @@ GameScreen::GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio)
     : m_width(screenWidth)
     , m_height(screenHeight)
     , m_cardAudio(cardAudio)
-{}
+{
+    Font defaultFont = GetFontDefault();
+    if (defaultFont.texture.id != 0) {
+        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_BILINEAR);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Pile widget rects (used both for drawing and click detection in main)
@@ -1462,7 +1467,9 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
         self->m_cardBorderLoaded = true;
         if (FileExists(AssetPaths::CARD_BORDER)) {
             self->m_cardBorder = LoadTexture(AssetPaths::CARD_BORDER);
-            SetTextureFilter(self->m_cardBorder, TEXTURE_FILTER_POINT);
+            // The card frame rotates and scales with the same in-hand motion as the art,
+            // so it needs the same smoothing to avoid edge shimmer while moving.
+            SetTextureFilter(self->m_cardBorder, TEXTURE_FILTER_BILINEAR);
         }
     }
 
