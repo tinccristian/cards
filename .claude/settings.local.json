@@ -4,7 +4,8 @@
       "Bash(cmake --build build)",
       "Bash(cmake --build . --config Release)",
       "Bash(cmake .. -G Ninja)",
-      "Bash(cmake --build .)"
+      "Bash(cmake --build .)",
+      "Bash(cmake --build build --config Release)"
     ]
   }
 }

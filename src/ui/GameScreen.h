@@ -126,6 +126,11 @@ private:
     bool         m_blockIconLoaded    = false;
     Texture2D    m_attackIcon         = {};
     bool         m_attackIconLoaded   = false;
+    Texture2D       m_cardBorder         = {};
+    bool            m_cardBorderLoaded   = false;
+    // Offscreen buffer for rendering a card flat before rotating it.
+    // Sized to the logical card dimensions; resized lazily when scale changes.
+    mutable RenderTexture2D m_cardRT     = {};
     mutable CardArtCache m_artCache;
 
     // Deferred tooltip: populated during the frame, flushed at the very end of
@@ -151,7 +156,9 @@ private:
     void drawEntityHud(Rectangle spriteRect, const std::string& name,
                        int health, int maxHealth, int block) const;
     void drawManaHud(const Player& player) const;
-    void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const;
+    // playerMana: current mana (used to colour cost red when unaffordable). -1 = neutral.
+    void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
+                      int playerMana = -1) const;
     void drawCardTooltip(const Card& card, float x, float y) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const;
 

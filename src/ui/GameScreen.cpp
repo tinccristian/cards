@@ -314,6 +314,16 @@ float handTValue(int index, int count) {
     }
     return (float)index / (float)(count - 1);
 }
+
+// Draw text with a 1-pixel black outline (4-direction).
+void DrawTextOutlined(const char* text, int x, int y, int fontSize, Color color) {
+    DrawText(text, x - 1, y,     fontSize, BLACK);
+    DrawText(text, x + 1, y,     fontSize, BLACK);
+    DrawText(text, x,     y - 1, fontSize, BLACK);
+    DrawText(text, x,     y + 1, fontSize, BLACK);
+    DrawText(text, x,     y,     fontSize, color);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -614,17 +624,19 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         return draggedIndex;
     }
 
+    const int curMana = player.getMana();
+
     // Draw non-hovered cards first
     for (int i = 0; i < n; ++i) {
         if (i == m_hoveredCardIndex || i == m_draggedCardIndex) continue;
-        drawCardFace(layout[i].bounds, hand[i], layout[i].scaled, layout[i].rotation);
+        drawCardFace(layout[i].bounds, hand[i], layout[i].scaled, layout[i].rotation, curMana);
     }
 
     // Hovered card on top
     if (allowInteraction && m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0) {
         int i = m_hoveredCardIndex;
         Rectangle r = layout[i].bounds;
-        drawCardFace(r, hand[i], true, layout[i].rotation);
+        drawCardFace(r, hand[i], true, layout[i].rotation, curMana);
 
         float tipX = r.x + r.width + scalef(LayoutConfig::TooltipHorizontalGap);
         if (tipX + scalei(LayoutConfig::TooltipWidth) > m_width) {
@@ -646,7 +658,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         };
         draggedRect = snapRect(draggedRect);
         drawCardFace(draggedRect, hand[dragIndex], true,
-                     normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor);
+                     normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor,
+                     curMana);
     }
 
     // Flush deferred tooltips last so they render above every other element.
@@ -992,6 +1005,11 @@ void GameScreen::unloadAssets() {
         UnloadTexture(m_attackIcon);
         m_attackIcon = {};
         m_attackIconLoaded = false;
+    }
+    if (m_cardBorderLoaded && m_cardBorder.id != 0) {
+        UnloadTexture(m_cardBorder);
+        m_cardBorder = {};
+        m_cardBorderLoaded = false;
     }
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
@@ -1374,11 +1392,10 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
         // Block number centred on the slot.
         const std::string blockStr = std::to_string(block);
         const int bw = MeasureText(blockStr.c_str(), statFontSize);
-        DrawText(blockStr.c_str(),
-                 (int)std::round(slot.x + (slot.width  - bw)          / 2.0f),
-                 (int)std::round(slot.y + (slot.height - statFontSize) / 2.0f),
-                 statFontSize,
-                 WHITE);
+        DrawTextOutlined(blockStr.c_str(),
+                         (int)std::round(slot.x + (slot.width  - bw)          / 2.0f),
+                         (int)std::round(slot.y + (slot.height - statFontSize) / 2.0f),
+                         statFontSize, WHITE);
 
         if (mouseOver(slot))
             queueTooltip("Block",
@@ -1420,9 +1437,9 @@ void GameScreen::drawManaHud(const Player& player) const {
              Colors::draw_pile_accent);
 }
 
-void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const {
+void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
+                              int playerMana) const {
     rect = snapRect(rect);
-    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
     const float thinBorderThickness = scalef(LayoutConfig::ThinBorderThickness);
     const float baseCardHeight = (float)scalei(LayoutConfig::CardHeight);
     const float baseArtHeight = (float)scalei(LayoutConfig::CardArtHeight);
@@ -1439,13 +1456,23 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     rlRotatef(rotationDegrees, 0.0f, 0.0f, 1.0f);
     rlTranslatef(-pivot.x, -pivot.y, 0.0f);
 
-    Color bg = scaled ? Colors::button_hover : Colors::card_bg;
-    DrawRectangleRec(rect, bg);
-    DrawRectangleLinesEx(rect, borderThickness, Colors::card_border);
+    // Lazy-load card border texture (shared across all cards).
+    if (!m_cardBorderLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_cardBorderLoaded = true;
+        if (FileExists(AssetPaths::CARD_BORDER)) {
+            self->m_cardBorder = LoadTexture(AssetPaths::CARD_BORDER);
+            SetTextureFilter(self->m_cardBorder, TEXTURE_FILTER_POINT);
+        }
+    }
 
+    // --- Background ---
+    Color bg = scaled ? Colors::button_hover : Colors::card_bg;
+    if (m_cardBorder.id == 0) DrawRectangleRec(rect, bg);
+
+    // --- Art ---
     float artH = baseArtHeight * (rect.height / baseCardHeight);
     Rectangle artRect = snapRect({ rect.x + 2, rect.y + 2, rect.width - 4, artH - 2 });
-
     auto texOpt = m_artCache.getTexture(card.getArtPath());
     if (texOpt.has_value()) {
         const Texture2D& tex = texOpt.value();
@@ -1456,17 +1483,38 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
         DrawRectangleLinesEx(artRect, thinBorderThickness, Colors::light_bg);
     }
 
-    float divY = rect.y + artH;
-    DrawLine((int)rect.x, (int)divY, (int)(rect.x + rect.width), (int)divY, Colors::card_border);
+    // --- Border overlay (alpha-blended; transparent art window shows art beneath) ---
+    if (m_cardBorder.id != 0) {
+        Rectangle src = { 0.0f, 0.0f, (float)m_cardBorder.width, (float)m_cardBorder.height };
+        DrawTexturePro(m_cardBorder, src, rect, { 0.0f, 0.0f }, 0.0f, WHITE);
+    }
 
+    // --- Mana cost (position set by CardManaCostX/Y in Defines.h, in logical card px) ---
+    {
+        const float cardScale = rect.width / (float)LayoutConfig::CardWidth;
+        const float textX = rect.x + LayoutConfig::CardManaCostX * cardScale;
+        const float textY = rect.y + LayoutConfig::CardManaCostY * cardScale;
+        const std::string costStr = std::to_string(card.getCost());
+        const int manaSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize
+                                         : LayoutConfig::CardNameFontSize);
+        // Blue when affordable (or no mana info), red when too expensive.
+        const Color manaColor = (playerMana < 0 || card.getCost() <= playerMana)
+                                ? Colors::draw_pile_accent   // blue
+                                : Colors::damage_color;      // red
+        DrawTextOutlined(costStr.c_str(), (int)textX, (int)textY, manaSz, manaColor);
+    }
+
+    // --- Text area (below art) ---
+    float divY = rect.y + artH;
     int textX = (int)rect.x + textPadding;
-    int textY = (int)divY + textTopPadding;
+    // CardNameNudgeUp: nudge name a few pixels above the divider line (tunable in Defines.h).
+    int textY = (int)divY + textTopPadding - scalei(LayoutConfig::CardNameNudgeUp);
 
     int nameSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize : LayoutConfig::CardNameFontSize);
     int nameW  = MeasureText(card.getName().c_str(), nameSz);
-    DrawText(card.getName().c_str(),
-             (int)rect.x + ((int)rect.width - nameW) / 2,
-             textY, nameSz, Colors::text_primary);
+    DrawTextOutlined(card.getName().c_str(),
+                     (int)rect.x + ((int)rect.width - nameW) / 2,
+                     textY, nameSz, Colors::text_primary);
     textY += nameSz + textGap;
 
     const std::string& desc = card.getDescription();
@@ -1481,7 +1529,7 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
                 if (sp > pos) end = sp;
             }
             DrawText(desc.substr(pos, end - pos).c_str(), textX, textY, descSz,
-                     Colors::text_secondary);
+                     BLACK);
             textY += descSz + descriptionGap;
             pos = end;
             while (pos < (int)desc.size() && desc[pos] == ' ') ++pos;
@@ -1492,20 +1540,19 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     int footerY = (int)(rect.y + rect.height) - footerMargin;
     int infoSz  = scalei(scaled ? LayoutConfig::HoveredCardFooterSize : LayoutConfig::CardFooterSize);
 
-    std::string costStr = std::to_string(card.getCost()) + " mana";
-    DrawText(costStr.c_str(), textX, footerY, infoSz, Colors::text_secondary);
-
     if (card.getDamageAmount() > 0) {
         std::string pwrStr = std::to_string(card.getDamageAmount()) + " dmg";
         int pw = MeasureText(pwrStr.c_str(), infoSz);
-        DrawText(pwrStr.c_str(), (int)(rect.x + rect.width) - pw - rightStatPadding, footerY,
-                 infoSz, Colors::damage_color);
+        DrawTextOutlined(pwrStr.c_str(),
+                         (int)(rect.x + rect.width) - pw - rightStatPadding, footerY,
+                         infoSz, Colors::damage_color);
     }
     if (card.getBlockAmount() > 0) {
         std::string blkStr = std::to_string(card.getBlockAmount()) + " blk";
         int bw = MeasureText(blkStr.c_str(), infoSz);
-        DrawText(blkStr.c_str(), (int)(rect.x + rect.width) - bw - rightStatPadding, footerY,
-                 infoSz, Colors::block_color);
+        DrawTextOutlined(blkStr.c_str(),
+                         (int)(rect.x + rect.width) - bw - rightStatPadding, footerY,
+                         infoSz, Colors::block_color);
     }
 
     rlPopMatrix();
@@ -1712,10 +1759,10 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
         }
         const std::string numStr = std::to_string(value);
         const int nw = MeasureText(numStr.c_str(), statFontSize);
-        DrawText(numStr.c_str(),
-                 (int)std::round(slot.x + (slot.width  - nw)           / 2.0f),
-                 (int)std::round(slot.y + (slot.height - statFontSize)  / 2.0f),
-                 statFontSize, WHITE);
+        DrawTextOutlined(numStr.c_str(),
+                         (int)std::round(slot.x + (slot.width  - nw)          / 2.0f),
+                         (int)std::round(slot.y + (slot.height - statFontSize) / 2.0f),
+                         statFontSize, WHITE);
         iconX += iconSize + gap;
         return slot;
     };
