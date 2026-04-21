@@ -9,6 +9,8 @@
 #include "core/Card.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
+#include "EnemySprite.h"
+#include "PlayerSprite.h"
 #include "gameplay/MapRunState.h"
 #include "raylib.h"
 #include <string>
@@ -75,6 +77,14 @@ public:
 
     void unloadAssets();
 
+    // Returns true once the enemy death animation AND death dissolve have finished.
+    // Used by main.cpp to hold the MAP transition until everything completes.
+    bool isEnemyDeathAnimDone() const;
+
+    // Returns true once the player death dissolve has finished (or if no shader loaded).
+    // Used by main.cpp to hold the GAME_OVER transition.
+    bool isPlayerDeathDissolveComplete() const;
+
     // Pile widget rectangles (needed by main.cpp for click detection)
     Rectangle drawPileRect()    const;
     Rectangle discardPileRect() const;
@@ -106,6 +116,12 @@ private:
     Texture2D    m_mapTexture       = {};
     bool         m_mapTextureLoaded = false;
     std::string  m_loadedMapTexturePath;
+    EnemySprite  m_enemySprite;
+    std::string  m_loadedEnemySpritePath; // tracks which sheet is currently loaded
+    PlayerSprite m_playerSprite;
+    bool         m_playerSpriteLoaded = false;
+    int          m_lastPlayerHp       = -1;
+    int          m_lastEnemyHp        = -1;
     mutable CardArtCache m_artCache;
 
     // --- helpers ---

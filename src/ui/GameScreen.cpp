@@ -1,11 +1,54 @@
 #include "GameScreen.h"
 
+#include "config/Defines.h"
+#include "content/EnemySpriteConfig.h"
 #include "rlgl.h"
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <iostream>
+
+// ---------------------------------------------------------------------------
+// File-local helpers
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Parse an EnemySpriteConfig from a JSON file with a "sprite" section.
+// Returns a default (no-sprite) config on any error.
+EnemySpriteConfig loadSpriteConfigFromJson(const std::string& path) {
+    EnemySpriteConfig cfg;
+    std::ifstream file(path);
+    if (!file.is_open()) return cfg;
+
+    nlohmann::json root;
+    try { file >> root; } catch (...) { return cfg; }
+
+    if (!root.contains("sprite") || !root["sprite"].is_object()) return cfg;
+    const auto& s = root["sprite"];
+
+    cfg.sheetPath   = s.value("sheet",       "");
+    cfg.frameWidth  = s.value("frameWidth",  80);
+    cfg.frameHeight = s.value("frameHeight", 80);
+
+    auto parseClip = [&s](const char* key, AnimClip& clip) {
+        if (!s.contains(key) || !s[key].is_object()) return;
+        const auto& c = s[key];
+        clip.startFrame      = c.value("startFrame",      clip.startFrame);
+        clip.frameCount      = c.value("frameCount",      clip.frameCount);
+        clip.frameDurationMs = c.value("frameDurationMs", clip.frameDurationMs);
+        clip.looping         = c.value("looping",         clip.looping);
+    };
+    parseClip("idle",   cfg.idle);
+    parseClip("attack", cfg.attack);
+    parseClip("death",  cfg.death);
+    return cfg;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -391,6 +434,100 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     drawPlayerBox(playerBox, player);
     drawEnemyBox(enemyBox, enemy);
     drawIntentIndicator(enemy, enemyBox);
+
+    // --- Player sprite: load once, draw below player box ---
+    if (!m_playerSpriteLoaded) {
+        m_playerSpriteLoaded = true;
+        EnemySpriteConfig playerCfg = loadSpriteConfigFromJson(AssetPaths::PLAYER_SPRITE);
+        m_playerSprite.load(playerCfg, AssetPaths::DISSOLVE_SHADER, AssetPaths::HIT_SHADER);
+    }
+    {
+        // Hit detection for player.
+        const int curPlayerHp = player.getHealth();
+        if (m_lastPlayerHp >= 0 && curPlayerHp < m_lastPlayerHp)
+            m_playerSprite.triggerHit();
+        m_lastPlayerHp = curPlayerHp;
+
+        // Trigger death dissolve when player is defeated.
+        if (state.isPlayerDefeated())
+            m_playerSprite.triggerDeath(); // idempotent
+
+        m_playerSprite.update(dt);
+
+        if (m_playerSprite.isLoaded()) {
+            const float spriteSize    = scalef(240.0f);
+            const float playerCenterX = (float)boxMargin + (float)boxW / 2.0f;
+            const float playerSpriteY = (float)(boxY + boxH) + scalef(12.0f);
+            Rectangle playerSpriteRect = {
+                playerCenterX - spriteSize / 2.0f,
+                playerSpriteY,
+                spriteSize,
+                spriteSize
+            };
+            m_playerSprite.draw(playerSpriteRect);
+        }
+    }
+
+    // --- Enemy sprite: load on enemy change, update + draw ---
+    {
+        const std::string& sheetPath = enemy.getSpriteConfig().sheetPath;
+
+        // (Re)load when a different sprite sheet is needed.
+        if (m_loadedEnemySpritePath != sheetPath) {
+            m_enemySprite.unload();
+            m_loadedEnemySpritePath = sheetPath;
+            m_lastEnemyHp           = -1; // reset for new enemy
+            if (!sheetPath.empty()) {
+                m_enemySprite.load(enemy.getSpriteConfig(), AssetPaths::DISSOLVE_SHADER, AssetPaths::HIT_SHADER);
+            }
+        }
+
+        // Hit detection for enemy.
+        const int curEnemyHp = enemy.getHealth();
+        if (m_lastEnemyHp >= 0 && curEnemyHp < m_lastEnemyHp && !enemy.isDead())
+            m_enemySprite.triggerHit();
+        m_lastEnemyHp = curEnemyHp;
+
+        if (m_enemySprite.isLoaded()) {
+            // Drive animation state from game state.
+            if (enemy.isDead()) {
+                // Switch to death once and stay there.
+                if (m_enemySprite.getState() != EnemyAnimState::Death)
+                    m_enemySprite.setState(EnemyAnimState::Death);
+                // Once the death clip finishes (or has 0 frames), start dissolve.
+                if (m_enemySprite.isDone())
+                    m_enemySprite.triggerDeathDissolve(); // idempotent
+            } else if (m_enemySprite.getState() == EnemyAnimState::Death) {
+                // Same enemy re-encountered (new combat) – reset to idle.
+                m_enemySprite.setState(EnemyAnimState::Idle);
+            } else if (!isPlayerTurn) {
+                // Enemy turn begins: trigger attack animation once.
+                if (m_enemySprite.getState() == EnemyAnimState::Idle)
+                    m_enemySprite.setState(EnemyAnimState::Attack);
+            } else {
+                // Player turn: return to idle after the attack clip finishes.
+                if (m_enemySprite.getState() == EnemyAnimState::Attack
+                    && m_enemySprite.isDone())
+                    m_enemySprite.setState(EnemyAnimState::Idle);
+            }
+
+            m_enemySprite.update(dt);
+
+            // Position: centred over the enemy stat box, below the intent bar.
+            const float spriteSize   = scalef(240.0f);
+            const float enemyCenterX = (float)(m_width - boxMargin) - (float)boxW / 2.0f;
+            const float intentBottom = (float)(boxY + boxH
+                + scalei(LayoutConfig::IntentOffsetY)
+                + scalei(LayoutConfig::IntentHeight));
+            Rectangle spriteRect = {
+                enemyCenterX - spriteSize / 2.0f,
+                intentBottom + scalef(12.0f),
+                spriteSize,
+                spriteSize
+            };
+            m_enemySprite.draw(spriteRect);
+        }
+    }
 
     // --- Combat log ---
     const std::string& action = state.getLastAction();
@@ -833,8 +970,23 @@ OptionsMenuAction GameScreen::drawOptionsMenu(AppSettings& settings,
     return OptionsMenuAction::None;
 }
 
+bool GameScreen::isEnemyDeathAnimDone() const {
+    if (!m_enemySprite.isLoaded()) return true;
+    // Wait for both: the death sprite animation AND the death dissolve shader.
+    return m_enemySprite.isDeathDissolveComplete();
+}
+
+bool GameScreen::isPlayerDeathDissolveComplete() const {
+    if (!m_playerSprite.isLoaded()) return true;
+    return m_playerSprite.isDeathDissolveComplete();
+}
+
 void GameScreen::unloadAssets() {
     m_artCache.unloadAll();
+    m_enemySprite.unload();
+    m_loadedEnemySpritePath.clear();
+    m_playerSprite.unload();
+    m_playerSpriteLoaded = false;
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
         m_mapTexture = {};
@@ -890,9 +1042,6 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCoun
     const float totalW = cardWidth * cardCount + cardSpacing * (cardCount - 1);
     const float startX = handLeftBound + (handUsableWidth - totalW) / 2.0f;
 
-    const float wX = std::sin(m_wiggleTime * LayoutConfig::WiggleXFrequency) * scalef(LayoutConfig::WiggleXAmplitude);
-    const float wY = std::cos(m_wiggleTime * LayoutConfig::WiggleYFrequency) * scalef(LayoutConfig::WiggleYAmplitude);
-
     const int activeHoverIndex = (draggedCardIndex < 0) ? m_hoverProgressIndex : -1;
 
     for (int index = 0; index < cardCount; ++index) {
@@ -900,19 +1049,21 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCoun
         const float cy_base = baseY + archOffset(index, cardCount) * uiScale();
         const float t = handTValue(index, cardCount);
         const float normalizedOffset = (t - 0.5f) * 2.0f;
-        const float restRotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees;
+        const float idleWiggleRotation = std::sin(
+            m_wiggleTime * LayoutConfig::CardIdleWiggleFrequency
+            + (float)index * LayoutConfig::CardIdleWigglePhaseStep) * LayoutConfig::CardIdleWiggleDegrees;
+        const float restRotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees + idleWiggleRotation;
 
-        float cx = cx_base + wX;
-        float cy = cy_base + wY;
+        float cx = cx_base;
+        float cy = cy_base;
         float rotation = restRotation;
 
         if (index == activeHoverIndex && m_hoverProgress > 0.0f) {
             const float hp = m_hoverProgress;
-            const float restCy = cy_base + wY;
+            const float restCy = cy_base;
             const float snappedCardHeight = std::round(cardHeight);
             const float hoverCy = std::round((float)m_height - snappedCardHeight);
             cy = restCy + (hoverCy - restCy) * hp;
-            cx = cx_base + wX * (1.0f - hp);
             rotation = restRotation * (1.0f - hp);
             Rectangle hoverRect = { std::round(cx), cy, snappedCardHeight > 0 ? cardWidth : cardWidth, snappedCardHeight };
             if (hp >= 0.999f) {

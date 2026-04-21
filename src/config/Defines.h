@@ -8,6 +8,10 @@ inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json
 inline constexpr const char* ENEMY_DIRECTORY     = "assets/enemies";
 inline constexpr const char* MAP_NODE_TYPES      = "assets/maps/nodes.json";
 inline constexpr const char* LEG_MAP_DATA        = "assets/maps/leg/leg.json";
+inline constexpr const char* PLAYER_SPRITE       = "assets/player/player.json";
+inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";
+inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";
+inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs";
 } // namespace AssetPaths
 
 // ## Audio ##
@@ -97,10 +101,9 @@ inline constexpr int HandBottomMargin      = -20;
 inline constexpr int HandDropZoneTopPadding = 90;
 inline constexpr float HandBottomOverflowPercent = 0.30f;
 inline constexpr float HoverAnimSpeed       = 15.0f;
-inline constexpr float WiggleXAmplitude    = 3.0f;
-inline constexpr float WiggleYAmplitude    = 2.0f;
-inline constexpr float WiggleXFrequency    = 3.0f;
-inline constexpr float WiggleYFrequency    = 2.0f;
+inline constexpr float CardIdleWiggleDegrees   = 2.4f;
+inline constexpr float CardIdleWiggleFrequency = 1.8f;
+inline constexpr float CardIdleWigglePhaseStep = 0.65f;
 inline constexpr float NeighborCardShift   = 15.0f;
 
 // ## UI / Piles ##
@@ -179,6 +182,13 @@ inline constexpr int MapHintFontSize       = 16;
 inline constexpr int MapTitleTopMargin     = 24;
 inline constexpr int MapHintBottomMargin   = 22;
 inline constexpr int MapHintSideMargin     = 24;
+
+// ## UI / Screen Transition ##
+inline constexpr float ScreenTransitionDuration = 1.6f;
+inline constexpr float ScreenTransitionHexSize = 0.08f;
+inline constexpr float ScreenTransitionRandomness = 0.08f;
+inline constexpr float ScreenTransitionEdgeSoftness = 0.01f;
+inline constexpr float ScreenTransitionSpeed = 0.3f;
 
 // ## UI / Pile Viewer ##
 inline constexpr int PileViewerPanelWidth  = 900;

@@ -10,8 +10,10 @@
 #include "ui/Colors.h"
 #include "ui/GameScreen.h"
 #include "ui/InputHandler.h"
+#include "ui/ScreenTransition.h"
 #include "ui/UIState.h"
 
+#include <functional>
 #include <string>
 
 int main() {
@@ -67,6 +69,8 @@ int main() {
     GameState  state;
     GameScreen screen(GetScreenWidth(), GetScreenHeight(), &cardAudio);
     MapRunState mapRun;
+    ScreenTransition sceneTransition;
+    RenderTexture2D sceneFrame = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
     UIState    uiState;
     bool       showMainMenuOptions = false;
     bool       shouldQuit = false;
@@ -75,6 +79,12 @@ int main() {
 
     float       enemyTurnElapsed    = 0.0f;
     const float enemyTurnDuration   = CombatConfig::EnemyTurnDelaySecs;
+
+    if (!sceneTransition.load(AssetPaths::TRANSITION_SHADER)) {
+        TraceLog(LOG_WARNING, "Screen transition shader unavailable: %s", AssetPaths::TRANSITION_SHADER);
+    }
+
+    std::function<void()> pendingSceneSwitch = {};
 
     const auto saveSettings = [&appSettings]() {
         std::string saveError;
@@ -90,8 +100,37 @@ int main() {
         saveSettings();
     };
 
+    const auto beginSceneTransition = [&sceneTransition, &pendingSceneSwitch](std::function<void()> action) {
+        if (!sceneTransition.isLoaded()) {
+            action();
+            return;
+        }
+        if (sceneTransition.isActive()) {
+            return;
+        }
+        pendingSceneSwitch = std::move(action);
+        sceneTransition.start();
+    };
+
+    const auto ensureSceneFrameSize = [&sceneFrame]() {
+        const int width = GetScreenWidth() > 0 ? GetScreenWidth() : 1;
+        const int height = GetScreenHeight() > 0 ? GetScreenHeight() : 1;
+        if (sceneFrame.id != 0 && sceneFrame.texture.width == width && sceneFrame.texture.height == height) {
+            return;
+        }
+
+        if (sceneFrame.id != 0) {
+            UnloadRenderTexture(sceneFrame);
+        }
+
+        sceneFrame = LoadRenderTexture(width, height);
+    };
+
     while (!WindowShouldClose() && !shouldQuit) {
-        BeginDrawing();
+        ensureSceneFrameSize();
+        const bool allowSceneInteraction = !sceneTransition.isActive();
+
+        BeginTextureMode(sceneFrame);
         ClearBackground(Colors::dark_bg);
 
         switch (state.getPhase()) {
@@ -99,7 +138,7 @@ int main() {
         // -------------------------------------------------------------------
         case GamePhase::MENU: {
             if (showMainMenuOptions) {
-                if (InputHandler::getEscapePressed()) {
+                if (allowSceneInteraction && InputHandler::getEscapePressed()) {
                     showMainMenuOptions = false;
                     break;
                 }
@@ -112,7 +151,7 @@ int main() {
                     applySettings();
                 }
             } else {
-                const MenuAction action = screen.drawMenu();
+                const MenuAction action = screen.drawMenu(allowSceneInteraction);
                 if (action == MenuAction::NewGame) {
                     std::string newRunError;
                     if (!state.startNewRun(newRunError)) {
@@ -120,8 +159,10 @@ int main() {
                         break;
                     }
                     mapRun.initialize(activeMap);
-                    screen.resetMapView();
-                    state.setPhase(GamePhase::MAP);
+                    beginSceneTransition([&screen, &state]() {
+                        screen.resetMapView();
+                        state.setPhase(GamePhase::MAP);
+                    });
                 } else if (action == MenuAction::Options) {
                     showMainMenuOptions = true;
                     mainMenuOptionsSection = OptionsSection::Display;
@@ -134,31 +175,48 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::MAP: {
-            if (InputHandler::getEscapePressed()) {
-                state.setPhase(GamePhase::MENU);
-                mapRun = MapRunState{};
+            if (allowSceneInteraction && InputHandler::getEscapePressed()) {
+                beginSceneTransition([&state, &mapRun]() {
+                    state.setPhase(GamePhase::MENU);
+                    mapRun = MapRunState{};
+                });
                 break;
             }
 
-            const int selectedNodeIndex = screen.drawMapScreen(activeMap, mapRun);
-            if (selectedNodeIndex >= 0 && mapRun.selectNode(activeMap, selectedNodeIndex)) {
-                const std::string encounterId = activeMap.nodes[selectedNodeIndex].encounterId;
-                std::string combatError;
-                if (!state.startCombatForEnemy(encounterId, combatError)) {
-                    TraceLog(LOG_ERROR, "%s", combatError.c_str());
-                    mapRun.clearActiveNode();
-                    break;
-                }
-                uiState.setMode(UIMode::NORMAL);
-                enemyTurnElapsed = 0.0f;
-                state.setPhase(GamePhase::COMBAT);
+            const int selectedNodeIndex = screen.drawMapScreen(activeMap, mapRun, allowSceneInteraction);
+            if (allowSceneInteraction && selectedNodeIndex >= 0) {
+                beginSceneTransition([&, selectedNodeIndex]() {
+                    if (!mapRun.selectNode(activeMap, selectedNodeIndex)) {
+                        return;
+                    }
+
+                    const std::string encounterId = activeMap.nodes[selectedNodeIndex].encounterId;
+                    std::string combatError;
+                    if (!state.startCombatForEnemy(encounterId, combatError)) {
+                        TraceLog(LOG_ERROR, "%s", combatError.c_str());
+                        mapRun.clearActiveNode();
+                        return;
+                    }
+
+                    uiState.setMode(UIMode::NORMAL);
+                    enemyTurnElapsed = 0.0f;
+                    state.setPhase(GamePhase::COMBAT);
+                });
             }
             break;
         }
 
         // -------------------------------------------------------------------
+        case GamePhase::NEW_GAME: {
+            // Legacy phase kept for compatibility; current flow transitions
+            // directly from menu to map/combat setup.
+            state.setPhase(GamePhase::MENU);
+            break;
+        }
+
+        // -------------------------------------------------------------------
         case GamePhase::COMBAT: {
-            if (InputHandler::getEscapePressed()) {
+            if (allowSceneInteraction && InputHandler::getEscapePressed()) {
                 if (uiState.getCurrentMode() == UIMode::NORMAL) {
                     uiState.setMode(UIMode::PAUSED);
                 } else if (uiState.getCurrentMode() == UIMode::PAUSED) {
@@ -170,7 +228,7 @@ int main() {
                 }
             }
 
-            if (uiState.getCurrentMode() == UIMode::PAUSED) {
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::PAUSED) {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
 
@@ -183,9 +241,12 @@ int main() {
                     pauseOptionsSection = OptionsSection::Display;
                     break;
                 case PauseAction::MainMenu:
-                    uiState.setMode(UIMode::NORMAL);
-                    state.setPhase(GamePhase::MENU);
-                    enemyTurnElapsed = 0.0f;
+                    beginSceneTransition([&]() {
+                        uiState.setMode(UIMode::NORMAL);
+                        state.endCombat();
+                        state.setPhase(GamePhase::MENU);
+                        enemyTurnElapsed = 0.0f;
+                    });
                     break;
                 case PauseAction::Quit:
                     shouldQuit = true;
@@ -196,7 +257,7 @@ int main() {
                 break;
             }
 
-            if (uiState.getCurrentMode() == UIMode::OPTIONS) {
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::OPTIONS) {
                 const AppSettings previousSettings = appSettings;
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
@@ -210,8 +271,8 @@ int main() {
             }
 
             // Handle pile-viewer overlay (drawn on top of combat screen)
-            if (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE
-                || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE) {
+            if (allowSceneInteraction && (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE
+                || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE)) {
                 // Still draw the combat screen beneath the overlay
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
@@ -241,12 +302,20 @@ int main() {
                 break; // skip normal combat input while overlay is open
             }
 
+            if (!allowSceneInteraction) {
+                bool unused1 = false, unused2 = false, unused3 = false;
+                screen.drawCombat(state, unused1, unused2, unused3, false);
+                break;
+            }
+
             // Normal combat flow
             if (state.getTurnPhase() == TurnPhase::PLAYER_TURN) {
                 bool endTurn        = false;
                 bool drawClicked    = false;
                 bool discardClicked = false;
-                int  cardIdx = screen.drawCombat(state, endTurn, drawClicked, discardClicked);
+                // Disable interaction once the enemy is dead so nothing fires during death anim.
+                bool allowInteraction = !state.isGameOver();
+                int  cardIdx = screen.drawCombat(state, endTurn, drawClicked, discardClicked, allowInteraction);
 
                 if (drawClicked) {
                     uiState.setMode(UIMode::VIEWING_DRAW_PILE);
@@ -269,14 +338,18 @@ int main() {
             }
 
             if (state.isGameOver()) {
-                if (state.isPlayerDefeated()) {
-                    state.setPhase(GamePhase::GAME_OVER);
-                } else if (state.isCombatWon()) {
-                    mapRun.completeActiveNode(activeMap);
-                    state.endCombat();
-                    uiState.setMode(UIMode::NORMAL);
-                    enemyTurnElapsed = 0.0f;
-                    state.setPhase(GamePhase::MAP);
+                if (state.isPlayerDefeated() && screen.isPlayerDeathDissolveComplete()) {
+                    beginSceneTransition([&state]() {
+                        state.setPhase(GamePhase::GAME_OVER);
+                    });
+                } else if (state.isCombatWon() && screen.isEnemyDeathAnimDone()) {
+                    beginSceneTransition([&]() {
+                        mapRun.completeActiveNode(activeMap);
+                        state.endCombat();
+                        uiState.setMode(UIMode::NORMAL);
+                        enemyTurnElapsed = 0.0f;
+                        state.setPhase(GamePhase::MAP);
+                    });
                 }
             }
             break;
@@ -285,8 +358,10 @@ int main() {
         // -------------------------------------------------------------------
         case GamePhase::GAME_OVER: {
             bool returnToMenu = screen.drawGameOver(state);
-            if (returnToMenu) {
-                state.setPhase(GamePhase::MENU);
+            if (allowSceneInteraction && returnToMenu) {
+                beginSceneTransition([&state]() {
+                    state.setPhase(GamePhase::MENU);
+                });
             }
             break;
         }
@@ -297,10 +372,48 @@ int main() {
             DrawFPS(LayoutConfig::FpsCounterX, LayoutConfig::FpsCounterY);
         }
 
+        EndTextureMode();
+
+        if (sceneTransition.needsFromCapture()) {
+            sceneTransition.captureFrom(sceneFrame.texture);
+            if (pendingSceneSwitch) {
+                pendingSceneSwitch();
+                pendingSceneSwitch = {};
+            }
+            sceneTransition.beginToCapture();
+        }
+        else if (sceneTransition.needsToCapture()) {
+            sceneTransition.captureTo(sceneFrame.texture);
+        }
+
+        if (!sceneTransition.needsFromCapture() && !sceneTransition.needsToCapture()) {
+            sceneTransition.update(GetFrameTime());
+        }
+
+        BeginDrawing();
+        ClearBackground(Colors::dark_bg);
+
+        if (sceneTransition.isActive()) {
+            sceneTransition.drawOverlay(GetScreenWidth(), GetScreenHeight());
+        } else {
+            DrawTexturePro(
+                sceneFrame.texture,
+                { 0.0f, 0.0f, (float)sceneFrame.texture.width, -(float)sceneFrame.texture.height },
+                { 0.0f, 0.0f, (float)GetScreenWidth(), (float)GetScreenHeight() },
+                { 0.0f, 0.0f },
+                0.0f,
+                WHITE
+            );
+        }
+
         EndDrawing();
     }
 
     screen.unloadAssets();
+    sceneTransition.unload();
+    if (sceneFrame.id != 0) {
+        UnloadRenderTexture(sceneFrame);
+    }
     Deck::setShuffleCallback({});
     cardAudio.shutdown();
     CloseAudioDevice();

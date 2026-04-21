@@ -1,6 +1,7 @@
 #include "EnemyFactory.h"
 
 #include "config/Defines.h"
+#include "content/EnemySpriteConfig.h"
 #include "core/Card.h"
 #include "core/Enemy.h"
 #include "gameplay/CardEffect.h"
@@ -122,7 +123,31 @@ std::unique_ptr<Enemy> EnemyFactory::loadFromJSON(const std::string& filePath, s
     }
 
     enemyDeck.shuffle();
-    return std::make_unique<Enemy>(name, maxHealth, std::move(enemyDeck));
+
+    // --- Parse optional sprite section ---
+    EnemySpriteConfig spriteConfig;
+    if (root.contains("sprite") && root["sprite"].is_object()) {
+        const auto& s = root["sprite"];
+        spriteConfig.sheetPath   = s.value("sheet",       "");
+        spriteConfig.frameWidth  = s.value("frameWidth",  80);
+        spriteConfig.frameHeight = s.value("frameHeight", 80);
+
+        auto parseClip = [&s](const char* key, AnimClip& clip) {
+            if (!s.contains(key) || !s[key].is_object()) return;
+            const auto& c = s[key];
+            clip.startFrame      = c.value("startFrame",      clip.startFrame);
+            clip.frameCount      = c.value("frameCount",      clip.frameCount);
+            clip.frameDurationMs = c.value("frameDurationMs", clip.frameDurationMs);
+            clip.looping         = c.value("looping",         clip.looping);
+        };
+
+        parseClip("idle",   spriteConfig.idle);
+        parseClip("attack", spriteConfig.attack);
+        parseClip("death",  spriteConfig.death);
+    }
+
+    return std::make_unique<Enemy>(name, maxHealth, std::move(enemyDeck),
+                                   std::move(spriteConfig));
 }
 
 std::unique_ptr<Enemy> EnemyFactory::loadById(const std::string& enemyId, std::string& error) {

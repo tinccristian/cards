@@ -2,6 +2,14 @@
   "id": "bacteria",
   "name": "Bacteria",
   "maxHealth": 30,
+  "sprite": {
+    "sheet": "assets/enemies/fungus-sheet.png",
+    "frameWidth": 80,
+    "frameHeight": 80,
+    "idle":   { "startFrame": 0,  "frameCount": 6, "frameDurationMs": 400, "looping": true  },
+    "attack": { "startFrame": 6,  "frameCount": 6, "frameDurationMs": 200, "looping": false },
+    "death":  { "startFrame": 12, "frameCount": 6, "frameDurationMs": 200, "looping": false }
+  },
   "cards": [
     {
       "id": "bacteria_attack",

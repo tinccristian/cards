@@ -9,10 +9,11 @@
 // Construction
 // ---------------------------------------------------------------------------
 
-Enemy::Enemy(std::string name, int health, Deck deck)
+Enemy::Enemy(std::string name, int health, Deck deck, EnemySpriteConfig spriteConfig)
     : m_name(std::move(name))
     , m_health(health)
     , m_maxHealth(health)
+    , m_spriteConfig(std::move(spriteConfig))
     , m_enemyDeck(std::move(deck))
 {}
 
@@ -60,6 +61,8 @@ int         Enemy::getIntentBlock()   const {
 const std::vector<Card>& Enemy::getPlayedCards() const { return m_playedCards; }
 
 void Enemy::addCardToDeck(const Card& card) { m_enemyDeck.addCard(card); }
+
+const EnemySpriteConfig& Enemy::getSpriteConfig() const { return m_spriteConfig; }
 
 void Enemy::addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition) {
     m_statuses.add(type, magnitude, duration, disposition);

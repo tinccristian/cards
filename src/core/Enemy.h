@@ -2,6 +2,7 @@
 
 #include "Card.h"
 #include "Deck.h"
+#include "content/EnemySpriteConfig.h"
 #include "gameplay/StatusCollection.h"
 #include <string>
 #include <vector>
@@ -24,7 +25,8 @@ struct EnemyTurnResult {
 // Represents a pathogen or health threat the player fights in combat.
 class Enemy {
 public:
-    Enemy(std::string name, int health, Deck deck);
+    Enemy(std::string name, int health, Deck deck,
+          EnemySpriteConfig spriteConfig = {});
 
     // --- Basic stats ---
     const std::string& getName()      const;
@@ -58,6 +60,9 @@ public:
     // Add a card directly to the enemy's deck.
     void addCardToDeck(const Card& card);
 
+    // Sprite sheet configuration for rendering (empty → no sprite).
+    const EnemySpriteConfig& getSpriteConfig() const;
+
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     void queueSkipTurn(int magnitude, int duration);
     int  getStatusMagnitude(StatusType type) const;
@@ -74,6 +79,7 @@ private:
     int               m_intentDamage = 0;
     int               m_intentBlock  = 0;
     StatusCollection  m_statuses;
+    EnemySpriteConfig m_spriteConfig;
     Deck              m_enemyDeck;
     std::vector<Card> m_playedCards;
 };

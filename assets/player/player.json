@@ -1,0 +1,8 @@
+{
+  "sprite": {
+    "sheet": "assets/player/player-sheet.png",
+    "frameWidth": 80,
+    "frameHeight": 80,
+    "idle": { "startFrame": 0, "frameCount": 2, "frameDurationMs": 400, "looping": true }
+  }
+}

@@ -85,13 +85,13 @@
       ]
     },
     {
-      "id": "rapid_assessment",
-      "name": "Rapid Assessment",
+      "id": "ambulance",
+      "name": "Ambulance",
       "description": "Draw 3 cards",
       "cost": 0,
       "type": "skill",
       "tags": ["medicine", "utility"],
-      "artPath": "assets/cards/pill.png",
+      "artPath": "assets/cards/ambulance.png",
       "effects": [
         { "type": "draw_cards", "target": "self", "amount": 3 }
       ]
