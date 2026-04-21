@@ -36,8 +36,7 @@ float hexDistance(vec2 p, float radius) {
 
 void main() {
     vec2 uv = fragTexCoord;
-    vec4 fromColor = texture(texture0, vec2(uv.x * 0.5, uv.y));
-    vec4 toColor = texture(texture0, vec2(0.5 + uv.x * 0.5, uv.y));
+    vec4 fromColor = texture(texture0, uv);
 
     if (progress <= 0.0) {
         finalColor = fromColor;
@@ -45,12 +44,11 @@ void main() {
     }
 
     if (progress >= 1.0) {
-        finalColor = toColor;
+        finalColor = vec4(fromColor.rgb, 0.0);
         return;
     }
 
     vec2 screenSize = vec2(textureSize(texture0, 0));
-    screenSize.x *= 0.5;
     vec2 p = uv - 0.5;
     float aspect = screenSize.x / max(screenSize.y, 1.0);
     p.x *= aspect * 0.9;
@@ -69,5 +67,5 @@ void main() {
     float distanceToHexEdge = hexDistance(hexPoint, tileProgress * 0.9);
     float mask = smoothstep(edge_softness, -edge_softness, distanceToHexEdge);
 
-    finalColor = mix(fromColor, toColor, mask);
+    finalColor = vec4(fromColor.rgb, 1.0 - mask);
 }

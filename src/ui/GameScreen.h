@@ -126,11 +126,14 @@ private:
     bool         m_blockIconLoaded    = false;
     Texture2D    m_attackIcon         = {};
     bool         m_attackIconLoaded   = false;
+    Shader       m_intentFloatShader  = {};
+    bool         m_intentFloatShaderLoaded = false;
+    int          m_intentFloatTimeLoc = -1;
+    int          m_intentFloatAmpLoc  = -1;
+    int          m_intentFloatSpeedLoc = -1;
+    int          m_intentFloatPhaseLoc = -1;
     Texture2D       m_cardBorder         = {};
     bool            m_cardBorderLoaded   = false;
-    // Offscreen buffer for rendering a card flat before rotating it.
-    // Sized to the logical card dimensions; resized lazily when scale changes.
-    mutable RenderTexture2D m_cardRT     = {};
     mutable CardArtCache m_artCache;
 
     // Deferred tooltip: populated during the frame, flushed at the very end of

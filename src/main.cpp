@@ -128,7 +128,7 @@ int main() {
 
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
-        const bool allowSceneInteraction = !sceneTransition.isActive();
+        const bool allowSceneInteraction = !sceneTransition.blocksInteraction();
 
         BeginTextureMode(sceneFrame);
         ClearBackground(Colors::dark_bg);
@@ -176,10 +176,8 @@ int main() {
         // -------------------------------------------------------------------
         case GamePhase::MAP: {
             if (allowSceneInteraction && InputHandler::getEscapePressed()) {
-                beginSceneTransition([&state, &mapRun]() {
-                    state.setPhase(GamePhase::MENU);
-                    mapRun = MapRunState{};
-                });
+                state.setPhase(GamePhase::MENU);
+                mapRun = MapRunState{};
                 break;
             }
 
@@ -380,30 +378,22 @@ int main() {
                 pendingSceneSwitch();
                 pendingSceneSwitch = {};
             }
-            sceneTransition.beginToCapture();
         }
-        else if (sceneTransition.needsToCapture()) {
-            sceneTransition.captureTo(sceneFrame.texture);
-        }
-
-        if (!sceneTransition.needsFromCapture() && !sceneTransition.needsToCapture()) {
-            sceneTransition.update(GetFrameTime());
-        }
+        sceneTransition.update(GetFrameTime());
 
         BeginDrawing();
         ClearBackground(Colors::dark_bg);
 
+        DrawTexturePro(
+            sceneFrame.texture,
+            { 0.0f, 0.0f, (float)sceneFrame.texture.width, -(float)sceneFrame.texture.height },
+            { 0.0f, 0.0f, (float)GetScreenWidth(), (float)GetScreenHeight() },
+            { 0.0f, 0.0f },
+            0.0f,
+            WHITE
+        );
         if (sceneTransition.isActive()) {
             sceneTransition.drawOverlay(GetScreenWidth(), GetScreenHeight());
-        } else {
-            DrawTexturePro(
-                sceneFrame.texture,
-                { 0.0f, 0.0f, (float)sceneFrame.texture.width, -(float)sceneFrame.texture.height },
-                { 0.0f, 0.0f, (float)GetScreenWidth(), (float)GetScreenHeight() },
-                { 0.0f, 0.0f },
-                0.0f,
-                WHITE
-            );
         }
 
         EndDrawing();

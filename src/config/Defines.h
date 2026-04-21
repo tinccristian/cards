@@ -14,6 +14,7 @@ inline constexpr const char* PLAYER_SPRITE       = "assets/player/player.json"; 
 inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";       // wind-dissolve death effect
 inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";            // color-cycle flash on damage
 inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs";     // hex-tile screen wipe
+inline constexpr const char* INTENT_FLOAT_SHADER = "assets/shaders/intent_float.vs";   // subtle bobbing motion for intent icons
 inline constexpr const char* BLOCK_ICON          = "assets/common/block.png";          // 16×16 shield sprite
 inline constexpr const char* ATTACK_ICON         = "assets/common/attack.png";         // 16×16 sword sprite
 inline constexpr const char* CARD_BORDER         = "assets/common/card_border.png";    // 120×180 border overlay (alpha)
@@ -106,11 +107,11 @@ inline constexpr int CombatLogFontSize  = 17;
 // Cards
 // -----------------------------------------------------------------------------
 
-// Logical card size — card_border.png must be exactly this resolution.
-inline constexpr int   CardWidth     = 120; // px
-inline constexpr int   CardHeight    = 180; // px
+// Logical card size used by in-game card rendering.
+inline constexpr int   CardWidth     = 150; // px
+inline constexpr int   CardHeight    = 225; // px
 inline constexpr float CardGap       = -40.0f; // negative = cards overlap in hand
-inline constexpr int   CardArtHeight =  80; // px, art window at the top of the card
+inline constexpr int   CardArtHeight = 100; // px, art window at the top of the card
 
 // Hand layout
 inline constexpr float HandLeftBoundPercent      = 0.14f; // hand starts this far from the left edge
@@ -132,25 +133,25 @@ inline constexpr float CardIdleWigglePhaseStep = 0.65f;  // phase offset between
 inline constexpr float NeighborCardShift       = 15.0f;  // px neighbors spread apart when a card is hovered
 
 // Card text  (sizes in logical px; drawn with a 1-px black outline)
-inline constexpr int CardNameFontSize      = 12; // normal hand card
-inline constexpr int HoveredCardNameSize   = 14; // enlarged when hovered
-inline constexpr int CardDescriptionSize   = 10;
+inline constexpr int CardNameFontSize      = 14; // normal hand card
+inline constexpr int HoveredCardNameSize   = 17; // enlarged when hovered
+inline constexpr int CardDescriptionSize   = 12;
 inline constexpr int CardDescriptionGap    = 2;  // px between description lines
 inline constexpr int CardDescriptionLines  = 2;  // max lines shown on the card face
-inline constexpr int CardFooterSize        = 11; // dmg/block stat in the bottom-right corner
-inline constexpr int HoveredCardFooterSize = 13;
-inline constexpr int CardFooterMargin      = 20; // px from the card bottom to the footer baseline
-inline constexpr int CardRightStatPadding  = 14; // px inset from the card right edge for the stat text
-inline constexpr int CardTextPadding       = 10; // horizontal inset for description text
-inline constexpr int CardTextTopPadding    = 4;  // px between the art/divider line and the card name
-inline constexpr int CardTextGap           = 4;  // px between name and description
+inline constexpr int CardFooterSize        = 13; // dmg/block stat in the bottom-right corner
+inline constexpr int HoveredCardFooterSize = 15;
+inline constexpr int CardFooterMargin      = 24; // px from the card bottom to the footer baseline
+inline constexpr int CardRightStatPadding  = 16; // px inset from the card right edge for the stat text
+inline constexpr int CardTextPadding       = 12; // horizontal inset for description text
+inline constexpr int CardTextTopPadding    = 5;  // px between the art/divider line and the card name
+inline constexpr int CardTextGap           = 5;  // px between name and description
 inline constexpr int CardDividerPadding    = 2;
-inline constexpr int CardNameNudgeUp       = 2;  // px the name is pushed above the art/text divider line
+inline constexpr int CardNameNudgeUp       = 3;  // px the name is pushed above the art/text divider line
 
 // Mana badge — position in logical card pixels.
 // Adjust these to place the mana number over the badge in card_border.png.
-inline constexpr int CardManaCostX = 6; // px from the card's left edge
-inline constexpr int CardManaCostY = 3; // px from the card's top edge
+inline constexpr int CardManaCostX = 7; // px from the card's left edge
+inline constexpr int CardManaCostY = 4; // px from the card's top edge
 
 // -----------------------------------------------------------------------------
 // Piles  (draw pile / discard pile widgets in the bottom corners)
@@ -223,6 +224,12 @@ inline constexpr int   IntentTooltipHeight   = 42;  // (legacy, kept for referen
 inline constexpr int   IntentTooltipOffsetX  = 4;   // (legacy, kept for reference)
 inline constexpr int   IntentTooltipFontSize = 13;  // (legacy, kept for reference)
 inline constexpr int   IntentTooltipPadding  = 6;   // (legacy, kept for reference)
+inline constexpr float IntentIconGap         = 4.0f;
+inline constexpr float IntentFloatAmplitude  = 3.0f;  // vertical bob in logical pixels
+inline constexpr float IntentFloatSpeed      = 1.8f;  // slightly quicker bob so the intent reads as alive
+inline constexpr float IntentFloatPhaseStep  = 0.9f;  // phase separation between sibling icons
+inline constexpr float IntentAttackValueOffsetX = 8.0f; // pushes the attack number farther outside the icon on the left
+inline constexpr float IntentAttackValueOffsetY = 5.0f; // nudges the attack number lower toward the icon corner
 
 // -----------------------------------------------------------------------------
 // Overlays  (Pause / Options — both reuse the same centred panel)

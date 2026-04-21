@@ -58,12 +58,7 @@ GameScreen::GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio)
     : m_width(screenWidth)
     , m_height(screenHeight)
     , m_cardAudio(cardAudio)
-{
-    Font defaultFont = GetFontDefault();
-    if (defaultFont.texture.id != 0) {
-        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_BILINEAR);
-    }
-}
+{}
 
 // ---------------------------------------------------------------------------
 // Pile widget rects (used both for drawing and click detection in main)
@@ -1001,6 +996,15 @@ void GameScreen::unloadAssets() {
     m_loadedEnemySpritePath.clear();
     m_playerSprite.unload();
     m_playerSpriteLoaded = false;
+    if (m_intentFloatShaderLoaded && m_intentFloatShader.id != 0) {
+        UnloadShader(m_intentFloatShader);
+        m_intentFloatShader = {};
+        m_intentFloatShaderLoaded = false;
+        m_intentFloatTimeLoc = -1;
+        m_intentFloatAmpLoc = -1;
+        m_intentFloatSpeedLoc = -1;
+        m_intentFloatPhaseLoc = -1;
+    }
     if (m_blockIconLoaded && m_blockIcon.id != 0) {
         UnloadTexture(m_blockIcon);
         m_blockIcon = {};
@@ -1454,6 +1458,11 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     const int descriptionGap = scalei(LayoutConfig::CardDescriptionGap);
     const int footerMargin = scalei(LayoutConfig::CardFooterMargin);
     const int rightStatPadding = scalei(LayoutConfig::CardRightStatPadding);
+    auto* self = const_cast<GameScreen*>(this);
+    Font defaultFont = GetFontDefault();
+    if (defaultFont.texture.id != 0) {
+        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_BILINEAR);
+    }
     const Vector2 pivot = { rect.x + rect.width / 2.0f, rect.y + rect.height };
 
     rlPushMatrix();
@@ -1463,7 +1472,6 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
 
     // Lazy-load card border texture (shared across all cards).
     if (!m_cardBorderLoaded) {
-        auto* self = const_cast<GameScreen*>(this);
         self->m_cardBorderLoaded = true;
         if (FileExists(AssetPaths::CARD_BORDER)) {
             self->m_cardBorder = LoadTexture(AssetPaths::CARD_BORDER);
@@ -1479,7 +1487,7 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
 
     // --- Art ---
     float artH = baseArtHeight * (rect.height / baseCardHeight);
-    Rectangle artRect = snapRect({ rect.x + 2, rect.y + 2, rect.width - 4, artH - 2 });
+    Rectangle artRect = snapRect({ rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, artH - 2.0f });
     auto texOpt = m_artCache.getTexture(card.getArtPath());
     if (texOpt.has_value()) {
         const Texture2D& tex = texOpt.value();
@@ -1506,21 +1514,21 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
                                          : LayoutConfig::CardNameFontSize);
         // Blue when affordable (or no mana info), red when too expensive.
         const Color manaColor = (playerMana < 0 || card.getCost() <= playerMana)
-                                ? Colors::draw_pile_accent   // blue
-                                : Colors::damage_color;      // red
+                                ? Colors::draw_pile_accent
+                                : Colors::damage_color;
         DrawTextOutlined(costStr.c_str(), (int)textX, (int)textY, manaSz, manaColor);
     }
 
     // --- Text area (below art) ---
     float divY = rect.y + artH;
     int textX = (int)rect.x + textPadding;
-    // CardNameNudgeUp: nudge name a few pixels above the divider line (tunable in Defines.h).
     int textY = (int)divY + textTopPadding - scalei(LayoutConfig::CardNameNudgeUp);
 
     int nameSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize : LayoutConfig::CardNameFontSize);
     int nameW  = MeasureText(card.getName().c_str(), nameSz);
+    const int nameX = (int)std::lround(rect.x + (rect.width - (float)nameW) * 0.5f);
     DrawTextOutlined(card.getName().c_str(),
-                     (int)rect.x + ((int)rect.width - nameW) / 2,
+                     nameX,
                      textY, nameSz, Colors::text_primary);
     textY += nameSz + textGap;
 
@@ -1563,6 +1571,9 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     }
 
     rlPopMatrix();
+    if (defaultFont.texture.id != 0) {
+        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_POINT);
+    }
 }
 
 void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
@@ -1728,6 +1739,27 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
             SetTextureFilter(self->m_attackIcon, TEXTURE_FILTER_POINT);
         }
     }
+    if (!m_blockIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_blockIconLoaded = true;
+        if (FileExists(AssetPaths::BLOCK_ICON)) {
+            self->m_blockIcon = LoadTexture(AssetPaths::BLOCK_ICON);
+            SetTextureFilter(self->m_blockIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+    if (!m_intentFloatShaderLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_intentFloatShaderLoaded = true;
+        if (FileExists(AssetPaths::INTENT_FLOAT_SHADER)) {
+            self->m_intentFloatShader = LoadShader(AssetPaths::INTENT_FLOAT_SHADER, nullptr);
+            if (self->m_intentFloatShader.id != 0) {
+                self->m_intentFloatTimeLoc = GetShaderLocation(self->m_intentFloatShader, "time");
+                self->m_intentFloatAmpLoc = GetShaderLocation(self->m_intentFloatShader, "amplitude");
+                self->m_intentFloatSpeedLoc = GetShaderLocation(self->m_intentFloatShader, "speed");
+                self->m_intentFloatPhaseLoc = GetShaderLocation(self->m_intentFloatShader, "phase");
+            }
+        }
+    }
 
     const int   dmg      = enemy.getIntentDamage();
     const int   blk      = enemy.getIntentBlock();
@@ -1747,7 +1779,12 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
     // Sprite size matches the block slot in drawEntityHud: barHeight * 1.5
     const float iconSize    = scalei(LayoutConfig::HealthBarHeight) * 1.5f;
     const int   statFontSize = scalei(LayoutConfig::EntityStatFontSize);
-    const float gap         = scalef(4.0f);
+    const float gap         = scalef(LayoutConfig::IntentIconGap);
+    const float bobAmplitude = scalef(LayoutConfig::IntentFloatAmplitude);
+    const float bobSpeed = LayoutConfig::IntentFloatSpeed;
+    const float timeValue = (float)GetTime();
+    const float synchronizedPhase = 0.0f;
+    const float textBobOffset = std::sin(timeValue * bobSpeed + synchronizedPhase) * bobAmplitude;
 
     // Centre the group of icons under the HUD.
     const int   count       = (hasAtk ? 1 : 0) + (hasBlk ? 1 : 0);
@@ -1755,21 +1792,35 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
     float iconX             = hudX + (hudWidth - groupW) / 2.0f;
     const float iconY       = belowBarY;
 
-    // Helper: draw one intent icon with number and return its rect.
-    const auto drawIcon = [&](Texture2D tex, bool texLoaded, int value, Color fallback) -> Rectangle {
+    const auto beginFloatShader = [&](float phase) {
+        if (m_intentFloatShader.id == 0) return false;
+        if (m_intentFloatTimeLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatTimeLoc, &timeValue, SHADER_UNIFORM_FLOAT);
+        }
+        if (m_intentFloatAmpLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatAmpLoc, &bobAmplitude, SHADER_UNIFORM_FLOAT);
+        }
+        if (m_intentFloatSpeedLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatSpeedLoc, &bobSpeed, SHADER_UNIFORM_FLOAT);
+        }
+        if (m_intentFloatPhaseLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatPhaseLoc, &phase, SHADER_UNIFORM_FLOAT);
+        }
+        BeginShaderMode(m_intentFloatShader);
+        return true;
+    };
+
+    // Helper: draw one intent icon and return its clickable rect.
+    const auto drawIcon = [&](Texture2D tex, bool texLoaded, Color fallback, float phase) -> Rectangle {
         const Rectangle slot = { iconX, iconY, iconSize, iconSize };
+        const bool shaderActive = beginFloatShader(phase);
         if (texLoaded && tex.id != 0) {
             Rectangle src = { 0, 0, (float)tex.width, (float)tex.height };
             DrawTexturePro(tex, src, slot, { 0, 0 }, 0.0f, WHITE);
         } else {
             DrawRectangleRec(slot, fallback);
         }
-        const std::string numStr = std::to_string(value);
-        const int nw = MeasureText(numStr.c_str(), statFontSize);
-        DrawTextOutlined(numStr.c_str(),
-                         (int)std::round(slot.x + (slot.width  - nw)          / 2.0f),
-                         (int)std::round(slot.y + (slot.height - statFontSize) / 2.0f),
-                         statFontSize, WHITE);
+        if (shaderActive) EndShaderMode();
         iconX += iconSize + gap;
         return slot;
     };
@@ -1777,19 +1828,29 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
     Rectangle atkRect = { 0, 0, 0, 0 };
     Rectangle blkRect = { 0, 0, 0, 0 };
 
-    if (hasAtk) atkRect = drawIcon(m_attackIcon, m_attackIconLoaded, dmg, Colors::damage_color);
-    if (hasBlk) blkRect = drawIcon(m_blockIcon,  m_blockIconLoaded,  blk, Colors::block_color);
+    if (hasAtk) {
+        atkRect = drawIcon(m_attackIcon, m_attackIconLoaded, Colors::damage_color, synchronizedPhase);
+        const std::string numStr = std::to_string(dmg);
+        const int nw = MeasureText(numStr.c_str(), statFontSize);
+        const int numberX = (int)std::round(atkRect.x - nw + scalef(LayoutConfig::IntentAttackValueOffsetX));
+        const int numberY = (int)std::round(
+            atkRect.y + textBobOffset + atkRect.height - statFontSize + scalef(LayoutConfig::IntentAttackValueOffsetY));
+        DrawTextOutlined(numStr.c_str(), numberX, numberY, statFontSize, WHITE);
+    }
+    if (hasBlk) {
+        blkRect = drawIcon(m_blockIcon, m_blockIconLoaded, Colors::block_color, synchronizedPhase);
+    }
 
     // Queue deferred tooltips — rendered at end-of-frame so they appear above all UI.
     // Attack takes priority if both are hovered simultaneously (unlikely but safe).
     if (hasBlk && mouseOver(blkRect))
         queueTooltip(enemy.getName(),
-                     "Intends to block for " + std::to_string(blk),
-                     blkRect);
+                      "Intends to block next turn.",
+                      blkRect);
     if (hasAtk && mouseOver(atkRect))
         queueTooltip(enemy.getName(),
-                     "Intends to attack for " + std::to_string(dmg),
-                     atkRect);
+                      "Intends to attack for " + std::to_string(dmg),
+                      atkRect);
 }
 
 bool GameScreen::mouseOver(Rectangle rect) {
