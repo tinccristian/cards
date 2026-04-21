@@ -75,6 +75,7 @@ bool EnemySprite::isDone() const {
 }
 
 void EnemySprite::triggerHit()          { m_hitEffect.trigger(0);   } // 0 = red palette
+bool EnemySprite::isHitActive() const   { return m_hitEffect.isActive(); }
 void EnemySprite::triggerDeathDissolve(){ m_dissolve.triggerDeath(); }
 
 bool EnemySprite::isDeathDissolveComplete() const {

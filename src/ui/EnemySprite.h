@@ -41,8 +41,11 @@ public:
     // True once a non-looping animation has finished playing through once.
     bool isDone() const;
 
-    // Trigger a brief hit-flash dissolve (no-op while death dissolve is active).
+    // Trigger a brief hit-flash (always fires, even on a killing blow).
     void triggerHit();
+
+    // True while the hit flash is still playing.
+    bool isHitActive() const;
 
     // Start the permanent death dissolve (call once isDone() is true after death anim).
     void triggerDeathDissolve();

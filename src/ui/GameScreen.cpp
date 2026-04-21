@@ -451,8 +451,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             m_playerSprite.triggerHit();
         m_lastPlayerHp = curPlayerHp;
 
-        // Trigger death dissolve when player is defeated.
-        if (state.isPlayerDefeated())
+        // Start death dissolve only after the hit flash finishes.
+        if (state.isPlayerDefeated() && !m_playerSprite.isHitActive())
             m_playerSprite.triggerDeath(); // idempotent
 
         m_playerSprite.update(dt);
@@ -476,21 +476,23 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             }
         }
 
-        // Hit detection for enemy.
+        // Hit detection for enemy — trigger even on a killing blow.
         const int curEnemyHp = enemy.getHealth();
-        if (m_lastEnemyHp >= 0 && curEnemyHp < m_lastEnemyHp && !enemy.isDead())
+        if (m_lastEnemyHp >= 0 && curEnemyHp < m_lastEnemyHp)
             m_enemySprite.triggerHit();
         m_lastEnemyHp = curEnemyHp;
 
         if (m_enemySprite.isLoaded()) {
             // Drive animation state from game state.
             if (enemy.isDead()) {
-                // Switch to death once and stay there.
-                if (m_enemySprite.getState() != EnemyAnimState::Death)
-                    m_enemySprite.setState(EnemyAnimState::Death);
-                // Once the death clip finishes (or has 0 frames), start dissolve.
-                if (m_enemySprite.isDone())
-                    m_enemySprite.triggerDeathDissolve(); // idempotent
+                // Wait for hit flash to finish before starting the death animation.
+                if (!m_enemySprite.isHitActive()) {
+                    if (m_enemySprite.getState() != EnemyAnimState::Death)
+                        m_enemySprite.setState(EnemyAnimState::Death);
+                    // Once the death clip finishes (or has 0 frames), start dissolve.
+                    if (m_enemySprite.isDone())
+                        m_enemySprite.triggerDeathDissolve(); // idempotent
+                }
             } else if (m_enemySprite.getState() == EnemyAnimState::Death) {
                 // Same enemy re-encountered (new combat) – reset to idle.
                 m_enemySprite.setState(EnemyAnimState::Idle);
@@ -969,12 +971,14 @@ OptionsMenuAction GameScreen::drawOptionsMenu(AppSettings& settings,
 
 bool GameScreen::isEnemyDeathAnimDone() const {
     if (!m_enemySprite.isLoaded()) return true;
-    // Wait for both: the death sprite animation AND the death dissolve shader.
+    // Must wait for: hit flash → death anim → death dissolve, in that order.
+    if (m_enemySprite.isHitActive()) return false;
     return m_enemySprite.isDeathDissolveComplete();
 }
 
 bool GameScreen::isPlayerDeathDissolveComplete() const {
     if (!m_playerSprite.isLoaded()) return true;
+    if (m_playerSprite.isHitActive()) return false;
     return m_playerSprite.isDeathDissolveComplete();
 }
 

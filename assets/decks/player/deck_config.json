@@ -1,11 +1,9 @@
 {
   "starter_deck": [
-    "strike",
-    "strike",
-    "defend",
-    "defend",
-    "defend",
-    "cleanse",
+    "injection",
+    "injection",
+    "stabilize",
+    "stabilize",
     "immune_boost",
     "heartbeat",
     "heartbeat",
@@ -18,6 +16,6 @@
     "antiviral",
     "quarantine",
     "quarantine",
-    "vaccine"
+    "cough_syrup"
   ]
 }

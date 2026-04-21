@@ -49,6 +49,7 @@ void PlayerSprite::unload() {
 bool PlayerSprite::isLoaded() const { return m_loaded; }
 
 void PlayerSprite::triggerHit()   { m_hitEffect.trigger(3); } // 3 = blue palette
+bool PlayerSprite::isHitActive()  const { return m_hitEffect.isActive(); }
 void PlayerSprite::triggerDeath() { m_dissolve.triggerDeath(); }
 
 bool PlayerSprite::isDeathDissolveComplete() const {

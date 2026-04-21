@@ -1,25 +1,25 @@
 {
   "cards": [
     {
-      "id": "strike",
-      "name": "Strike",
+      "id": "injection",
+      "name": "Injection",
       "description": "Deal 6 damage",
       "cost": 1,
       "type": "attack",
       "tags": ["strike"],
-      "artPath": "assets/cards/pill.png",
+      "artPath": "assets/cards/injection.png",
       "effects": [
         { "type": "damage", "target": "opponent", "amount": 6 }
       ]
     },
     {
-      "id": "defend",
-      "name": "Defend",
+      "id": "stabilize",
+      "name": "Stabilize",
       "description": "Gain 5 block",
       "cost": 1,
       "type": "skill",
       "tags": ["defense"],
-      "artPath": "assets/cards/vaccine.png",
+      "artPath": "assets/cards/stabilize.png",
       "effects": [
         { "type": "block", "target": "self", "amount": 5 }
       ]
@@ -49,13 +49,13 @@
       ]
     },
     {
-      "id": "vaccine",
-      "name": "Vaccine",
+      "id": "cough_syrup",
+      "name": "Cough Syrup",
       "description": "Gain 8 block",
       "cost": 3,
       "type": "skill",
       "tags": ["medicine", "defense"],
-      "artPath": "assets/cards/vaccine.png",
+      "artPath": "assets/cards/cough_syrup.png",
       "effects": [
         { "type": "block", "target": "self", "amount": 8 }
       ]
@@ -79,7 +79,7 @@
       "cost": 1,
       "type": "skill",
       "tags": ["medicine", "buff"],
-      "artPath": "assets/cards/vaccine.png",
+      "artPath": "assets/cards/injection.png",
       "effects": [
         { "type": "gain_mana_next_turn", "target": "self", "amount": 1, "duration": 1 }
       ]

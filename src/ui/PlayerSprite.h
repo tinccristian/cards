@@ -17,8 +17,11 @@ public:
     void unload();
     bool isLoaded() const;
 
-    // Trigger a brief hit-flash dissolve (no-op while death dissolve is active).
+    // Trigger a brief hit-flash (always fires, even on a killing blow).
     void triggerHit();
+
+    // True while the hit flash is still playing.
+    bool isHitActive() const;
 
     // Start the permanent death dissolve.
     void triggerDeath();
