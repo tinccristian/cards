@@ -388,6 +388,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     endTurnClicked     = false;
     drawPileClicked    = false;
     discardPileClicked = false;
+    m_pendingTooltip.active = false; // reset each frame; re-populated by hover checks below
 
     const bool   isPlayerTurn = (state.getTurnPhase() == TurnPhase::PLAYER_TURN);
     const Player& player = state.getPlayer();
@@ -516,16 +517,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
                   player.getHealth(), player.getMaxHealth(), player.getBlock());
     drawEntityHud(enemySpriteRect, enemy.getName(),
                   enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
-    drawIntentIndicator(enemy, {
-        enemySpriteRect.x + (enemySpriteRect.width - scalef(LayoutConfig::EntityHudWidth)) / 2.0f,
-        enemySpriteRect.y + enemySpriteRect.height + scalef(LayoutConfig::EntityHudGap)
-            + scalei(LayoutConfig::EntityNameFontSize)
-            + scalef(LayoutConfig::EntityHudNameGap)
-            + scalei(LayoutConfig::HealthBarHeight)
-            + scalef(LayoutConfig::EntityBlockGap),
-        scalef(LayoutConfig::EntityHudWidth),
-        0.0f
-    });
+    drawIntentIndicator(enemy, enemySpriteRect);
 
     // --- Combat log ---
     const std::string& action = state.getLastAction();
@@ -656,6 +648,9 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         drawCardFace(draggedRect, hand[dragIndex], true,
                      normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor);
     }
+
+    // Flush deferred tooltips last so they render above every other element.
+    flushTooltip();
 
     return -1;
 }
@@ -988,6 +983,16 @@ void GameScreen::unloadAssets() {
     m_loadedEnemySpritePath.clear();
     m_playerSprite.unload();
     m_playerSpriteLoaded = false;
+    if (m_blockIconLoaded && m_blockIcon.id != 0) {
+        UnloadTexture(m_blockIcon);
+        m_blockIcon = {};
+        m_blockIconLoaded = false;
+    }
+    if (m_attackIconLoaded && m_attackIcon.id != 0) {
+        UnloadTexture(m_attackIcon);
+        m_attackIcon = {};
+        m_attackIconLoaded = false;
+    }
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
         m_mapTexture = {};
@@ -1287,12 +1292,17 @@ bool GameScreen::drawCheckboxRow(float y, const std::string& label, bool checked
     return mouseOver(checkbox) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
 }
 
-void GameScreen::drawHealthBar(Rectangle bar, float ratio) const {
+void GameScreen::drawHealthBar(Rectangle bar, float ratio, bool hasBlock) const {
     ratio = std::max(0.0f, std::min(1.0f, ratio));
     DrawRectangleRec(bar, Colors::light_bg);
-    Color fill = (ratio > 0.5f)  ? Colors::heal_color
-               : (ratio > 0.25f) ? Colors::damage_color
-               :                   Colors::health_color;
+    Color fill;
+    if (hasBlock) {
+        fill = Colors::block_color;
+    } else {
+        fill = (ratio > 0.5f)  ? Colors::heal_color
+             : (ratio > 0.25f) ? Colors::damage_color
+             :                   Colors::health_color;
+    }
     Rectangle filled = { bar.x, bar.y, bar.width * ratio, bar.height };
     DrawRectangleRec(filled, fill);
     DrawRectangleLinesEx(bar, scalef(LayoutConfig::ThinBorderThickness), Colors::card_border);
@@ -1300,15 +1310,24 @@ void GameScreen::drawHealthBar(Rectangle bar, float ratio) const {
 
 void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
                                int health, int maxHealth, int block) const {
-    const float hudWidth = scalef(LayoutConfig::EntityHudWidth);
-    const float hudX = spriteRect.x + (spriteRect.width - hudWidth) / 2.0f;
-    const float hudTop = spriteRect.y + spriteRect.height + scalef(LayoutConfig::EntityHudGap);
-    const int nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
-    const int statFontSize = scalei(LayoutConfig::EntityStatFontSize);
-    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
-    const float healthTextGap = scalef(LayoutConfig::EntityHealthTextGap);
-    const float blockGap = scalef(LayoutConfig::EntityBlockGap);
+    // Lazy-load block icon (const_cast: texture loading is logically const).
+    if (!m_blockIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_blockIconLoaded = true;
+        if (FileExists(AssetPaths::BLOCK_ICON)) {
+            self->m_blockIcon = LoadTexture(AssetPaths::BLOCK_ICON);
+            SetTextureFilter(self->m_blockIcon, TEXTURE_FILTER_POINT);
+        }
+    }
 
+    const float hudWidth     = scalef(LayoutConfig::EntityHudWidth);
+    const float hudX         = spriteRect.x + (spriteRect.width - hudWidth) / 2.0f;
+    const float hudTop       = spriteRect.y + spriteRect.height + scalef(LayoutConfig::EntityHudGap);
+    const int   nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
+    const int   statFontSize = scalei(LayoutConfig::EntityStatFontSize);
+    const int   barHeight    = scalei(LayoutConfig::HealthBarHeight);
+
+    // --- Name ---
     const int nameWidth = MeasureText(name.c_str(), nameFontSize);
     DrawText(name.c_str(),
              (int)std::round(hudX + (hudWidth - nameWidth) / 2.0f),
@@ -1316,32 +1335,55 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
              nameFontSize,
              Colors::text_primary);
 
-    const std::string hpText = std::to_string(health) + "/" + std::to_string(maxHealth);
-    const int hpTextWidth = MeasureText(hpText.c_str(), statFontSize);
     const float barY = hudTop + nameFontSize + scalef(LayoutConfig::EntityHudNameGap);
-    const float barWidth = std::max(scalef(LayoutConfig::EntityMinHealthBarWidth), hudWidth - hpTextWidth - healthTextGap);
-    Rectangle bar = {
-        hudX,
-        barY,
-        barWidth,
-        (float)healthBarHeight
-    };
-    const float hpRatio = maxHealth > 0 ? (float)health / (float)maxHealth : 0.0f;
-    drawHealthBar(bar, hpRatio);
-    DrawText(hpText.c_str(),
-             (int)std::round(bar.x + bar.width + healthTextGap),
-             (int)std::round(bar.y + (bar.height - statFontSize) / 2.0f),
-             statFontSize,
-             Colors::text_primary);
 
-    if (block > 0) {
-        const std::string blockText = "Block " + std::to_string(block);
-        const int blockWidth = MeasureText(blockText.c_str(), statFontSize);
-        DrawText(blockText.c_str(),
-                 (int)std::round(hudX + (hudWidth - blockWidth) / 2.0f),
-                 (int)std::round(bar.y + bar.height + blockGap),
+    // --- Block slot geometry ---
+    // Slot is 1.5× the bar height (square), vertically centred on the bar,
+    // and overlaps the bar's left edge by half the slot's width.
+    const bool  hasBlock  = (block > 0);
+    const float slotSize  = barHeight * 1.5f;                // larger square
+    const float slotX     = hudX;
+    const float slotY     = barY + ((float)barHeight - slotSize) / 2.0f; // vertically centred
+    const float barX      = hudX + slotSize / 2.0f;          // bar starts at slot mid-point
+    const float barWidth  = std::max(scalef(LayoutConfig::EntityMinHealthBarWidth),
+                                     hudWidth - slotSize / 2.0f);
+
+    // --- Health bar (draw first so the slot renders on top) ---
+    Rectangle bar = { barX, barY, barWidth, (float)barHeight };
+    const float hpRatio = maxHealth > 0 ? (float)health / (float)maxHealth : 0.0f;
+    drawHealthBar(bar, hpRatio, hasBlock);
+
+    // HP text centred inside the bar.
+    const std::string hpText  = std::to_string(health) + "/" + std::to_string(maxHealth);
+    const int         hpTextW = MeasureText(hpText.c_str(), statFontSize);
+    DrawText(hpText.c_str(),
+             (int)std::round(bar.x + (bar.width  - hpTextW)           / 2.0f),
+             (int)std::round(bar.y + (bar.height - statFontSize)       / 2.0f),
+             statFontSize,
+             WHITE);
+
+    // --- Block slot (drawn on top of the bar's left edge) ---
+    if (hasBlock) {
+        const Rectangle slot = { slotX, slotY, slotSize, slotSize };
+        if (m_blockIcon.id != 0) {
+            Rectangle src = { 0, 0, (float)m_blockIcon.width, (float)m_blockIcon.height };
+            DrawTexturePro(m_blockIcon, src, slot, { 0, 0 }, 0.0f, WHITE);
+        } else {
+            DrawRectangleRec(slot, Colors::block_color);
+        }
+        // Block number centred on the slot.
+        const std::string blockStr = std::to_string(block);
+        const int bw = MeasureText(blockStr.c_str(), statFontSize);
+        DrawText(blockStr.c_str(),
+                 (int)std::round(slot.x + (slot.width  - bw)          / 2.0f),
+                 (int)std::round(slot.y + (slot.height - statFontSize) / 2.0f),
                  statFontSize,
-                 Colors::block_color);
+                 WHITE);
+
+        if (mouseOver(slot))
+            queueTooltip("Block",
+                         "Will block " + std::to_string(block) + " damage",
+                         slot);
     }
 }
 
@@ -1470,10 +1512,57 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
 }
 
 void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
-    const int tipW = scalei(LayoutConfig::TooltipWidth);
-    const int tipH = scalei(LayoutConfig::TooltipHeight);
-    const int pad = scalei(LayoutConfig::TooltipPadding);
-    const int sz = scalei(LayoutConfig::TooltipTextSize);
+    const int pad      = scalei(LayoutConfig::TooltipPadding);
+    const int tsz      = scalei(LayoutConfig::TooltipTextSize);
+    const int ttsz     = scalei(LayoutConfig::TooltipTitleSize);
+    const int mtsz     = scalei(LayoutConfig::TooltipMetaSize);
+    const int maxContentW = scalei(280);
+
+    // Build meta line.
+    std::string meta = std::string(card.getTypeLabel()) + "  Cost:" + std::to_string(card.getCost());
+    if (card.getDamageAmount() > 0) meta += "  Dmg:" + std::to_string(card.getDamageAmount());
+    if (card.getBlockAmount()  > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
+    if (card.getHealAmount()   > 0) meta += "  Heal:" + std::to_string(card.getHealAmount());
+
+    // Word-wrap description using pixel measurement.
+    std::vector<std::string> descLines;
+    {
+        std::vector<std::string> words;
+        std::string w;
+        for (char c : card.getDescription()) {
+            if (c == ' ') { if (!w.empty()) { words.push_back(w); w.clear(); } }
+            else           { w += c; }
+        }
+        if (!w.empty()) words.push_back(w);
+
+        std::string current;
+        for (const std::string& word : words) {
+            std::string candidate = current.empty() ? word : current + " " + word;
+            if (MeasureText(candidate.c_str(), tsz) <= maxContentW) {
+                current = candidate;
+            } else {
+                if (!current.empty()) descLines.push_back(current);
+                current = word;
+            }
+        }
+        if (!current.empty()) descLines.push_back(current);
+    }
+
+    // Measure all rows to get the required panel width.
+    int maxW = MeasureText(card.getName().c_str(), ttsz);
+    maxW = std::max(maxW, MeasureText(meta.c_str(), mtsz));
+    for (const std::string& l : descLines)
+        maxW = std::max(maxW, MeasureText(l.c_str(), tsz));
+
+    // Compute panel height from actual content rows.
+    const int dividerRelY = pad + ttsz + 4;          // 4px gap: title baseline → divider
+    const int metaRelY    = dividerRelY + 6;          // 6px gap: divider → meta
+    const int bodyRelY    = metaRelY + mtsz + 6;      // 6px gap: meta → description
+    const int lineStep    = tsz + 4;
+    const int bodyH       = (int)descLines.size() * lineStep - (descLines.empty() ? 0 : 4);
+    const int tipW        = maxW + 2 * pad;
+    const int tipH        = bodyRelY + (descLines.empty() ? 0 : bodyH) + pad;
+
     if (y + tipH > m_height) y = (float)(m_height - tipH - 4);
     if (x < 0) x = 4.0f;
 
@@ -1481,76 +1570,172 @@ void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
     DrawRectangleRec(tip, Colors::light_bg);
     DrawRectangleLinesEx(tip, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
 
-    int tx = (int)x + pad, ty = (int)y + pad;
-    DrawText(card.getName().c_str(), tx, ty, scalei(LayoutConfig::TooltipTitleSize), Colors::text_primary);
-    ty += scalei(LayoutConfig::TooltipTitleSpacing);
+    const int tx = (int)x + pad;
+    DrawText(card.getName().c_str(), tx, (int)y + pad, ttsz, Colors::text_primary);
 
-    std::string meta = std::string(card.getTypeLabel()) + "  Cost:" + std::to_string(card.getCost());
-    if (card.getDamageAmount() > 0) meta += "  Dmg:" + std::to_string(card.getDamageAmount());
-    if (card.getBlockAmount() > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
-    if (card.getHealAmount() > 0)  meta += "  Heal:" + std::to_string(card.getHealAmount());
-    DrawText(meta.c_str(), tx, ty, scalei(LayoutConfig::TooltipMetaSize), Colors::text_secondary);
-    ty += scalei(LayoutConfig::TooltipMetaSpacing);
+    const int divAbsY = (int)y + dividerRelY;
+    DrawLine(tx, divAbsY, tx + tipW - 2 * pad, divAbsY, Colors::card_border);
 
-    DrawLine(tx, ty, tx + tipW - 2*pad, ty, Colors::card_border);
-    ty += 6;
+    DrawText(meta.c_str(), tx, (int)y + metaRelY, mtsz, Colors::text_secondary);
 
-    const std::string& desc = card.getDescription();
-    const int lineLen = LayoutConfig::TooltipWrapWidth;
-    int pos = 0;
-    while (pos < (int)desc.size() && ty < (int)y + tipH - sz) {
-        int end = std::min(pos + lineLen, (int)desc.size());
-        if (end < (int)desc.size() && desc[end] != ' ') {
-            int sp = (int)desc.rfind(' ', end);
-            if (sp > pos) end = sp;
-        }
-        DrawText(desc.substr(pos, end - pos).c_str(), tx, ty, sz, Colors::text_primary);
-        ty += sz + 4;
-        pos = end;
-        while (pos < (int)desc.size() && desc[pos] == ' ') ++pos;
+    int ty = (int)y + bodyRelY;
+    for (const std::string& l : descLines) {
+        DrawText(l.c_str(), tx, ty, tsz, Colors::text_primary);
+        ty += lineStep;
     }
 }
 
-void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemyBox) const {
-    int dmg = enemy.getIntentDamage();
-    int blk = enemy.getIntentBlock();
+void GameScreen::queueTooltip(const std::string& title, const std::string& body,
+                              Rectangle anchor) const {
+    m_pendingTooltip = { true, title, body, anchor };
+}
 
-    Color intentColor;
-    if      (dmg > 0 && blk > 0) intentColor = Colors::mixed_intent_color;
-    else if (dmg > 0)             intentColor = Colors::damage_color;
-    else                          intentColor = Colors::block_color;
+void GameScreen::flushTooltip() const {
+    if (!m_pendingTooltip.active) return;
+    m_pendingTooltip.active = false;
 
-    const int iH = scalei(LayoutConfig::IntentHeight);
-    const int fontSize = scalei(LayoutConfig::IntentFontSize);
-    Rectangle iRect = { enemyBox.x, enemyBox.y + enemyBox.height + scalef(6.0f),
-                         enemyBox.width, (float)iH };
-    DrawRectangleRec(iRect, Colors::light_bg);
-    DrawRectangleLinesEx(iRect, scalef(LayoutConfig::PanelBorderThickness), intentColor);
+    const int pad  = scalei(LayoutConfig::TooltipPadding);
+    const int tsz  = scalei(LayoutConfig::TooltipTextSize);
+    const int ttsz = scalei(LayoutConfig::TooltipTitleSize);
+    // Max content width before we start wrapping body text.
+    const int maxContentW = scalei(280);
 
-    std::string desc = enemy.getIntentDescription();
-    int dw = MeasureText(desc.c_str(), fontSize);
-    DrawText(desc.c_str(),
-             (int)iRect.x + ((int)iRect.width - dw) / 2,
-             (int)iRect.y + (iH - fontSize) / 2,
-             fontSize, intentColor);
-
-    if (mouseOver(iRect)) {
-        const int tooltipWidth = scalei(LayoutConfig::IntentTooltipWidth);
-        const int tooltipHeight = scalei(LayoutConfig::IntentTooltipHeight);
-        const int tooltipFontSize = scalei(LayoutConfig::IntentTooltipFontSize);
-        float tipX = iRect.x + iRect.width + scalef(4.0f);
-        if (tipX + tooltipWidth > m_width) {
-            tipX = iRect.x - tooltipWidth - scalei(LayoutConfig::TooltipScreenMargin);
+    // --- Word-wrap body into lines using pixel measurement ---
+    std::vector<std::string> lines;
+    {
+        const std::string& body = m_pendingTooltip.body;
+        // Split into words.
+        std::vector<std::string> words;
+        std::string word;
+        for (char c : body) {
+            if (c == ' ') { if (!word.empty()) { words.push_back(word); word.clear(); } }
+            else           { word += c; }
         }
-        Rectangle tipRect = { tipX, iRect.y, (float)tooltipWidth, (float)tooltipHeight };
-        DrawRectangleRec(tipRect, Colors::light_bg);
-        DrawRectangleLinesEx(tipRect, scalef(LayoutConfig::ThinBorderThickness), intentColor);
-        DrawText(desc.c_str(),
-                 (int)tipX + scalei(LayoutConfig::IntentTooltipPadding),
-                 (int)iRect.y + scalei(LayoutConfig::TooltipPadding),
-                 tooltipFontSize,
-                 intentColor);
+        if (!word.empty()) words.push_back(word);
+
+        std::string current;
+        for (const std::string& w : words) {
+            std::string candidate = current.empty() ? w : current + " " + w;
+            if (MeasureText(candidate.c_str(), tsz) <= maxContentW) {
+                current = candidate;
+            } else {
+                if (!current.empty()) lines.push_back(current);
+                current = w;
+            }
+        }
+        if (!current.empty()) lines.push_back(current);
     }
+
+    // --- Measure content to determine panel size ---
+    const int titleW = MeasureText(m_pendingTooltip.title.c_str(), ttsz);
+    int maxLineW = titleW;
+    for (const std::string& l : lines)
+        maxLineW = std::max(maxLineW, MeasureText(l.c_str(), tsz));
+
+    const int dividerY  = pad + ttsz + 4;   // 4px gap: title baseline → divider
+    const int bodyTop   = dividerY + 6;      // 6px gap: divider → body text
+    const int lineStep  = tsz + 4;
+    const int bodyH     = (int)lines.size() * lineStep - 4;   // last line has no trailing gap
+    const int tipW      = maxLineW + 2 * pad;
+    const int tipH      = bodyTop + (lines.empty() ? 0 : bodyH) + pad;
+
+    // --- Position (flip left if overflowing right edge) ---
+    const Rectangle& anchor = m_pendingTooltip.anchor;
+    float tipX = anchor.x + anchor.width + scalef(4.0f);
+    float tipY = anchor.y;
+    if (tipX + tipW > m_width)  tipX = anchor.x - tipW - scalef(4.0f);
+    if (tipY + tipH > m_height) tipY = (float)(m_height - tipH - 4);
+    if (tipX < 4.0f) tipX = 4.0f;
+
+    // --- Draw ---
+    Rectangle tip = { tipX, tipY, (float)tipW, (float)tipH };
+    DrawRectangleRec(tip, Colors::light_bg);
+    DrawRectangleLinesEx(tip, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+
+    const int tx = (int)tipX + pad;
+    DrawText(m_pendingTooltip.title.c_str(), tx, (int)tipY + pad, ttsz, Colors::text_primary);
+    const int divAbsY = (int)tipY + dividerY;
+    DrawLine(tx, divAbsY, tx + tipW - 2 * pad, divAbsY, Colors::card_border);
+
+    int ty = (int)tipY + bodyTop;
+    for (const std::string& l : lines) {
+        DrawText(l.c_str(), tx, ty, tsz, Colors::text_primary);
+        ty += lineStep;
+    }
+}
+
+void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const {
+    // Lazy-load attack icon.
+    if (!m_attackIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_attackIconLoaded = true;
+        if (FileExists(AssetPaths::ATTACK_ICON)) {
+            self->m_attackIcon = LoadTexture(AssetPaths::ATTACK_ICON);
+            SetTextureFilter(self->m_attackIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+
+    const int   dmg      = enemy.getIntentDamage();
+    const int   blk      = enemy.getIntentBlock();
+    const bool  hasAtk   = (dmg > 0);
+    const bool  hasBlk   = (blk > 0);
+    if (!hasAtk && !hasBlk) return;
+
+    // Intent sprites sit directly below the HUD (name + gap + health bar + gap).
+    const float hudWidth    = scalef(LayoutConfig::EntityHudWidth);
+    const float hudX        = enemySpriteRect.x + (enemySpriteRect.width - hudWidth) / 2.0f;
+    const float hudTop      = enemySpriteRect.y + enemySpriteRect.height + scalef(LayoutConfig::EntityHudGap);
+    const float barY        = hudTop + scalei(LayoutConfig::EntityNameFontSize)
+                              + scalef(LayoutConfig::EntityHudNameGap);
+    const float belowBarY   = barY + scalei(LayoutConfig::HealthBarHeight)
+                              + scalef(LayoutConfig::EntityHudGap);
+
+    // Sprite size matches the block slot in drawEntityHud: barHeight * 1.5
+    const float iconSize    = scalei(LayoutConfig::HealthBarHeight) * 1.5f;
+    const int   statFontSize = scalei(LayoutConfig::EntityStatFontSize);
+    const float gap         = scalef(4.0f);
+
+    // Centre the group of icons under the HUD.
+    const int   count       = (hasAtk ? 1 : 0) + (hasBlk ? 1 : 0);
+    const float groupW      = count * iconSize + (count - 1) * gap;
+    float iconX             = hudX + (hudWidth - groupW) / 2.0f;
+    const float iconY       = belowBarY;
+
+    // Helper: draw one intent icon with number and return its rect.
+    const auto drawIcon = [&](Texture2D tex, bool texLoaded, int value, Color fallback) -> Rectangle {
+        const Rectangle slot = { iconX, iconY, iconSize, iconSize };
+        if (texLoaded && tex.id != 0) {
+            Rectangle src = { 0, 0, (float)tex.width, (float)tex.height };
+            DrawTexturePro(tex, src, slot, { 0, 0 }, 0.0f, WHITE);
+        } else {
+            DrawRectangleRec(slot, fallback);
+        }
+        const std::string numStr = std::to_string(value);
+        const int nw = MeasureText(numStr.c_str(), statFontSize);
+        DrawText(numStr.c_str(),
+                 (int)std::round(slot.x + (slot.width  - nw)           / 2.0f),
+                 (int)std::round(slot.y + (slot.height - statFontSize)  / 2.0f),
+                 statFontSize, WHITE);
+        iconX += iconSize + gap;
+        return slot;
+    };
+
+    Rectangle atkRect = { 0, 0, 0, 0 };
+    Rectangle blkRect = { 0, 0, 0, 0 };
+
+    if (hasAtk) atkRect = drawIcon(m_attackIcon, m_attackIconLoaded, dmg, Colors::damage_color);
+    if (hasBlk) blkRect = drawIcon(m_blockIcon,  m_blockIconLoaded,  blk, Colors::block_color);
+
+    // Queue deferred tooltips — rendered at end-of-frame so they appear above all UI.
+    // Attack takes priority if both are hovered simultaneously (unlikely but safe).
+    if (hasBlk && mouseOver(blkRect))
+        queueTooltip(enemy.getName(),
+                     "Intends to block for " + std::to_string(blk),
+                     blkRect);
+    if (hasAtk && mouseOver(atkRect))
+        queueTooltip(enemy.getName(),
+                     "Intends to attack for " + std::to_string(dmg),
+                     atkRect);
 }
 
 bool GameScreen::mouseOver(Rectangle rect) {

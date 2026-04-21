@@ -1,6 +1,6 @@
 {
   "id": "bacteria",
-  "name": "Bacteria",
+  "name": "Fungus",
   "maxHealth": 30,
   "sprite": {
     "sheet": "assets/enemies/fungus-sheet.png",

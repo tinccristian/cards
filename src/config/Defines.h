@@ -12,6 +12,8 @@ inline constexpr const char* PLAYER_SPRITE       = "assets/player/player.json";
 inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";
 inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";
 inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs";
+inline constexpr const char* BLOCK_ICON          = "assets/common/block.png";
+inline constexpr const char* ATTACK_ICON         = "assets/common/attack.png";
 } // namespace AssetPaths
 
 // ## Audio ##

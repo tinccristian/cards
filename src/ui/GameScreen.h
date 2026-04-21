@@ -122,7 +122,21 @@ private:
     bool         m_playerSpriteLoaded = false;
     int          m_lastPlayerHp       = -1;
     int          m_lastEnemyHp        = -1;
+    Texture2D    m_blockIcon          = {};
+    bool         m_blockIconLoaded    = false;
+    Texture2D    m_attackIcon         = {};
+    bool         m_attackIconLoaded   = false;
     mutable CardArtCache m_artCache;
+
+    // Deferred tooltip: populated during the frame, flushed at the very end of
+    // drawCombat so it always renders on top of every other element.
+    struct PendingTooltip {
+        bool        active = false;
+        std::string title;
+        std::string body;
+        Rectangle   anchor = {};  // source rect — used to position the tooltip
+    };
+    mutable PendingTooltip m_pendingTooltip;
 
     // --- helpers ---
     void syncWindowSize();
@@ -133,13 +147,18 @@ private:
     float clampedMapOffset(float offset) const;
     Rectangle mapTextureRect() const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
-    void drawHealthBar(Rectangle bar, float ratio) const;
+    void drawHealthBar(Rectangle bar, float ratio, bool hasBlock = false) const;
     void drawEntityHud(Rectangle spriteRect, const std::string& name,
                        int health, int maxHealth, int block) const;
     void drawManaHud(const Player& player) const;
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const;
     void drawCardTooltip(const Card& card, float x, float y) const;
-    void drawIntentIndicator(const Enemy& enemy, Rectangle enemyBox) const;
+    void drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const;
+
+    // Queue a deferred tooltip to be drawn at end-of-frame (renders on top of everything).
+    void queueTooltip(const std::string& title, const std::string& body, Rectangle anchor) const;
+    // Flush and draw any queued tooltip.
+    void flushTooltip() const;
 
     // Draw a pile widget (stack visual + label + count). Returns true if clicked.
     bool drawPileWidget(Rectangle rect, const std::string& label,
