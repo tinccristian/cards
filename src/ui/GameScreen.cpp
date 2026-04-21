@@ -411,11 +411,23 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         }
     }
     const int turnFontSize = scalei(LayoutConfig::CombatTurnFontSize);
-    const int boxW = scalei(LayoutConfig::CombatantBoxWidth);
-    const int boxH = scalei(LayoutConfig::CombatantBoxHeight);
-    const int boxY = scalei(LayoutConfig::CombatantBoxTop);
-    const int boxMargin = scalei(LayoutConfig::CombatantBoxMargin);
     const int combatLogFontSize = scalei(LayoutConfig::CombatLogFontSize);
+    const float spriteSize = scalef(LayoutConfig::EntitySpriteSize);
+    const float spriteTop = (float)scalei(LayoutConfig::EntitySpriteTop);
+    const float playerCenterX = m_width * LayoutConfig::PlayerEntityCenterXPercent;
+    const float enemyCenterX = m_width * LayoutConfig::EnemyEntityCenterXPercent;
+    const Rectangle playerSpriteRect = {
+        playerCenterX - spriteSize / 2.0f,
+        spriteTop,
+        spriteSize,
+        spriteSize
+    };
+    const Rectangle enemySpriteRect = {
+        enemyCenterX - spriteSize / 2.0f,
+        spriteTop,
+        spriteSize,
+        spriteSize
+    };
 
     // --- Turn number ---
     std::string turnStr = "Turn " + std::to_string(state.getTurnNumber());
@@ -425,15 +437,6 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
              scalei(LayoutConfig::HealthBarHeight),
              turnFontSize,
              Colors::text_secondary);
-
-    // --- Combatant boxes ---
-    Rectangle playerBox = { (float)boxMargin, (float)boxY, (float)boxW, (float)boxH };
-    Rectangle enemyBox  = { (float)(m_width - boxMargin - boxW), (float)boxY,
-                             (float)boxW, (float)boxH };
-
-    drawPlayerBox(playerBox, player);
-    drawEnemyBox(enemyBox, enemy);
-    drawIntentIndicator(enemy, enemyBox);
 
     // --- Player sprite: load once, draw below player box ---
     if (!m_playerSpriteLoaded) {
@@ -455,15 +458,6 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         m_playerSprite.update(dt);
 
         if (m_playerSprite.isLoaded()) {
-            const float spriteSize    = scalef(240.0f);
-            const float playerCenterX = (float)boxMargin + (float)boxW / 2.0f;
-            const float playerSpriteY = (float)(boxY + boxH) + scalef(12.0f);
-            Rectangle playerSpriteRect = {
-                playerCenterX - spriteSize / 2.0f,
-                playerSpriteY,
-                spriteSize,
-                spriteSize
-            };
             m_playerSprite.draw(playerSpriteRect);
         }
     }
@@ -512,32 +506,35 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             }
 
             m_enemySprite.update(dt);
-
-            // Position: centred over the enemy stat box, below the intent bar.
-            const float spriteSize   = scalef(240.0f);
-            const float enemyCenterX = (float)(m_width - boxMargin) - (float)boxW / 2.0f;
-            const float intentBottom = (float)(boxY + boxH
-                + scalei(LayoutConfig::IntentOffsetY)
-                + scalei(LayoutConfig::IntentHeight));
-            Rectangle spriteRect = {
-                enemyCenterX - spriteSize / 2.0f,
-                intentBottom + scalef(12.0f),
-                spriteSize,
-                spriteSize
-            };
-            m_enemySprite.draw(spriteRect);
+            m_enemySprite.draw(enemySpriteRect);
         }
     }
+
+    drawEntityHud(playerSpriteRect, "You",
+                  player.getHealth(), player.getMaxHealth(), player.getBlock());
+    drawEntityHud(enemySpriteRect, enemy.getName(),
+                  enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
+    drawIntentIndicator(enemy, {
+        enemySpriteRect.x + (enemySpriteRect.width - scalef(LayoutConfig::EntityHudWidth)) / 2.0f,
+        enemySpriteRect.y + enemySpriteRect.height + scalef(LayoutConfig::EntityHudGap)
+            + scalei(LayoutConfig::EntityNameFontSize)
+            + scalef(LayoutConfig::EntityHudNameGap)
+            + scalei(LayoutConfig::HealthBarHeight)
+            + scalef(LayoutConfig::EntityBlockGap),
+        scalef(LayoutConfig::EntityHudWidth),
+        0.0f
+    });
 
     // --- Combat log ---
     const std::string& action = state.getLastAction();
     if (!action.empty()) {
         int aw = MeasureText(action.c_str(), combatLogFontSize);
-        DrawText(action.c_str(), (m_width - aw) / 2, boxY + boxH + scalei(LayoutConfig::CombatLogOffsetY), combatLogFontSize,
+        DrawText(action.c_str(), (m_width - aw) / 2, scalei(LayoutConfig::CombatLogTop), combatLogFontSize,
                  Colors::text_secondary);
     }
 
     // --- Draw pile widget (left side) ---
+    drawManaHud(player);
     if (allowInteraction
         && drawPileWidget(drawPileRect(), "DRAW", deck.getDrawPileSize(), Colors::draw_pile_accent))
         drawPileClicked = true;
@@ -1297,90 +1294,84 @@ void GameScreen::drawHealthBar(Rectangle bar, float ratio) const {
     DrawRectangleLinesEx(bar, scalef(LayoutConfig::ThinBorderThickness), Colors::card_border);
 }
 
-void GameScreen::drawPlayerBox(Rectangle box, const Player& player) const {
-    const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
-    const int textPadding = scalei(LayoutConfig::EntityTextPadding);
-    const int screenMargin = scalei(LayoutConfig::TooltipScreenMargin);
+void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
+                               int health, int maxHealth, int block) const {
+    const float hudWidth = scalef(LayoutConfig::EntityHudWidth);
+    const float hudX = spriteRect.x + (spriteRect.width - hudWidth) / 2.0f;
+    const float hudTop = spriteRect.y + spriteRect.height + scalef(LayoutConfig::EntityHudGap);
     const int nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
-    const int healthBarOffsetY = scalei(LayoutConfig::HealthBarOffsetY);
-    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
-    const int healthTextOffsetY = scalei(LayoutConfig::HealthTextOffsetY);
-    const int manaTextOffsetY = scalei(LayoutConfig::ManaTextOffsetY);
-    const int blockTextOffsetY = scalei(LayoutConfig::BlockTextOffsetY);
     const int statFontSize = scalei(LayoutConfig::EntityStatFontSize);
+    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
+    const float healthTextGap = scalef(LayoutConfig::EntityHealthTextGap);
+    const float blockGap = scalef(LayoutConfig::EntityBlockGap);
 
-    DrawRectangleRec(box, Colors::card_bg);
-    DrawRectangleLinesEx(box, borderThickness, Colors::card_border);
+    const int nameWidth = MeasureText(name.c_str(), nameFontSize);
+    DrawText(name.c_str(),
+             (int)std::round(hudX + (hudWidth - nameWidth) / 2.0f),
+             (int)std::round(hudTop),
+             nameFontSize,
+             Colors::text_primary);
 
-    DrawText("You", (int)box.x + textPadding, (int)box.y + screenMargin,
-             nameFontSize, Colors::text_primary);
-
+    const std::string hpText = std::to_string(health) + "/" + std::to_string(maxHealth);
+    const int hpTextWidth = MeasureText(hpText.c_str(), statFontSize);
+    const float barY = hudTop + nameFontSize + scalef(LayoutConfig::EntityHudNameGap);
+    const float barWidth = std::max(scalef(LayoutConfig::EntityMinHealthBarWidth), hudWidth - hpTextWidth - healthTextGap);
     Rectangle bar = {
-        box.x + textPadding,
-        box.y + healthBarOffsetY,
-        box.width - textPadding * 2,
+        hudX,
+        barY,
+        barWidth,
         (float)healthBarHeight
     };
-    float hpRatio = (player.getMaxHealth() > 0)
-                  ? (float)player.getHealth() / player.getMaxHealth() : 0.0f;
+    const float hpRatio = maxHealth > 0 ? (float)health / (float)maxHealth : 0.0f;
     drawHealthBar(bar, hpRatio);
+    DrawText(hpText.c_str(),
+             (int)std::round(bar.x + bar.width + healthTextGap),
+             (int)std::round(bar.y + (bar.height - statFontSize) / 2.0f),
+             statFontSize,
+             Colors::text_primary);
 
-    std::string hpStr = std::to_string(player.getHealth()) + " / "
-                      + std::to_string(player.getMaxHealth()) + " HP";
-    DrawText(hpStr.c_str(), (int)box.x + textPadding, (int)box.y + healthTextOffsetY,
-             statFontSize, Colors::text_secondary);
-
-    std::string manaStr = "MANA: " + std::to_string(player.getMana())
-                        + " / " + std::to_string(player.getMaxMana());
-    DrawText(manaStr.c_str(), (int)box.x + textPadding, (int)box.y + manaTextOffsetY,
-             statFontSize, Colors::text_secondary);
-
-    if (player.getBlock() > 0) {
-        std::string blkStr = "BLOCK: " + std::to_string(player.getBlock());
-        DrawText(blkStr.c_str(), (int)box.x + textPadding, (int)box.y + blockTextOffsetY,
+    if (block > 0) {
+        const std::string blockText = "Block " + std::to_string(block);
+        const int blockWidth = MeasureText(blockText.c_str(), statFontSize);
+        DrawText(blockText.c_str(),
+                 (int)std::round(hudX + (hudWidth - blockWidth) / 2.0f),
+                 (int)std::round(bar.y + bar.height + blockGap),
                  statFontSize,
                  Colors::block_color);
     }
 }
 
-void GameScreen::drawEnemyBox(Rectangle box, const Enemy& enemy) const {
+void GameScreen::drawManaHud(const Player& player) const {
+    const Rectangle pileRect = drawPileRect();
+    const float hudWidth = (float)scalei(LayoutConfig::ManaHudWidth);
+    const float hudHeight = (float)scalei(LayoutConfig::ManaHudHeight);
+    const float hudX = pileRect.x + (pileRect.width - hudWidth) / 2.0f;
+    const float hudY = pileRect.y - hudHeight - scalef(LayoutConfig::ManaHudGapToPile);
+    const Rectangle hudRect = snapRect({ hudX, hudY, hudWidth, hudHeight });
     const float borderThickness = scalef(LayoutConfig::PanelBorderThickness);
-    const int textPadding = scalei(LayoutConfig::EntityTextPadding);
-    const int screenMargin = scalei(LayoutConfig::TooltipScreenMargin);
-    const int nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
-    const int healthBarOffsetY = scalei(LayoutConfig::HealthBarOffsetY);
-    const int healthBarHeight = scalei(LayoutConfig::HealthBarHeight);
-    const int healthTextOffsetY = scalei(LayoutConfig::HealthTextOffsetY);
-    const int manaTextOffsetY = scalei(LayoutConfig::ManaTextOffsetY);
-    const int statFontSize = scalei(LayoutConfig::EntityStatFontSize);
+    const int labelSize = scalei(LayoutConfig::ManaHudLabelSize);
+    const int valueSize = scalei(LayoutConfig::ManaHudValueSize);
+    const int valueOffsetY = scalei(LayoutConfig::ManaHudValueOffsetY);
+    const int labelTop = scalei(LayoutConfig::ManaHudLabelTop);
 
-    DrawRectangleRec(box, Colors::card_bg);
-    DrawRectangleLinesEx(box, borderThickness, Colors::card_border);
+    DrawRectangleRec(hudRect, Colors::card_bg);
+    DrawRectangleLinesEx(hudRect, borderThickness, Colors::draw_pile_accent);
 
-    DrawText(enemy.getName().c_str(), (int)box.x + textPadding, (int)box.y + screenMargin,
-             nameFontSize, Colors::text_primary);
+    const char* label = "MANA";
+    const int labelWidth = MeasureText(label, labelSize);
+    DrawText(label,
+             (int)std::round(hudRect.x + (hudRect.width - labelWidth) / 2.0f),
+             (int)std::round(hudRect.y + labelTop),
+             labelSize,
+             Colors::text_secondary);
 
-    Rectangle bar = {
-        box.x + textPadding,
-        box.y + healthBarOffsetY,
-        box.width - textPadding * 2,
-        (float)healthBarHeight
-    };
-    float hpRatio = (enemy.getMaxHealth() > 0)
-                  ? (float)enemy.getHealth() / enemy.getMaxHealth() : 0.0f;
-    drawHealthBar(bar, hpRatio);
-
-    std::string hpStr = std::to_string(enemy.getHealth()) + " / "
-                      + std::to_string(enemy.getMaxHealth()) + " HP";
-    DrawText(hpStr.c_str(), (int)box.x + textPadding, (int)box.y + healthTextOffsetY,
-             statFontSize, Colors::text_secondary);
-
-    if (enemy.getEnemyBlock() > 0) {
-        std::string blkStr = "BLOCK: " + std::to_string(enemy.getEnemyBlock());
-        DrawText(blkStr.c_str(), (int)box.x + textPadding, (int)box.y + manaTextOffsetY,
-                 statFontSize,
-                 Colors::block_color);
-    }
+    const std::string manaText = std::to_string(player.getMana()) + "/" + std::to_string(player.getMaxMana());
+    const int manaTextWidth = MeasureText(manaText.c_str(), valueSize);
+    DrawText(manaText.c_str(),
+             (int)std::round(hudRect.x + (hudRect.width - manaTextWidth) / 2.0f),
+             (int)std::round(hudRect.y + valueOffsetY),
+             valueSize,
+             Colors::draw_pile_accent);
 }
 
 void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const {

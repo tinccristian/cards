@@ -78,12 +78,20 @@ inline constexpr int MenuButtonGap         = 20;
 
 // ## UI / Combat Header ##
 inline constexpr int CombatTurnFontSize    = 26;
-inline constexpr int CombatantBoxWidth     = 260;
-inline constexpr int CombatantBoxHeight    = 160;
-inline constexpr int CombatantBoxTop       = 55;
-inline constexpr int CombatantBoxMargin    = 50;
-inline constexpr int CombatLogOffsetY      = 8;
+inline constexpr int CombatLogTop          = 58;
 inline constexpr int CombatLogFontSize     = 17;
+
+// ## UI / Combat Entities ##
+inline constexpr float PlayerEntityCenterXPercent = 0.18f;
+inline constexpr float EnemyEntityCenterXPercent  = 0.82f;
+inline constexpr int EntitySpriteTop        = 150;
+inline constexpr int EntitySpriteSize       = 240;
+inline constexpr int EntityHudWidth         = 250;
+inline constexpr int EntityHudGap           = 12;
+inline constexpr int EntityHudNameGap       = 20;
+inline constexpr int EntityHealthTextGap    = 10;
+inline constexpr int EntityBlockGap         = 8;
+inline constexpr int EntityMinHealthBarWidth = 24;
 
 // ## UI / Cards ##
 inline constexpr int CardWidth             = 120;
@@ -239,11 +247,16 @@ inline constexpr int IntentTooltipPadding  = 6;
 inline constexpr int EntityNameFontSize    = 20;
 inline constexpr int EntityTextPadding     = 10;
 inline constexpr int HealthBarHeight       = 18;
-inline constexpr int HealthBarOffsetY      = 35;
-inline constexpr int HealthTextOffsetY     = 58;
-inline constexpr int ManaTextOffsetY       = 78;
-inline constexpr int BlockTextOffsetY      = 98;
 inline constexpr int EntityStatFontSize    = 16;
+
+// ## UI / Mana ##
+inline constexpr int ManaHudWidth          = 96;
+inline constexpr int ManaHudHeight         = 44;
+inline constexpr int ManaHudGapToPile      = 10;
+inline constexpr int ManaHudLabelSize      = 11;
+inline constexpr int ManaHudValueSize      = 18;
+inline constexpr int ManaHudValueOffsetY   = 16;
+inline constexpr int ManaHudLabelTop       = 4;
 
 // ## UI / Card Text ##
 inline constexpr int CardNameFontSize      = 12;

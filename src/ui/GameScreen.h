@@ -134,8 +134,9 @@ private:
     Rectangle mapTextureRect() const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
     void drawHealthBar(Rectangle bar, float ratio) const;
-    void drawPlayerBox(Rectangle box, const Player& player) const;
-    void drawEnemyBox(Rectangle box, const Enemy& enemy) const;
+    void drawEntityHud(Rectangle spriteRect, const std::string& name,
+                       int health, int maxHealth, int block) const;
+    void drawManaHud(const Player& player) const;
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees) const;
     void drawCardTooltip(const Card& card, float x, float y) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemyBox) const;
