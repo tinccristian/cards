@@ -112,6 +112,8 @@ inline constexpr int   CardWidth     = 150; // px
 inline constexpr int   CardHeight    = 225; // px
 inline constexpr float CardGap       = -40.0f; // negative = cards overlap in hand
 inline constexpr int   CardArtHeight = 100; // px, art window at the top of the card
+inline constexpr int   CardBorderSourceWidth  = 120; // native size of card_border.png
+inline constexpr int   CardBorderSourceHeight = 180;
 
 // Hand layout
 inline constexpr float HandLeftBoundPercent      = 0.14f; // hand starts this far from the left edge
@@ -127,7 +129,7 @@ inline constexpr float HoverAnimSpeed          = 15.0f;  // lerp speed for the h
 inline constexpr float HandArchHeight          = 50.0f;  // peak height of the hand arc (center card vs edges)
 inline constexpr float HandMaxTiltDegrees      = 14.0f;  // max rotation applied to cards at the hand edges
 inline constexpr float HoveredTiltFactor       = 0.5f;   // reduces tilt on the hovered card (0 = flat, 1 = full)
-inline constexpr float CardIdleWiggleDegrees   = 2.4f;   // amplitude of the idle wiggle in degrees
+inline constexpr float CardIdleWiggleDegrees   = 1.0f;   // smaller idle rotation keeps the hand alive without obvious shimmer
 inline constexpr float CardIdleWiggleFrequency = 1.8f;   // Hz of the idle wiggle sine wave
 inline constexpr float CardIdleWigglePhaseStep = 0.65f;  // phase offset between adjacent cards so they don't sync
 inline constexpr float NeighborCardShift       = 15.0f;  // px neighbors spread apart when a card is hovered
@@ -135,23 +137,38 @@ inline constexpr float NeighborCardShift       = 15.0f;  // px neighbors spread 
 // Card text  (sizes in logical px; drawn with a 1-px black outline)
 inline constexpr int CardNameFontSize      = 14; // normal hand card
 inline constexpr int HoveredCardNameSize   = 17; // enlarged when hovered
+inline constexpr float CardNameLetterSpacing = 0.20f; // slight tracking for the title text
 inline constexpr int CardDescriptionSize   = 12;
-inline constexpr int CardDescriptionGap    = 2;  // px between description lines
-inline constexpr int CardDescriptionLines  = 2;  // max lines shown on the card face
+inline constexpr float CardDescriptionLetterSpacing = 0.30f; // subtle tracking for body text
+inline constexpr int CardDescriptionGap    = 4;  // px between description lines
+inline constexpr int CardDescriptionLines  = 3;  // max lines shown on the card face
 inline constexpr int CardFooterSize        = 13; // dmg/block stat in the bottom-right corner
 inline constexpr int HoveredCardFooterSize = 15;
 inline constexpr int CardFooterMargin      = 24; // px from the card bottom to the footer baseline
 inline constexpr int CardRightStatPadding  = 16; // px inset from the card right edge for the stat text
 inline constexpr int CardTextPadding       = 12; // horizontal inset for description text
-inline constexpr int CardTextTopPadding    = 5;  // px between the art/divider line and the card name
-inline constexpr int CardTextGap           = 5;  // px between name and description
+inline constexpr int CardNameSidePadding   = 18; // horizontal safe inset for the title row
+inline constexpr int CardTextTopPadding    = 7;  // px between the art/divider line and the card name
+inline constexpr int CardTextGap           = 7;  // px between name and description
 inline constexpr int CardDividerPadding    = 2;
 inline constexpr int CardNameNudgeUp       = 3;  // px the name is pushed above the art/text divider line
+inline constexpr float CardFaceRenderScale = 3.0f; // compose full card faces oversized, then let the GPU scale them down smoothly
 
 // Mana badge — position in logical card pixels.
-// Adjust these to place the mana number over the badge in card_border.png.
-inline constexpr int CardManaCostX = 7; // px from the card's left edge
-inline constexpr int CardManaCostY = 4; // px from the card's top edge
+// These boxes are authored against the native 120x180 card border art.
+inline constexpr int CardManaBoxLeft   = 4;
+inline constexpr int CardManaBoxTop    = 4;
+inline constexpr int CardManaBoxRight  = 12;
+inline constexpr int CardManaBoxBottom = 12;
+inline constexpr int CardNameBoxLeft   = 11;
+inline constexpr int CardNameBoxTop    = 82;
+inline constexpr int CardNameBoxRight  = 102;
+inline constexpr int CardNameBoxBottom = 95;
+inline constexpr int CardDescriptionBoxLeft   = 9;
+inline constexpr int CardDescriptionBoxTop    = 101;
+inline constexpr int CardDescriptionBoxRight  = 104;
+inline constexpr int CardDescriptionBoxBottom = 170;
+inline constexpr int CardDescriptionInnerInset = 3; // extra safety inset so long lines wrap before the frame edge
 
 // -----------------------------------------------------------------------------
 // Piles  (draw pile / discard pile widgets in the bottom corners)

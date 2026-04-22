@@ -991,7 +991,7 @@ bool GameScreen::isPlayerDeathDissolveComplete() const {
 }
 
 void GameScreen::unloadAssets() {
-    m_artCache.unloadAll();
+    m_cardFaceCache.unloadAll();
     m_enemySprite.unload();
     m_loadedEnemySpritePath.clear();
     m_playerSprite.unload();
@@ -1014,11 +1014,6 @@ void GameScreen::unloadAssets() {
         UnloadTexture(m_attackIcon);
         m_attackIcon = {};
         m_attackIconLoaded = false;
-    }
-    if (m_cardBorderLoaded && m_cardBorder.id != 0) {
-        UnloadTexture(m_cardBorder);
-        m_cardBorder = {};
-        m_cardBorderLoaded = false;
     }
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
@@ -1449,131 +1444,26 @@ void GameScreen::drawManaHud(const Player& player) const {
 void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
                               int playerMana) const {
     rect = snapRect(rect);
-    const float thinBorderThickness = scalef(LayoutConfig::ThinBorderThickness);
-    const float baseCardHeight = (float)scalei(LayoutConfig::CardHeight);
-    const float baseArtHeight = (float)scalei(LayoutConfig::CardArtHeight);
-    const int textPadding = scalei(LayoutConfig::CardTextPadding);
-    const int textTopPadding = scalei(LayoutConfig::CardTextTopPadding);
-    const int textGap = scalei(LayoutConfig::CardTextGap);
-    const int descriptionGap = scalei(LayoutConfig::CardDescriptionGap);
-    const int footerMargin = scalei(LayoutConfig::CardFooterMargin);
-    const int rightStatPadding = scalei(LayoutConfig::CardRightStatPadding);
-    auto* self = const_cast<GameScreen*>(this);
-    Font defaultFont = GetFontDefault();
-    if (defaultFont.texture.id != 0) {
-        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_BILINEAR);
+    const auto faceOpt = m_cardFaceCache.getTexture(
+        card,
+        std::max(1, (int)std::lround(rect.width)),
+        std::max(1, (int)std::lround(rect.height)),
+        scaled,
+        (playerMana < 0 || card.getCost() <= playerMana));
+    if (!faceOpt.has_value()) {
+        return;
     }
+    const Texture2D& face = faceOpt.value();
     const Vector2 pivot = { rect.x + rect.width / 2.0f, rect.y + rect.height };
 
     rlPushMatrix();
     rlTranslatef(pivot.x, pivot.y, 0.0f);
     rlRotatef(rotationDegrees, 0.0f, 0.0f, 1.0f);
     rlTranslatef(-pivot.x, -pivot.y, 0.0f);
-
-    // Lazy-load card border texture (shared across all cards).
-    if (!m_cardBorderLoaded) {
-        self->m_cardBorderLoaded = true;
-        if (FileExists(AssetPaths::CARD_BORDER)) {
-            self->m_cardBorder = LoadTexture(AssetPaths::CARD_BORDER);
-            // The card frame rotates and scales with the same in-hand motion as the art,
-            // so it needs the same smoothing to avoid edge shimmer while moving.
-            SetTextureFilter(self->m_cardBorder, TEXTURE_FILTER_BILINEAR);
-        }
-    }
-
-    // --- Background ---
-    Color bg = scaled ? Colors::button_hover : Colors::card_bg;
-    if (m_cardBorder.id == 0) DrawRectangleRec(rect, bg);
-
-    // --- Art ---
-    float artH = baseArtHeight * (rect.height / baseCardHeight);
-    Rectangle artRect = snapRect({ rect.x + 2.0f, rect.y + 2.0f, rect.width - 4.0f, artH - 2.0f });
-    auto texOpt = m_artCache.getTexture(card.getArtPath());
-    if (texOpt.has_value()) {
-        const Texture2D& tex = texOpt.value();
-        Rectangle src = { 0.0f, 0.0f, (float)tex.width, (float)tex.height };
-        DrawTexturePro(tex, src, artRect, { 0.0f, 0.0f }, 0.0f, WHITE);
-    } else {
-        DrawRectangleRec(artRect, Colors::placeholder_art_bg);
-        DrawRectangleLinesEx(artRect, thinBorderThickness, Colors::light_bg);
-    }
-
-    // --- Border overlay (alpha-blended; transparent art window shows art beneath) ---
-    if (m_cardBorder.id != 0) {
-        Rectangle src = { 0.0f, 0.0f, (float)m_cardBorder.width, (float)m_cardBorder.height };
-        DrawTexturePro(m_cardBorder, src, rect, { 0.0f, 0.0f }, 0.0f, WHITE);
-    }
-
-    // --- Mana cost (position set by CardManaCostX/Y in Defines.h, in logical card px) ---
-    {
-        const float cardScale = rect.width / (float)LayoutConfig::CardWidth;
-        const float textX = rect.x + LayoutConfig::CardManaCostX * cardScale;
-        const float textY = rect.y + LayoutConfig::CardManaCostY * cardScale;
-        const std::string costStr = std::to_string(card.getCost());
-        const int manaSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize
-                                         : LayoutConfig::CardNameFontSize);
-        // Blue when affordable (or no mana info), red when too expensive.
-        const Color manaColor = (playerMana < 0 || card.getCost() <= playerMana)
-                                ? Colors::draw_pile_accent
-                                : Colors::damage_color;
-        DrawTextOutlined(costStr.c_str(), (int)textX, (int)textY, manaSz, manaColor);
-    }
-
-    // --- Text area (below art) ---
-    float divY = rect.y + artH;
-    int textX = (int)rect.x + textPadding;
-    int textY = (int)divY + textTopPadding - scalei(LayoutConfig::CardNameNudgeUp);
-
-    int nameSz = scalei(scaled ? LayoutConfig::HoveredCardNameSize : LayoutConfig::CardNameFontSize);
-    int nameW  = MeasureText(card.getName().c_str(), nameSz);
-    const int nameX = (int)std::lround(rect.x + (rect.width - (float)nameW) * 0.5f);
-    DrawTextOutlined(card.getName().c_str(),
-                     nameX,
-                     textY, nameSz, Colors::text_primary);
-    textY += nameSz + textGap;
-
-    const std::string& desc = card.getDescription();
-    if (!desc.empty()) {
-        const int descSz  = scalei(LayoutConfig::CardDescriptionSize);
-        const int lineLen = (int)rect.width / 6;
-        int pos = 0, lines = 0;
-        while (pos < (int)desc.size() && lines < LayoutConfig::CardDescriptionLines) {
-            int end = std::min(pos + lineLen, (int)desc.size());
-            if (end < (int)desc.size() && desc[end] != ' ') {
-                int sp = (int)desc.rfind(' ', end);
-                if (sp > pos) end = sp;
-            }
-            DrawText(desc.substr(pos, end - pos).c_str(), textX, textY, descSz,
-                     BLACK);
-            textY += descSz + descriptionGap;
-            pos = end;
-            while (pos < (int)desc.size() && desc[pos] == ' ') ++pos;
-            ++lines;
-        }
-    }
-
-    int footerY = (int)(rect.y + rect.height) - footerMargin;
-    int infoSz  = scalei(scaled ? LayoutConfig::HoveredCardFooterSize : LayoutConfig::CardFooterSize);
-
-    if (card.getDamageAmount() > 0) {
-        std::string pwrStr = std::to_string(card.getDamageAmount()) + " dmg";
-        int pw = MeasureText(pwrStr.c_str(), infoSz);
-        DrawTextOutlined(pwrStr.c_str(),
-                         (int)(rect.x + rect.width) - pw - rightStatPadding, footerY,
-                         infoSz, Colors::damage_color);
-    }
-    if (card.getBlockAmount() > 0) {
-        std::string blkStr = std::to_string(card.getBlockAmount()) + " blk";
-        int bw = MeasureText(blkStr.c_str(), infoSz);
-        DrawTextOutlined(blkStr.c_str(),
-                         (int)(rect.x + rect.width) - bw - rightStatPadding, footerY,
-                         infoSz, Colors::block_color);
-    }
+    const Rectangle src = { 0.0f, 0.0f, (float)face.width, (float)face.height };
+    DrawTexturePro(face, src, rect, { 0.0f, 0.0f }, 0.0f, WHITE);
 
     rlPopMatrix();
-    if (defaultFont.texture.id != 0) {
-        SetTextureFilter(defaultFont.texture, TEXTURE_FILTER_POINT);
-    }
 }
 
 void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {

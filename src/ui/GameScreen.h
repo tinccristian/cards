@@ -2,7 +2,7 @@
 
 #include "app/AppSettings.h"
 #include "audio/CardAudio.h"
-#include "CardArtCache.h"
+#include "CardFaceCache.h"
 #include "Colors.h"
 #include "config/Defines.h"
 #include "content/MapData.h"
@@ -132,9 +132,7 @@ private:
     int          m_intentFloatAmpLoc  = -1;
     int          m_intentFloatSpeedLoc = -1;
     int          m_intentFloatPhaseLoc = -1;
-    Texture2D       m_cardBorder         = {};
-    bool            m_cardBorderLoaded   = false;
-    mutable CardArtCache m_artCache;
+    mutable CardFaceCache m_cardFaceCache;
 
     // Deferred tooltip: populated during the frame, flushed at the very end of
     // drawCombat so it always renders on top of every other element.

@@ -1,0 +1,56 @@
+#pragma once
+
+#include "core/Card.h"
+#include "raylib.h"
+
+#include <optional>
+#include <string>
+#include <unordered_map>
+
+class CardFaceCache {
+public:
+    std::optional<Texture2D> getTexture(const Card& card,
+                                        int targetWidth,
+                                        int targetHeight,
+                                        bool emphasized,
+                                        bool affordable);
+    void unloadAll();
+
+private:
+    struct FaceKey {
+        std::string id;
+        std::string name;
+        std::string description;
+        std::string artPath;
+        int         cost = 0;
+        int         damage = 0;
+        int         block = 0;
+        int         heal = 0;
+        int         draw = 0;
+        int         nextTurnMana = 0;
+        int         targetWidth = 0;
+        int         targetHeight = 0;
+        bool        emphasized = false;
+        bool        affordable = false;
+
+        bool operator==(const FaceKey& other) const;
+    };
+
+    struct FaceKeyHash {
+        std::size_t operator()(const FaceKey& key) const;
+    };
+
+    bool ensureBorderLoaded();
+    const Image* getArtImage(const std::string& path);
+    Texture2D buildTexture(const Card& card,
+                           int targetWidth,
+                           int targetHeight,
+                           bool emphasized,
+                           bool affordable);
+
+    std::unordered_map<FaceKey, Texture2D, FaceKeyHash> m_faces;
+    std::unordered_map<std::string, Image>              m_artImages;
+    Image                                               m_borderImage = {};
+    bool                                                m_borderLoaded = false;
+    bool                                                m_borderAvailable = false;
+};

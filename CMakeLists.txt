@@ -65,7 +65,7 @@ add_executable(medical_deckbuilder
     src/core/Enemy.cpp
     src/core/GameState.cpp
     src/core/Player.cpp
-    src/ui/CardArtCache.cpp
+    src/ui/CardFaceCache.cpp
     src/ui/DissolveEffect.cpp
     src/ui/EnemySprite.cpp
     src/ui/HitEffect.cpp
