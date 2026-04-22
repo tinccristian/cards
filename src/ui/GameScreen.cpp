@@ -732,9 +732,11 @@ int GameScreen::drawPileViewer(const std::string& title,
     const int cols    = LayoutConfig::PileViewerGridColumns;
     const int cellW   = LayoutConfig::PileViewerCellWidth;
     const int cellH   = LayoutConfig::PileViewerCellHeight;
+    const int cellInset = LayoutConfig::PileViewerCellInset;
     const int gridX   = panelX + (panelW - cols * cellW) / 2;
     const int gridTop = panelY + LayoutConfig::PileViewerGridTopOffset;
     const int gridH   = panelH - LayoutConfig::PileViewerGridBottomPadding;
+    const float cardAspect = (float)LayoutConfig::CardWidth / (float)LayoutConfig::CardHeight;
 
     BeginScissorMode(panelX + LayoutConfig::PileViewerScissorInset,
                      gridTop,
@@ -753,8 +755,21 @@ int GameScreen::drawPileViewer(const std::string& title,
 
         if (cy + cellH < gridTop || cy > gridTop + gridH) continue; // out of view
 
-        Rectangle r = { (float)cx + LayoutConfig::PileViewerCellInset, (float)cy + LayoutConfig::PileViewerCellInset,
-                         (float)cellW - LayoutConfig::PileViewerCellInset * 2, (float)cellH - LayoutConfig::PileViewerCellInset * 2 };
+        const float innerWidth = (float)cellW - cellInset * 2.0f;
+        const float innerHeight = (float)cellH - cellInset * 2.0f;
+        float drawWidth = innerWidth;
+        float drawHeight = drawWidth / cardAspect;
+        if (drawHeight > innerHeight) {
+            drawHeight = innerHeight;
+            drawWidth = drawHeight * cardAspect;
+        }
+
+        Rectangle r = {
+            (float)cx + cellInset + (innerWidth - drawWidth) * 0.5f,
+            (float)cy + cellInset + (innerHeight - drawHeight) * 0.5f,
+            drawWidth,
+            drawHeight
+        };
         drawCardFace(r, cards[idx], false, 0.0f);
     }
 
