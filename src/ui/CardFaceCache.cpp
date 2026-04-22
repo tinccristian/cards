@@ -176,7 +176,8 @@ bool CardFaceCache::FaceKey::operator==(const FaceKey& other) const {
         && targetWidth == other.targetWidth
         && targetHeight == other.targetHeight
         && emphasized == other.emphasized
-        && affordable == other.affordable;
+        && affordable == other.affordable
+        && crispPresentation == other.crispPresentation;
 }
 
 std::size_t CardFaceCache::FaceKeyHash::operator()(const FaceKey& key) const {
@@ -195,6 +196,7 @@ std::size_t CardFaceCache::FaceKeyHash::operator()(const FaceKey& key) const {
     hashCombine(seed, std::hash<int>{}(key.targetHeight));
     hashCombine(seed, std::hash<bool>{}(key.emphasized));
     hashCombine(seed, std::hash<bool>{}(key.affordable));
+    hashCombine(seed, std::hash<bool>{}(key.crispPresentation));
     return seed;
 }
 
@@ -202,7 +204,8 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
                                                    int targetWidth,
                                                    int targetHeight,
                                                    bool emphasized,
-                                                   bool affordable) {
+                                                   bool affordable,
+                                                   bool crispPresentation) {
     if (targetWidth <= 0 || targetHeight <= 0) {
         return std::nullopt;
     }
@@ -221,7 +224,8 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
         targetWidth,
         targetHeight,
         emphasized,
-        affordable
+        affordable,
+        crispPresentation
     };
 
     auto existing = m_faces.find(key);
@@ -229,7 +233,7 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
         return existing->second;
     }
 
-    Texture2D texture = buildTexture(card, targetWidth, targetHeight, emphasized, affordable);
+    Texture2D texture = buildTexture(card, targetWidth, targetHeight, emphasized, affordable, crispPresentation);
     if (texture.id == 0) {
         return std::nullopt;
     }
@@ -303,11 +307,32 @@ const Image* CardFaceCache::getArtImage(const std::string& path) {
     return &it->second;
 }
 
+void drawCardArtNearest(Image* canvas, const Image& artImage, Rectangle artRect) {
+    Image resizedArt = ImageCopy(artImage);
+    if (resizedArt.data == nullptr) {
+        return;
+    }
+
+    const int targetWidth = std::max(1, (int)std::lround(artRect.width));
+    const int targetHeight = std::max(1, (int)std::lround(artRect.height));
+    ImageResizeNN(&resizedArt, targetWidth, targetHeight);
+    Rectangle src = { 0.0f, 0.0f, (float)resizedArt.width, (float)resizedArt.height };
+    Rectangle dst = {
+        std::round(artRect.x),
+        std::round(artRect.y),
+        (float)targetWidth,
+        (float)targetHeight
+    };
+    ImageDraw(canvas, resizedArt, src, dst, WHITE);
+    UnloadImage(resizedArt);
+}
+
 Texture2D CardFaceCache::buildTexture(const Card& card,
                                       int targetWidth,
                                       int targetHeight,
                                       bool emphasized,
-                                      bool affordable) {
+                                      bool affordable,
+                                      bool crispPresentation) {
     const float renderScale = LayoutConfig::CardFaceRenderScale;
     const int internalWidth = std::max(1, (int)std::lround((float)targetWidth * renderScale));
     const int internalHeight = std::max(1, (int)std::lround((float)targetHeight * renderScale));
@@ -336,8 +361,7 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
     };
 
     if (const Image* artImage = getArtImage(card.getArtPath())) {
-        Rectangle src = { 0.0f, 0.0f, (float)artImage->width, (float)artImage->height };
-        ImageDraw(&canvas, *artImage, src, artRect, WHITE);
+        drawCardArtNearest(&canvas, *artImage, artRect);
     } else {
         ImageDrawRectangleRec(&canvas, artRect, Colors::placeholder_art_bg);
         ImageDrawRectangleLines(&canvas, artRect, scaledInt(LayoutConfig::ThinBorderThickness, renderScale), Colors::light_bg);
@@ -371,7 +395,10 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
     const float textBoxInset = (float)outlineThickness(renderScale);
     const float descInnerInset = (float)scaledInt(LayoutConfig::CardDescriptionInnerInset, cardScale);
     const float titleSafeWidth = std::max(1.0f, nameBox.width - textBoxInset * 2.0f);
-    const float descSafeWidth = std::max(1.0f, descBox.width - textBoxInset * 2.0f - descInnerInset * 2.0f);
+    const float descSafeWidth = std::max(
+        1.0f,
+        descBox.width - textBoxInset * 2.0f - descInnerInset * 2.0f
+            - std::ceil(cardScale * (crispPresentation ? 6.0f : 4.0f)));
 
     {
         const std::string costStr = std::to_string(card.getCost());
@@ -414,7 +441,8 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
                                            std::min(LayoutConfig::CardDescriptionLines, maxLinesByHeight));
         int textY = (int)std::round(descBox.y);
         for (const std::string& line : lines) {
-            ImageDrawTextEx(&canvas, font, line.c_str(), { descBox.x + textBoxInset + descInnerInset, (float)textY }, (float)descSize, descSpacing, BLACK);
+            const std::string fittedLine = fitTextWithEllipsis(font, line, (float)descSize, descSpacing, descSafeWidth);
+            ImageDrawTextEx(&canvas, font, fittedLine.c_str(), { descBox.x + textBoxInset + descInnerInset, (float)textY }, (float)descSize, descSpacing, BLACK);
             textY += descSize + descriptionGap;
         }
     }
@@ -441,8 +469,12 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
     Texture2D texture = LoadTextureFromImage(canvas);
     UnloadImage(canvas);
     if (texture.id != 0) {
-        GenTextureMipmaps(&texture);
-        SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+        if (crispPresentation) {
+            SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        } else {
+            GenTextureMipmaps(&texture);
+            SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+        }
     }
     return texture;
 }

@@ -3,6 +3,7 @@
     {
       "id": "injection",
       "name": "Injection",
+      "tier": "common",
       "description": "Deal 6 damage",
       "cost": 1,
       "type": "attack",
@@ -15,6 +16,7 @@
     {
       "id": "stabilize",
       "name": "Stabilize",
+      "tier": "common",
       "description": "Gain 5 block",
       "cost": 1,
       "type": "skill",
@@ -27,6 +29,7 @@
     {
       "id": "cleanse",
       "name": "Cleanse",
+      "tier": "uncommon",
       "description": "Remove all negative effects",
       "cost": 2,
       "type": "skill",
@@ -39,6 +42,7 @@
     {
       "id": "antibiotic",
       "name": "Antibiotic",
+      "tier": "uncommon",
       "description": "Deal 8 damage",
       "cost": 2,
       "type": "attack",
@@ -51,6 +55,7 @@
     {
       "id": "cough_syrup",
       "name": "Cough Syrup",
+      "tier": "uncommon",
       "description": "Gain 8 block",
       "cost": 3,
       "type": "skill",
@@ -63,6 +68,7 @@
     {
       "id": "antiviral",
       "name": "Antiviral",
+      "tier": "rare",
       "description": "Deal 10 damage",
       "cost": 2,
       "type": "attack",
@@ -75,6 +81,7 @@
     {
       "id": "immune_boost",
       "name": "Immune Boost",
+      "tier": "uncommon",
       "description": "Gain 1 extra mana next turn",
       "cost": 1,
       "type": "skill",
@@ -87,6 +94,7 @@
     {
       "id": "ambulance",
       "name": "Ambulance",
+      "tier": "common",
       "description": "Draw 3 cards",
       "cost": 0,
       "type": "skill",
@@ -99,6 +107,7 @@
     {
       "id": "heartbeat",
       "name": "Heartbeat",
+      "tier": "common",
       "description": "Gain 2 mana",
       "cost": 0,
       "type": "skill",
@@ -111,6 +120,7 @@
     {
       "id": "quarantine",
       "name": "Quarantine",
+      "tier": "rare",
       "description": "Prevent the enemy from acting for 1 turn",
       "cost": 4,
       "type": "skill",

@@ -2,6 +2,7 @@
   "id": "bacteria",
   "name": "Fungus",
   "maxHealth": 30,
+  "goldReward": 18,
   "sprite": {
     "sheet": "assets/enemies/fungus-sheet.png",
     "frameWidth": 80,

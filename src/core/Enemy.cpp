@@ -9,10 +9,11 @@
 // Construction
 // ---------------------------------------------------------------------------
 
-Enemy::Enemy(std::string name, int health, Deck deck, EnemySpriteConfig spriteConfig)
+Enemy::Enemy(std::string name, int health, Deck deck, EnemySpriteConfig spriteConfig, int goldReward)
     : m_name(std::move(name))
     , m_health(health)
     , m_maxHealth(health)
+    , m_goldReward(goldReward)
     , m_spriteConfig(std::move(spriteConfig))
     , m_enemyDeck(std::move(deck))
 {}
@@ -24,6 +25,7 @@ Enemy::Enemy(std::string name, int health, Deck deck, EnemySpriteConfig spriteCo
 const std::string& Enemy::getName()      const { return m_name;      }
 int                Enemy::getHealth()    const { return m_health;    }
 int                Enemy::getMaxHealth() const { return m_maxHealth; }
+int                Enemy::getGoldReward() const { return m_goldReward; }
 bool               Enemy::isDead()       const { return m_health <= 0; }
 
 int Enemy::takeDamage(int amount) {

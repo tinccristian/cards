@@ -26,12 +26,14 @@ struct EnemyTurnResult {
 class Enemy {
 public:
     Enemy(std::string name, int health, Deck deck,
-          EnemySpriteConfig spriteConfig = {});
+          EnemySpriteConfig spriteConfig = {},
+          int goldReward = 0);
 
     // --- Basic stats ---
     const std::string& getName()      const;
     int                getHealth()    const;
     int                getMaxHealth() const;
+    int                getGoldReward() const;
     bool               isDead()       const;
 
     // Reduce health by amount. Enemy block absorbs damage first.
@@ -74,6 +76,7 @@ private:
     std::string       m_name;
     int               m_health;
     int               m_maxHealth;
+    int               m_goldReward = 0;
     int               m_enemyBlock  = 0;
     EnemyIntent       m_intent      = EnemyIntent::IDLE;
     int               m_intentDamage = 0;

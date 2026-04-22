@@ -53,6 +53,7 @@ int Player::reduceBlock(int damage) {
 
 int  Player::getMana()    const { return m_currentMana; }
 int  Player::getMaxMana() const { return m_maxMana;     }
+int  Player::getGold()    const { return m_gold;        }
 
 void Player::startTurn() {
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
@@ -63,6 +64,13 @@ void Player::gainMana(int amount) {
         return;
     }
     m_currentMana += amount;
+}
+
+void Player::addGold(int amount) {
+    if (amount <= 0) {
+        return;
+    }
+    m_gold += amount;
 }
 
 bool Player::useMana(int amount) {
@@ -145,6 +153,10 @@ void Player::moveCardInHand(int fromIndex, int toIndex) {
     Card movedCard = m_hand[fromIndex];
     m_hand.erase(m_hand.begin() + fromIndex);
     m_hand.insert(m_hand.begin() + toIndex, movedCard);
+}
+
+const std::vector<Card>& Player::getOwnedCards() const {
+    return m_ownedCards;
 }
 
 void Player::addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition) {

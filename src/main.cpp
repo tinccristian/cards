@@ -126,6 +126,37 @@ int main() {
         sceneFrame = LoadRenderTexture(width, height);
     };
 
+    const auto currentTurnLabel = [&state]() {
+        return std::string("Turn ") + std::to_string(state.getTurnNumber());
+    };
+
+    const auto handleRunHudAction = [&](RunHudAction action) {
+        switch (action) {
+        case RunHudAction::ToggleMap:
+            if (state.getPhase() == GamePhase::MAP) {
+                return;
+            }
+            if (uiState.getCurrentMode() == UIMode::VIEWING_MAP) {
+                uiState.setMode(UIMode::NORMAL);
+            } else {
+                uiState.setMode(UIMode::VIEWING_MAP);
+            }
+            break;
+        case RunHudAction::Back:
+            uiState.setMode(UIMode::NORMAL);
+            break;
+        case RunHudAction::ViewDeck:
+            if (uiState.getCurrentMode() == UIMode::VIEWING_RUN_DECK) {
+                uiState.setMode(UIMode::NORMAL);
+            } else {
+                uiState.setMode(UIMode::VIEWING_RUN_DECK);
+            }
+            break;
+        case RunHudAction::None:
+            break;
+        }
+    };
+
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
         const bool allowSceneInteraction = !sceneTransition.blocksInteraction();
@@ -175,14 +206,38 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::MAP: {
-            if (allowSceneInteraction && InputHandler::getEscapePressed()) {
+            if (allowSceneInteraction && InputHandler::getEscapePressed()
+                && uiState.getCurrentMode() == UIMode::NORMAL) {
                 state.setPhase(GamePhase::MENU);
                 mapRun = MapRunState{};
                 break;
             }
 
-            const int selectedNodeIndex = screen.drawMapScreen(activeMap, mapRun, allowSceneInteraction);
-            if (allowSceneInteraction && selectedNodeIndex >= 0) {
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::VIEWING_RUN_DECK
+                && InputHandler::getEscapePressed()) {
+                uiState.setMode(UIMode::NORMAL);
+            }
+
+            const bool mapInteractive = allowSceneInteraction && uiState.getCurrentMode() == UIMode::NORMAL;
+            const int selectedNodeIndex = screen.drawMapScreen(activeMap, mapRun, mapInteractive);
+            handleRunHudAction(screen.drawRunHud(state.getPlayer(), "Map", allowSceneInteraction));
+
+            if (uiState.getCurrentMode() == UIMode::VIEWING_RUN_DECK) {
+                bool closeClicked = false;
+                const int maxScroll = screen.drawPileViewer("Run Deck",
+                                                            state.getPlayer().getOwnedCards(),
+                                                            uiState.getScrollOffset(),
+                                                            closeClicked);
+                const int scroll = InputHandler::getScrollInput();
+                if (scroll < 0) uiState.scrollUp();
+                if (scroll > 0) uiState.scrollDown(maxScroll);
+                if (closeClicked || (allowSceneInteraction && InputHandler::getEscapePressed())) {
+                    uiState.setMode(UIMode::NORMAL);
+                }
+                break;
+            }
+
+            if (allowSceneInteraction && selectedNodeIndex >= 0 && uiState.getCurrentMode() == UIMode::NORMAL) {
                 beginSceneTransition([&, selectedNodeIndex]() {
                     if (!mapRun.selectNode(activeMap, selectedNodeIndex)) {
                         return;
@@ -214,6 +269,17 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::COMBAT: {
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::VIEWING_MAP
+                && InputHandler::getEscapePressed()) {
+                uiState.setMode(UIMode::NORMAL);
+            }
+
+            if (uiState.getCurrentMode() == UIMode::VIEWING_MAP) {
+                screen.drawMapScreen(activeMap, mapRun, allowSceneInteraction);
+                handleRunHudAction(screen.drawRunHud(state.getPlayer(), "Map", allowSceneInteraction, true, true, true));
+                break;
+            }
+
             if (allowSceneInteraction && InputHandler::getEscapePressed()) {
                 if (uiState.getCurrentMode() == UIMode::NORMAL) {
                     uiState.setMode(UIMode::PAUSED);
@@ -229,6 +295,7 @@ int main() {
             if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::PAUSED) {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
+                screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false);
 
                 switch (screen.drawPauseMenu()) {
                 case PauseAction::Resume:
@@ -259,6 +326,7 @@ int main() {
                 const AppSettings previousSettings = appSettings;
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
+                screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false);
                 if (screen.drawOptionsMenu(appSettings, pauseOptionsSection, true) == OptionsMenuAction::Back) {
                     uiState.setMode(UIMode::PAUSED);
                 }
@@ -270,21 +338,30 @@ int main() {
 
             // Handle pile-viewer overlay (drawn on top of combat screen)
             if (allowSceneInteraction && (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE
-                || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE)) {
+                || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE
+                || uiState.getCurrentMode() == UIMode::VIEWING_RUN_DECK)) {
                 // Still draw the combat screen beneath the overlay
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
+                handleRunHudAction(screen.drawRunHud(state.getPlayer(), currentTurnLabel(), allowSceneInteraction));
 
                 // Determine which pile to show
                 const Deck& deck = state.getPlayer().getDeck();
-                bool isDrawViewer = (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE);
-                const std::vector<Card>& pileCards = isDrawViewer
-                    ? deck.getDrawPileCards()
-                    : deck.getDiscardPileCards();
-                std::string pileTitle = isDrawViewer ? "Draw Pile" : "Discard Pile";
+                const std::vector<Card>* pileCards = nullptr;
+                std::string pileTitle;
+                if (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE) {
+                    pileCards = &deck.getDrawPileCards();
+                    pileTitle = "Draw Pile";
+                } else if (uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE) {
+                    pileCards = &deck.getDiscardPileCards();
+                    pileTitle = "Discard Pile";
+                } else {
+                    pileCards = &state.getPlayer().getOwnedCards();
+                    pileTitle = "Run Deck";
+                }
 
                 bool closeClicked = false;
-                int maxScroll = screen.drawPileViewer(pileTitle, pileCards,
+                int maxScroll = screen.drawPileViewer(pileTitle, *pileCards,
                                                       uiState.getScrollOffset(),
                                                       closeClicked);
 
@@ -303,6 +380,7 @@ int main() {
             if (!allowSceneInteraction) {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
+                screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false);
                 break;
             }
 
@@ -314,6 +392,11 @@ int main() {
                 // Disable interaction once the enemy is dead so nothing fires during death anim.
                 bool allowInteraction = !state.isGameOver();
                 int  cardIdx = screen.drawCombat(state, endTurn, drawClicked, discardClicked, allowInteraction);
+                const RunHudAction hudAction = screen.drawRunHud(state.getPlayer(), currentTurnLabel(), allowSceneInteraction);
+                if (hudAction != RunHudAction::None) {
+                    handleRunHudAction(hudAction);
+                    break;
+                }
 
                 if (drawClicked) {
                     uiState.setMode(UIMode::VIEWING_DRAW_PILE);
@@ -328,6 +411,11 @@ int main() {
             } else {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3);
+                const RunHudAction hudAction = screen.drawRunHud(state.getPlayer(), currentTurnLabel(), allowSceneInteraction);
+                if (hudAction != RunHudAction::None) {
+                    handleRunHudAction(hudAction);
+                    break;
+                }
                 enemyTurnElapsed += GetFrameTime();
                 if (enemyTurnElapsed >= enemyTurnDuration) {
                     state.executeEnemyTurn();
@@ -341,6 +429,82 @@ int main() {
                         state.setPhase(GamePhase::GAME_OVER);
                     });
                 } else if (state.isCombatWon() && screen.isEnemyDeathAnimDone()) {
+                    std::string rewardError;
+                    if (!state.prepareCombatRewards(rewardError)) {
+                        TraceLog(LOG_ERROR, "%s", rewardError.c_str());
+                    } else {
+                        uiState.setMode(UIMode::NORMAL);
+                        enemyTurnElapsed = 0.0f;
+                        state.setPhase(GamePhase::REWARDS);
+                    }
+                }
+            }
+            break;
+        }
+
+        // -------------------------------------------------------------------
+        case GamePhase::REWARDS: {
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::VIEWING_MAP
+                && InputHandler::getEscapePressed()) {
+                uiState.setMode(UIMode::NORMAL);
+            }
+
+            if (uiState.getCurrentMode() == UIMode::VIEWING_MAP) {
+                screen.drawMapScreen(activeMap, mapRun, allowSceneInteraction);
+                handleRunHudAction(screen.drawRunHud(state.getPlayer(), "Map", allowSceneInteraction, true, true, true));
+                break;
+            }
+
+            bool unused1 = false, unused2 = false, unused3 = false;
+            screen.drawCombat(state, unused1, unused2, unused3, false);
+            const RunHudAction rewardHudAction = screen.drawRunHud(state.getPlayer(), "Rewards", allowSceneInteraction);
+            if (rewardHudAction != RunHudAction::None) {
+                handleRunHudAction(rewardHudAction);
+                break;
+            }
+
+            if (uiState.getCurrentMode() == UIMode::VIEWING_RUN_DECK) {
+                bool closeClicked = false;
+                const int maxScroll = screen.drawPileViewer("Run Deck",
+                                                            state.getPlayer().getOwnedCards(),
+                                                            uiState.getScrollOffset(),
+                                                            closeClicked);
+                const int scroll = InputHandler::getScrollInput();
+                if (scroll < 0) uiState.scrollUp();
+                if (scroll > 0) uiState.scrollDown(maxScroll);
+                if (closeClicked || (allowSceneInteraction && InputHandler::getEscapePressed())) {
+                    uiState.setMode(UIMode::NORMAL);
+                }
+                break;
+            }
+
+            RewardState& rewards = state.getRewardState();
+            if (rewards.isChoosingCard()) {
+                if (allowSceneInteraction && InputHandler::getEscapePressed()) {
+                    rewards.closeCardChoice();
+                    break;
+                }
+
+                const int selectedRewardCard = screen.drawRewardCardChoice(rewards, allowSceneInteraction);
+                if (allowSceneInteraction && selectedRewardCard == GameScreen::RewardChoiceSkip) {
+                    state.skipRewardCard();
+                } else if (allowSceneInteraction && selectedRewardCard >= 0) {
+                    state.claimRewardCard(selectedRewardCard);
+                }
+            } else {
+                int rewardMaxScroll = 0;
+                switch (screen.drawRewardPopup(rewards,
+                                               state.getPlayer().getGold(),
+                                               uiState.getScrollOffset(),
+                                               rewardMaxScroll,
+                                               allowSceneInteraction)) {
+                case RewardPopupAction::CollectGold:
+                    state.collectRewardGold();
+                    break;
+                case RewardPopupAction::OpenCardChoice:
+                    rewards.openCardChoice();
+                    break;
+                case RewardPopupAction::Continue:
                     beginSceneTransition([&]() {
                         mapRun.completeActiveNode(activeMap);
                         state.endCombat();
@@ -348,7 +512,14 @@ int main() {
                         enemyTurnElapsed = 0.0f;
                         state.setPhase(GamePhase::MAP);
                     });
+                    break;
+                case RewardPopupAction::None:
+                    break;
                 }
+                const int rewardScroll = InputHandler::getScrollInput();
+                if (rewardScroll < 0) uiState.scrollUp();
+                if (rewardScroll > 0) uiState.scrollDown(rewardMaxScroll);
+                uiState.clampScroll(rewardMaxScroll);
             }
             break;
         }

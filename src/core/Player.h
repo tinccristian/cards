@@ -34,6 +34,8 @@ public:
     int  getMaxMana() const;
     void startTurn();
     void gainMana(int amount);
+    int  getGold() const;
+    void addGold(int amount);
     // Deduct 'amount' mana. Returns false (no change) if insufficient.
     bool useMana(int amount);
 
@@ -63,6 +65,7 @@ public:
     void addCardToDeck(const Card& card);
     void rebuildCombatDeck();
     void moveCardInHand(int fromIndex, int toIndex);
+    const std::vector<Card>& getOwnedCards() const;
 
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     int  clearNegativeStatuses();
@@ -77,6 +80,7 @@ private:
     int               m_block = 0;
     int               m_maxMana;
     int               m_currentMana;
+    int               m_gold = 0;
     StatusCollection  m_statuses;
     std::vector<Card> m_ownedCards;
     std::vector<Card> m_hand;

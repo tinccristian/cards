@@ -2,6 +2,7 @@
 
 #include "Enemy.h"
 #include "Player.h"
+#include "gameplay/RewardState.h"
 #include <memory>
 #include <string>
 
@@ -10,6 +11,7 @@ enum class GamePhase {
     MAP,
     NEW_GAME,
     COMBAT,
+    REWARDS,
     GAME_OVER
 };
 
@@ -38,6 +40,8 @@ public:
     const Player& getPlayer() const;
     Enemy&        getEnemy();
     const Enemy&  getEnemy()  const;
+    RewardState&       getRewardState();
+    const RewardState& getRewardState() const;
 
     // --- Game flow ---
 
@@ -46,6 +50,10 @@ public:
     bool startNewGame(std::string& error);
     bool startNewRun(std::string& error);
     bool startCombatForEnemy(const std::string& enemyId, std::string& error);
+    bool prepareCombatRewards(std::string& error);
+    int  collectRewardGold();
+    bool claimRewardCard(int rewardIndex);
+    bool skipRewardCard();
     void endCombat();
 
     // Draw one card from player's deck to hand (reshuffles discard if needed).
@@ -75,5 +83,6 @@ private:
     int                    m_turnNumber;
     Player                 m_player;
     std::unique_ptr<Enemy> m_enemy;
+    RewardState            m_rewardState;
     std::string            m_lastAction;
 };

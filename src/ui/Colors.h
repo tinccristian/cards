@@ -39,6 +39,7 @@ namespace Colors {
     constexpr Color heal_color   = {  60, 180,  80, 255 };
     constexpr Color block_color  = {  80, 130, 220, 255 };
     constexpr Color mixed_intent_color = { 200, 180,  40, 255 };
+    constexpr Color gold_color   = { 220, 185,  65, 255 };
 
     // --- Overlay / utility ---
     constexpr Color overlay_bg          = {   0,   0,   0, 200 };

@@ -7,7 +7,97 @@
 
 #include <cassert>
 #include <iostream>
+#include <random>
+#include <unordered_set>
 #include <unordered_map>
+
+namespace {
+
+CardTier rollRewardTier(std::mt19937& rng) {
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    const float roll = dist(rng);
+    if (roll < LuckConfig::CommonCardDropRate) {
+        return CardTier::Common;
+    }
+    if (roll < LuckConfig::CommonCardDropRate + LuckConfig::UncommonCardDropRate) {
+        return CardTier::Uncommon;
+    }
+    return CardTier::Rare;
+}
+
+const Card* pickRandomCardFromPool(const std::vector<const Card*>& pool,
+                                   std::unordered_set<std::string>& usedIds,
+                                   std::mt19937& rng) {
+    std::vector<const Card*> available;
+    available.reserve(pool.size());
+    for (const Card* card : pool) {
+        if (usedIds.find(card->getId()) == usedIds.end()) {
+            available.push_back(card);
+        }
+    }
+
+    if (available.empty()) {
+        return nullptr;
+    }
+
+    std::uniform_int_distribution<int> dist(0, static_cast<int>(available.size()) - 1);
+    const Card* selected = available[dist(rng)];
+    usedIds.insert(selected->getId());
+    return selected;
+}
+
+std::vector<Card> generateRewardCards(int count) {
+    std::vector<Card> results;
+    const auto& allCards = CardDatabase::getAllCards();
+    if (count <= 0 || allCards.empty()) {
+        return results;
+    }
+
+    std::vector<const Card*> commonCards;
+    std::vector<const Card*> uncommonCards;
+    std::vector<const Card*> rareCards;
+    std::vector<const Card*> fallbackCards;
+    commonCards.reserve(allCards.size());
+    uncommonCards.reserve(allCards.size());
+    rareCards.reserve(allCards.size());
+    fallbackCards.reserve(allCards.size());
+
+    for (const Card& card : allCards) {
+        fallbackCards.push_back(&card);
+        switch (card.getTier()) {
+        case CardTier::Common:   commonCards.push_back(&card); break;
+        case CardTier::Uncommon: uncommonCards.push_back(&card); break;
+        case CardTier::Rare:     rareCards.push_back(&card); break;
+        }
+    }
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::unordered_set<std::string> usedIds;
+
+    while (static_cast<int>(results.size()) < count && usedIds.size() < allCards.size()) {
+        const std::vector<const Card*>* preferredPool = nullptr;
+        switch (rollRewardTier(rng)) {
+        case CardTier::Common: preferredPool = &commonCards; break;
+        case CardTier::Uncommon: preferredPool = &uncommonCards; break;
+        case CardTier::Rare: preferredPool = &rareCards; break;
+        }
+
+        const Card* selected = pickRandomCardFromPool(*preferredPool, usedIds, rng);
+        if (selected == nullptr) {
+            selected = pickRandomCardFromPool(fallbackCards, usedIds, rng);
+        }
+        if (selected == nullptr) {
+            break;
+        }
+
+        results.push_back(*selected);
+    }
+
+    return results;
+}
+
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -32,6 +122,8 @@ const std::string& GameState::getLastAction() const { return m_lastAction; }
 
 Player&       GameState::getPlayer()       { return m_player; }
 const Player& GameState::getPlayer() const { return m_player; }
+RewardState&       GameState::getRewardState()       { return m_rewardState; }
+const RewardState& GameState::getRewardState() const { return m_rewardState; }
 
 Enemy& GameState::getEnemy() {
     assert(m_enemy && "No enemy – call startCombatForEnemy() first");
@@ -61,6 +153,7 @@ bool GameState::startNewRun(std::string& error) {
     m_turnPhase  = TurnPhase::PLAYER_TURN;
     m_lastAction = "";
     m_enemy.reset();
+    m_rewardState.clear();
 
     // Load deck config — single source of truth for starter deck composition
     std::vector<std::string> deckConfig =
@@ -104,6 +197,7 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
     m_turnPhase = TurnPhase::PLAYER_TURN;
     m_lastAction.clear();
     m_enemy.reset();
+    m_rewardState.clear();
 
     m_player.rebuildCombatDeck();
 
@@ -128,8 +222,48 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
     return true;
 }
 
+bool GameState::prepareCombatRewards(std::string& error) {
+    error.clear();
+    if (!m_enemy) {
+        error = "Cannot prepare rewards without an active enemy";
+        return false;
+    }
+
+    const std::vector<Card> rewardCards = generateRewardCards(LuckConfig::RewardCardChoiceCount);
+    if (rewardCards.empty()) {
+        error = "No reward cards available in the card database";
+        return false;
+    }
+
+    m_rewardState.begin(m_enemy->getGoldReward(), rewardCards);
+    return true;
+}
+
+int GameState::collectRewardGold() {
+    const int awardedGold = m_rewardState.collectGold();
+    if (awardedGold > 0) {
+        m_player.addGold(awardedGold);
+    }
+    return awardedGold;
+}
+
+bool GameState::claimRewardCard(int rewardIndex) {
+    const auto selectedCard = m_rewardState.chooseCard(rewardIndex);
+    if (!selectedCard) {
+        return false;
+    }
+
+    m_player.addCardToDeck(*selectedCard);
+    return true;
+}
+
+bool GameState::skipRewardCard() {
+    return m_rewardState.skipCardChoice();
+}
+
 void GameState::endCombat() {
     m_enemy.reset();
+    m_rewardState.clear();
     m_turnPhase = TurnPhase::PLAYER_TURN;
     m_turnNumber = CombatConfig::StartingTurnNumber;
     m_lastAction.clear();

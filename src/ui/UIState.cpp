@@ -20,4 +20,10 @@ void UIState::scrollDown(int maxOffset) {
     if (m_scrollOffset < maxOffset) ++m_scrollOffset;
 }
 
+void UIState::clampScroll(int maxOffset) {
+    if (m_scrollOffset > maxOffset) {
+        m_scrollOffset = std::max(0, maxOffset);
+    }
+}
+
 void UIState::resetScroll() { m_scrollOffset = 0; }

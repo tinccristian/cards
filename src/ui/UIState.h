@@ -4,6 +4,8 @@ enum class UIMode {
     NORMAL,
     VIEWING_DRAW_PILE,
     VIEWING_DISCARD_PILE,
+    VIEWING_RUN_DECK,
+    VIEWING_MAP,
     PAUSED,
     OPTIONS
 };
@@ -20,6 +22,7 @@ public:
     int  getScrollOffset() const;
     void scrollUp();
     void scrollDown(int maxOffset);
+    void clampScroll(int maxOffset);
     void resetScroll();
 
 private:

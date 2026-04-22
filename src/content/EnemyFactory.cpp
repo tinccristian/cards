@@ -75,6 +75,7 @@ std::optional<Card> parseEnemyCard(const nlohmann::json& entry, std::string& err
         name,
         entry.value("cost", 0),
         *cardType,
+        CardTier::Common,
         std::move(tags),
         std::move(effects),
         entry.value("description", ""),
@@ -102,6 +103,7 @@ std::unique_ptr<Enemy> EnemyFactory::loadFromJSON(const std::string& filePath, s
 
     const std::string name = root.value("name", "");
     const int maxHealth = root.value("maxHealth", 0);
+    const int goldReward = root.value("goldReward", 0);
 
     if (name.empty() || maxHealth <= 0) {
         error = "Enemy definition must provide a valid name and maxHealth";
@@ -147,7 +149,7 @@ std::unique_ptr<Enemy> EnemyFactory::loadFromJSON(const std::string& filePath, s
     }
 
     return std::make_unique<Enemy>(name, maxHealth, std::move(enemyDeck),
-                                   std::move(spriteConfig));
+                                   std::move(spriteConfig), goldReward);
 }
 
 std::unique_ptr<Enemy> EnemyFactory::loadById(const std::string& enemyId, std::string& error) {

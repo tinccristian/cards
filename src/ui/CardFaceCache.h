@@ -13,7 +13,8 @@ public:
                                         int targetWidth,
                                         int targetHeight,
                                         bool emphasized,
-                                        bool affordable);
+                                        bool affordable,
+                                        bool crispPresentation = false);
     void unloadAll();
 
 private:
@@ -32,6 +33,7 @@ private:
         int         targetHeight = 0;
         bool        emphasized = false;
         bool        affordable = false;
+        bool        crispPresentation = false;
 
         bool operator==(const FaceKey& other) const;
     };
@@ -46,7 +48,8 @@ private:
                            int targetWidth,
                            int targetHeight,
                            bool emphasized,
-                           bool affordable);
+                           bool affordable,
+                           bool crispPresentation);
 
     std::unordered_map<FaceKey, Texture2D, FaceKeyHash> m_faces;
     std::unordered_map<std::string, Image>              m_artImages;

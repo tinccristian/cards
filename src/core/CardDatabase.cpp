@@ -36,6 +36,13 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
             return std::nullopt;
         }
 
+        const std::string tierValue = entry.value("tier", "");
+        auto cardTier = cardTierFromString(tierValue);
+        if (!cardTier) {
+            error = "Card '" + id + "' has an invalid tier: " + tierValue;
+            return std::nullopt;
+        }
+
         std::vector<std::string> tags;
         if (entry.contains("tags") && entry["tags"].is_array()) {
             for (const auto& tag : entry["tags"]) {
@@ -87,6 +94,7 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
             name,
             entry.value("cost", 0),
             *cardType,
+            *cardTier,
             std::move(tags),
             std::move(effects),
             entry.value("description", ""),

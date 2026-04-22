@@ -67,6 +67,16 @@ inline constexpr float EnemyTurnDelaySecs    = 1.0f; // pause before the enemy e
 } // namespace CombatConfig
 
 // =============================================================================
+// ## Luck ##
+// =============================================================================
+namespace LuckConfig {
+inline constexpr float CommonCardDropRate   = 0.65f;
+inline constexpr float UncommonCardDropRate = 0.25f;
+inline constexpr float RareCardDropRate     = 0.10f;
+inline constexpr int   RewardCardChoiceCount = 3;
+} // namespace LuckConfig
+
+// =============================================================================
 // ## Map Data ##
 // =============================================================================
 namespace MapConfig {
@@ -102,6 +112,15 @@ inline constexpr int MenuButtonGap     = 20; // vertical space between buttons
 inline constexpr int CombatTurnFontSize = 26; // "Turn N" label at the top
 inline constexpr int CombatLogTop       = 58; // Y offset of the combat log below the header
 inline constexpr int CombatLogFontSize  = 17;
+inline constexpr int TopHudBarHeight      = 44;
+inline constexpr int TopHudSidePadding    = 16;
+inline constexpr int TopHudTextPaddingY   = 12;
+inline constexpr int TopHudGoldFontSize   = 18;
+inline constexpr int TopHudCenterFontSize = 20;
+inline constexpr int TopHudButtonWidth    = 92;
+inline constexpr int TopHudButtonHeight   = 28;
+inline constexpr int TopHudButtonGap      = 10;
+inline constexpr float TopHudHoverScale   = 1.08f;
 
 // -----------------------------------------------------------------------------
 // Cards
@@ -152,7 +171,7 @@ inline constexpr int CardTextTopPadding    = 7;  // px between the art/divider l
 inline constexpr int CardTextGap           = 7;  // px between name and description
 inline constexpr int CardDividerPadding    = 2;
 inline constexpr int CardNameNudgeUp       = 3;  // px the name is pushed above the art/text divider line
-inline constexpr float CardFaceRenderScale = 3.0f; // compose full card faces oversized, then let the GPU scale them down smoothly
+inline constexpr float CardFaceRenderScale = 4.0f; // compose full card faces oversized, then let the GPU scale them down smoothly
 
 // Mana badge — position in logical card pixels.
 // These boxes are authored against the native 120x180 card border art.
@@ -168,7 +187,7 @@ inline constexpr int CardDescriptionBoxLeft   = 9;
 inline constexpr int CardDescriptionBoxTop    = 101;
 inline constexpr int CardDescriptionBoxRight  = 104;
 inline constexpr int CardDescriptionBoxBottom = 170;
-inline constexpr int CardDescriptionInnerInset = 3; // extra safety inset so long lines wrap before the frame edge
+inline constexpr int CardDescriptionInnerInset = 4; // extra safety inset so long lines wrap before the frame edge
 
 // -----------------------------------------------------------------------------
 // Piles  (draw pile / discard pile widgets in the bottom corners)
@@ -262,6 +281,33 @@ inline constexpr int OverlayContentInset   = 36;  // horizontal inset of content
 inline constexpr int PauseButtonsTopOffset = 92;  // px from panel top to the first pause button
 
 // -----------------------------------------------------------------------------
+// Rewards
+// -----------------------------------------------------------------------------
+inline constexpr int RewardPanelWidth         = 620;
+inline constexpr int RewardPanelHeight        = 300;
+inline constexpr int RewardListTopOffset      = 86;
+inline constexpr int RewardListHeight         = 132;
+inline constexpr int RewardEntryHeight        = 56;
+inline constexpr int RewardEntryGap           = 8;
+inline constexpr int RewardEntryTitleSize     = 22;
+inline constexpr int RewardEntryBodySize      = 16;
+inline constexpr int RewardEntryInset         = 18;
+inline constexpr int RewardContinueWidth      = 180;
+inline constexpr int RewardContinueHeight     = 44;
+inline constexpr int RewardContinueBottomGap  = 28;
+inline constexpr int RewardCardTitleSize      = 34;
+inline constexpr int RewardCardChoiceGap      = 36;
+inline constexpr int RewardCardChoiceWidth    = 220;
+inline constexpr int RewardCardChoiceTop      = 170;
+inline constexpr int RewardCardChoiceHeight   = 330;
+inline constexpr int RewardHintSize           = 16;
+inline constexpr int RewardVignetteAlpha      = 170;
+inline constexpr float RewardCardHoverScale   = 1.12f;
+inline constexpr int RewardSkipButtonWidth    = 140;
+inline constexpr int RewardSkipButtonHeight   = 40;
+inline constexpr int RewardSkipButtonTopGap   = 24;
+
+// -----------------------------------------------------------------------------
 // Options screen
 // -----------------------------------------------------------------------------
 inline constexpr int   OptionsTabWidth              = 140; // width of each tab (Audio / Video / etc.)
@@ -320,8 +366,8 @@ inline constexpr float ScreenTransitionSpeed        = 0.3f;  // shader progress 
 // -----------------------------------------------------------------------------
 // Pile Viewer  (full-screen overlay showing draw or discard pile contents)
 // -----------------------------------------------------------------------------
-inline constexpr int PileViewerPanelWidth        = 900;
-inline constexpr int PileViewerPanelHeight       = 560;
+inline constexpr int PileViewerPanelWidth        = 760;
+inline constexpr int PileViewerPanelHeight       = 660;
 inline constexpr int PileViewerTitleSize         = 28;  // "Draw Pile" / "Discard Pile"
 inline constexpr int PileViewerTitleOffsetY      = 12;  // px from panel top to title
 inline constexpr int PileViewerSubtitleSize      = 16;  // card count subtitle
@@ -331,9 +377,14 @@ inline constexpr int PileViewerCloseButtonSize   = 36;  // X button square size
 inline constexpr int PileViewerCloseButtonMargin = 8;   // inset of the X button from the panel corner
 inline constexpr int PileViewerDividerInset      = 10;  // horizontal inset of the header divider line
 inline constexpr int PileViewerGridTopOffset     = 80;  // px from panel top to the card grid
-inline constexpr int PileViewerGridBottomPadding = 90;  // extra space below the last card row
+inline constexpr int PileViewerGridBottomPadding = 70;  // extra space below the last card row
 inline constexpr int PileViewerScissorInset      = 2;   // shrinks the scissor rect to hide clipping artefacts
-inline constexpr int PileViewerGridColumns       = 4;
+inline constexpr int PileViewerGridColumns       = 5;
+inline constexpr float PileViewerVisibleRows     = 2.5f;
+inline constexpr int PileViewerGridGap           = 14;
+inline constexpr int PileViewerGridTopPadding    = 44;
+inline constexpr int PileViewerGridBottomPaddingInner = 56;
+inline constexpr float PileViewerHoverScale      = 1.28f;
 inline constexpr int PileViewerCellWidth         = 200; // px per grid cell (card + padding)
 inline constexpr int PileViewerCellHeight        = 220;
 inline constexpr int PileViewerCellInset         = 4;   // gap between card and cell edge

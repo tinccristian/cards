@@ -37,8 +37,25 @@ enum class OptionsMenuAction {
     Back
 };
 
+enum class RewardPopupAction {
+    None,
+    CollectGold,
+    OpenCardChoice,
+    Continue
+};
+
+enum class RunHudAction {
+    None,
+    ToggleMap,
+    Back,
+    ViewDeck
+};
+
 class GameScreen {
 public:
+    static constexpr int RewardChoiceNone = -1;
+    static constexpr int RewardChoiceSkip = -2;
+
     GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio = nullptr);
 
     // Draw the main menu and report the clicked action for this frame.
@@ -71,6 +88,19 @@ public:
                        const std::vector<Card>& cards,
                        int scrollOffset,
                        bool& closeClicked);
+    RunHudAction drawRunHud(const Player& player,
+                            const std::string& centerLabel,
+                            bool allowInteraction = true,
+                            bool showMapButton = true,
+                            bool showBackButton = false,
+                            bool showDeckButton = true);
+    RewardPopupAction drawRewardPopup(const RewardState& rewards,
+                                      int currentGold,
+                                      int scrollOffset,
+                                      int& maxScroll,
+                                      bool allowInteraction = true);
+    int drawRewardCardChoice(const RewardState& rewards,
+                             bool allowInteraction = true);
 
     // Draw the game-over screen. Returns true when "Return to Menu" is clicked.
     bool drawGameOver(const GameState& state);
@@ -126,6 +156,10 @@ private:
     bool         m_blockIconLoaded    = false;
     Texture2D    m_attackIcon         = {};
     bool         m_attackIconLoaded   = false;
+    bool         m_mapHudHoveredLast  = false;
+    bool         m_deckHudHoveredLast = false;
+    bool         m_backHudHoveredLast = false;
+    std::string  m_lastPileViewerHoverToken;
     Shader       m_intentFloatShader  = {};
     bool         m_intentFloatShaderLoaded = false;
     int          m_intentFloatTimeLoc = -1;
@@ -159,7 +193,8 @@ private:
     void drawManaHud(const Player& player) const;
     // playerMana: current mana (used to colour cost red when unaffordable). -1 = neutral.
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
-                      int playerMana = -1) const;
+                      int playerMana = -1,
+                      bool crispPresentation = false) const;
     void drawCardTooltip(const Card& card, float x, float y) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const;
 
@@ -167,6 +202,7 @@ private:
     void queueTooltip(const std::string& title, const std::string& body, Rectangle anchor) const;
     // Flush and draw any queued tooltip.
     void flushTooltip() const;
+    void drawVignetteOverlay() const;
 
     // Draw a pile widget (stack visual + label + count). Returns true if clicked.
     bool drawPileWidget(Rectangle rect, const std::string& label,
