@@ -35,6 +35,9 @@ public:
     bool isChoosingCard() const { return m_choosingCard; }
     bool isGoldCollected() const { return m_goldCollected; }
     bool isCardCollected() const { return m_cardCollected; }
+    // "Skip" on the chooser is intentionally reversible: it closes the chooser
+    // and enables Continue, but the player may still reopen the card reward and
+    // take a card before leaving the rewards screen.
     bool isCardSkipPending() const { return m_cardSkipPending; }
     bool isComplete() const { return m_active && m_goldCollected && (m_cardCollected || m_cardSkipPending); }
     int  getGoldReward() const { return m_goldReward; }

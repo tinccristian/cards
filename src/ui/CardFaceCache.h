@@ -9,6 +9,8 @@
 
 class CardFaceCache {
 public:
+    // `crispPresentation` is used for stable large-card displays (rewards,
+    // viewers) where we want sharper sampling than the animated hand cards.
     std::optional<Texture2D> getTexture(const Card& card,
                                         int targetWidth,
                                         int targetHeight,

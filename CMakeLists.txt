@@ -53,27 +53,33 @@ add_executable(medical_deckbuilder
     src/main.cpp
     src/app/AppSettings.cpp
     src/audio/CardAudio.cpp
+
     src/content/EnemyFactory.cpp
     src/content/MapData.cpp
+
     src/gameplay/CardEffect.cpp
     src/gameplay/MapRunState.cpp
     src/gameplay/CombatResolver.cpp
     src/gameplay/StatusCollection.cpp
+
     src/core/Card.cpp
     src/core/CardDatabase.cpp
     src/core/Deck.cpp
     src/core/Enemy.cpp
     src/core/GameState.cpp
     src/core/Player.cpp
+
     src/ui/CardFaceCache.cpp
     src/ui/DissolveEffect.cpp
     src/ui/EnemySprite.cpp
     src/ui/HitEffect.cpp
     src/ui/GameScreen.cpp
+    src/ui/InputHandler.cpp
     src/ui/PlayerSprite.cpp
     src/ui/ScreenTransition.cpp
-    src/ui/InputHandler.cpp
     src/ui/UIState.cpp
+    src/ui/screens/GameScreenMenus.cpp
+    src/ui/screens/GameScreenOverlays.cpp
 )
 
 target_include_directories(medical_deckbuilder PRIVATE
