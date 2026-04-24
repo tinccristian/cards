@@ -164,6 +164,7 @@ int main() {
 
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
+        cardAudio.update(GetFrameTime());
         deathSlowMoTimer = std::max(0.0f, deathSlowMoTimer - GetFrameTime());
         const bool deathSlowMoActive = (state.getPhase() == GamePhase::COMBAT) && deathSlowMoTimer > 0.0f;
         screen.setTimeScale(deathSlowMoActive ? LayoutConfig::DeathSlowMoScale : 1.0f);
@@ -200,6 +201,7 @@ int main() {
                     mapRun.initialize(activeMap);
                     beginSceneTransition([&screen, &state]() {
                         screen.resetMapView();
+                        screen.resetCombatEffects();
                         state.setPhase(GamePhase::MAP);
                     });
                 } else if (action == MenuAction::Options) {
@@ -262,6 +264,7 @@ int main() {
                     uiState.setMode(UIMode::NORMAL);
                     enemyTurnElapsed = 0.0f;
                     deathSlowMoTimer = 0.0f;
+                    screen.resetCombatEffects();
                     enemyDeathSoundPlayed = false;
                     playerDeathSoundPlayed = false;
                     gameOverSoundPlayed = false;
@@ -321,6 +324,7 @@ int main() {
                     beginSceneTransition([&]() {
                         uiState.setMode(UIMode::NORMAL);
                         state.endCombat();
+                        screen.resetCombatEffects();
                         state.setPhase(GamePhase::MENU);
                         enemyTurnElapsed = 0.0f;
                     });
@@ -415,21 +419,55 @@ int main() {
                 } else if (discardClicked) {
                     uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
                 } else if (cardIdx >= 0 && !state.isGameOver()) {
-                    const int enemyHealthBefore = state.getEnemy().getHealth();
                     const int playerHealthBefore = state.getPlayer().getHealth();
                     const auto playResult = state.playCard(cardIdx);
                     if (playResult.has_value()) {
+                        float hitSoundDelay = 0.0f;
                         if (playResult->blockGained > 0) {
                             cardAudio.playArmor();
                         }
-                        if (playResult->damageDealt > 0) {
-                            cardAudio.playDamage();
-                            if (state.getEnemy().getHealth() < enemyHealthBefore) {
-                                cardAudio.playEnemyHurt();
+                        int hitIndex = 0;
+                        for (const DamageBreakdown& event : playResult->enemyDamageEvents) {
+                            if (event.blocked > 0) {
+                                screen.addDamageNumber(DamageNumberTarget::Enemy,
+                                                       event.blocked,
+                                                       DamageNumberStyle::Block,
+                                                       hitIndex++,
+                                                       hitSoundDelay);
+                                cardAudio.scheduleArmorHit(hitSoundDelay);
+                                hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                            }
+                            if (event.health > 0) {
+                                screen.addDamageNumber(DamageNumberTarget::Enemy,
+                                                       event.health,
+                                                       DamageNumberStyle::Health,
+                                                       hitIndex++,
+                                                       hitSoundDelay);
+                                cardAudio.scheduleDamage(hitSoundDelay);
+                                cardAudio.scheduleEnemyHurt(hitSoundDelay);
+                                hitSoundDelay += LayoutConfig::HitEventDelayStep;
                             }
                         }
-                        if (playResult->damageAttempted > playResult->damageDealt) {
-                            cardAudio.playArmorHit();
+                        hitIndex = 0;
+                        for (const DamageBreakdown& event : playResult->playerDamageEvents) {
+                            if (event.blocked > 0) {
+                                screen.addDamageNumber(DamageNumberTarget::Player,
+                                                       event.blocked,
+                                                       DamageNumberStyle::Block,
+                                                       hitIndex++,
+                                                       hitSoundDelay);
+                                cardAudio.scheduleArmorHit(hitSoundDelay);
+                                hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                            }
+                            if (event.health > 0) {
+                                screen.addDamageNumber(DamageNumberTarget::Player,
+                                                       event.health,
+                                                       DamageNumberStyle::Health,
+                                                       hitIndex++,
+                                                       hitSoundDelay);
+                                cardAudio.scheduleDamage(hitSoundDelay);
+                                hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                            }
                         }
                         if (!enemyDeathSoundPlayed && state.getEnemy().isDead()) {
                             cardAudio.playEnemyDeath();
@@ -458,30 +496,82 @@ int main() {
                 if (enemyTurnElapsed >= enemyTurnDuration) {
                     const int playerHealthBefore = state.getPlayer().getHealth();
                     const EnemyTurnResult enemyResult = state.executeEnemyTurn();
-                    const int enemyHitSoundCount = std::max(1, enemyResult.hitCount);
+                    float hitSoundDelay = 0.0f;
                     if (enemyResult.blockGained > 0) {
                         cardAudio.playArmor();
                     }
                     if (enemyResult.maxHealthGained > 0) {
                         cardAudio.playEnemyBuff();
                     }
-                    if (enemyResult.damageDealt > 0) {
-                        for (int hitIndex = 0; hitIndex < enemyHitSoundCount; ++hitIndex) {
-                            cardAudio.playDamage();
+                    int hitIndex = 0;
+                    for (const DamageBreakdown& event : enemyResult.playerDamageEvents) {
+                        if (event.blocked > 0) {
+                            screen.addDamageNumber(DamageNumberTarget::Player,
+                                                   event.blocked,
+                                                   DamageNumberStyle::Block,
+                                                   hitIndex++,
+                                                   hitSoundDelay);
+                            cardAudio.scheduleArmorHit(hitSoundDelay);
+                            hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                        }
+                        if (event.health > 0) {
+                            screen.addDamageNumber(DamageNumberTarget::Player,
+                                                   event.health,
+                                                   DamageNumberStyle::Health,
+                                                   hitIndex++,
+                                                   hitSoundDelay);
+                            cardAudio.scheduleDamage(hitSoundDelay);
+                            hitSoundDelay += LayoutConfig::HitEventDelayStep;
                         }
                     }
-                    if (enemyResult.turnStartDamageTaken > 0) {
-                        cardAudio.playDamage();
-                    }
-                    if (enemyResult.damageAttempted > enemyResult.damageDealt) {
-                        for (int hitIndex = 0; hitIndex < enemyHitSoundCount; ++hitIndex) {
-                            cardAudio.playArmorHit();
+                    hitIndex = 0;
+                    for (const DamageBreakdown& event : enemyResult.enemyDamageEvents) {
+                        if (event.blocked > 0) {
+                            screen.addDamageNumber(DamageNumberTarget::Enemy,
+                                                   event.blocked,
+                                                   DamageNumberStyle::Block,
+                                                   hitIndex++,
+                                                   hitSoundDelay);
+                            cardAudio.scheduleArmorHit(hitSoundDelay);
+                            hitSoundDelay += LayoutConfig::HitEventDelayStep;
                         }
+                        if (event.health > 0) {
+                            screen.addDamageNumber(DamageNumberTarget::Enemy,
+                                                   event.health,
+                                                   DamageNumberStyle::Health,
+                                                   hitIndex++,
+                                                   hitSoundDelay);
+                            cardAudio.scheduleDamage(hitSoundDelay);
+                            cardAudio.scheduleEnemyHurt(hitSoundDelay);
+                            hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                        }
+                    }
+                    if (enemyResult.turnStartDamage.blocked > 0) {
+                        screen.addDamageNumber(DamageNumberTarget::Player,
+                                               enemyResult.turnStartDamage.blocked,
+                                               DamageNumberStyle::Block,
+                                               static_cast<int>(enemyResult.playerDamageEvents.size()),
+                                               hitSoundDelay);
+                        cardAudio.scheduleArmorHit(hitSoundDelay);
+                        hitSoundDelay += LayoutConfig::HitEventDelayStep;
+                    }
+                    if (enemyResult.turnStartDamage.health > 0) {
+                        screen.addDamageNumber(DamageNumberTarget::Player,
+                                               enemyResult.turnStartDamage.health,
+                                               DamageNumberStyle::Poison,
+                                               static_cast<int>(enemyResult.playerDamageEvents.size()) + (enemyResult.turnStartDamage.blocked > 0 ? 1 : 0),
+                                               hitSoundDelay);
+                        cardAudio.scheduleDamage(hitSoundDelay);
+                        hitSoundDelay += LayoutConfig::HitEventDelayStep;
                     }
                     if (!playerDeathSoundPlayed && playerHealthBefore > 0 && state.getPlayer().isDead()) {
                         cardAudio.playPlayerDeath();
                         deathSlowMoTimer = LayoutConfig::DeathSlowMoDuration;
                         playerDeathSoundPlayed = true;
+                    }
+                    if (!state.isGameOver() && state.getTurnPhase() == TurnPhase::PLAYER_TURN) {
+                        cardAudio.playNextTurn();
+                        screen.showNextTurnVignette();
                     }
                     enemyTurnElapsed = 0.0f;
                 }
@@ -579,6 +669,7 @@ int main() {
                         mapRun.completeActiveNode(activeMap);
                         state.endCombat();
                         uiState.setMode(UIMode::NORMAL);
+                        screen.resetCombatEffects();
                         enemyTurnElapsed = 0.0f;
                         state.setPhase(GamePhase::MAP);
                     });
@@ -611,6 +702,7 @@ int main() {
                     }
                     mapRun.initialize(activeMap);
                     screen.resetMapView();
+                    screen.resetCombatEffects();
                     uiState.setMode(UIMode::NORMAL);
                     enemyTurnElapsed = 0.0f;
                     deathSlowMoTimer = 0.0f;
@@ -623,6 +715,7 @@ int main() {
                 beginSceneTransition([&]() {
                     uiState.setMode(UIMode::NORMAL);
                     showMainMenuOptions = false;
+                    screen.resetCombatEffects();
                     deathSlowMoTimer = 0.0f;
                     enemyDeathSoundPlayed = false;
                     playerDeathSoundPlayed = false;

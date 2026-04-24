@@ -7,6 +7,7 @@
 #include "config/Defines.h"
 #include "content/MapData.h"
 #include "core/Card.h"
+#include "core/DamageResult.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
 #include "EnemySprite.h"
@@ -55,6 +56,17 @@ enum class RunHudAction {
     ToggleMap,
     Back,
     ViewDeck
+};
+
+enum class DamageNumberTarget {
+    Player,
+    Enemy
+};
+
+enum class DamageNumberStyle {
+    Health,
+    Block,
+    Poison
 };
 
 class GameScreen {
@@ -112,6 +124,18 @@ public:
     GameOverAction drawGameOver(const GameState& state);
 
     void setTimeScale(float scale);
+    void showNextTurnVignette();
+    void addDamageNumber(DamageNumberTarget target,
+                         int value,
+                         DamageNumberStyle style,
+                         int hitIndex = 0,
+                         float delaySecs = 0.0f);
+    void addDamageNumbers(DamageNumberTarget target,
+                          const std::vector<DamageBreakdown>& events,
+                          int baseHitIndex = 0,
+                          float baseDelaySecs = 0.0f,
+                          float delayStepSecs = LayoutConfig::HitEventDelayStep);
+    void resetCombatEffects();
 
     void unloadAssets();
 
@@ -182,6 +206,22 @@ private:
     int          m_intentFloatSpeedLoc = -1;
     int          m_intentFloatPhaseLoc = -1;
     mutable CardFaceCache m_cardFaceCache;
+    float        m_turnVignetteTimer = 0.0f;
+    float        m_enemyDeathPresentationTimer = 0.0f;
+    float        m_playerDeathPresentationTimer = 0.0f;
+    bool         m_enemyDeathPresentationStarted = false;
+    bool         m_playerDeathPresentationStarted = false;
+
+    struct FloatingDamageNumber {
+        DamageNumberTarget target = DamageNumberTarget::Enemy;
+        int   value = 0;
+        DamageNumberStyle style = DamageNumberStyle::Health;
+        float age = 0.0f;
+        float delaySecs = 0.0f;
+        float xOffset = 0.0f;
+        float yOffset = 0.0f;
+    };
+    std::vector<FloatingDamageNumber> m_damageNumbers;
 
     // Deferred tooltip: populated during the frame, flushed at the very end of
     // drawCombat so it always renders on top of every other element.
@@ -219,6 +259,10 @@ private:
     // Flush and draw any queued tooltip.
     void flushTooltip() const;
     void drawVignetteOverlay() const;
+    void drawTurnVignetteOverlay() const;
+    void drawDeathPresentationOverlay() const;
+    void drawFloatingDamageNumbers(Rectangle playerSpriteRect, Rectangle enemySpriteRect) const;
+    void updateTransientEffects(float dt);
 
     // Draw a pile widget (stack visual + label + count). Returns true if clicked.
     bool drawPileWidget(Rectangle rect, const std::string& label,

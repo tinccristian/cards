@@ -24,10 +24,14 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
         case EffectType::Damage:
             if (effect.target == EffectTarget::Opponent) {
                 summary.damageAttempted += effect.amount;
-                summary.damageDealt += enemy.takeDamage(effect.amount);
+                const DamageBreakdown breakdown = enemy.takeDamageDetailed(effect.amount);
+                summary.enemyDamageEvents.push_back(breakdown);
+                summary.damageDealt += breakdown.health;
             } else {
                 summary.damageAttempted += effect.amount;
-                summary.damageDealt += player.takeDamage(effect.amount);
+                const DamageBreakdown breakdown = player.takeDamageDetailed(effect.amount);
+                summary.playerDamageEvents.push_back(breakdown);
+                summary.damageDealt += breakdown.health;
             }
             break;
 

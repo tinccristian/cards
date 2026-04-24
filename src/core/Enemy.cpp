@@ -70,15 +70,22 @@ int                Enemy::getGoldReward() const { return m_goldReward; }
 bool               Enemy::isDead()       const { return m_health <= 0; }
 
 int Enemy::takeDamage(int amount) {
-    // Block absorbs first
+    return takeDamageDetailed(amount).health;
+}
+
+DamageBreakdown Enemy::takeDamageDetailed(int amount) {
+    DamageBreakdown result;
+    result.blocked = std::min(std::max(0, amount), m_enemyBlock);
     if (m_enemyBlock >= amount) {
         m_enemyBlock -= amount;
-        return 0;
+        return result;
     }
+
     amount -= m_enemyBlock;
     m_enemyBlock = 0;
+    result.health = std::max(0, std::min(m_health, amount));
     m_health = std::max(0, m_health - amount);
-    return amount;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +286,9 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
     if (m_statuses.consume(StatusType::SkipTurn) > 0) {
         discardPlannedCards();
         resetIntent();
-        return EnemyTurnResult{ true, 0, 0, 0, 0, 0, 0, "" };
+        EnemyTurnResult skippedResult;
+        skippedResult.skipped = true;
+        return skippedResult;
     }
 
     EnemyTurnResult result;
@@ -290,13 +299,16 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
             switch (effect.type) {
             case EffectType::Damage: {
                 result.damageAttempted += effect.amount;
-                const int dealt = (effect.target == EffectTarget::Opponent)
-                    ? player.takeDamage(effect.amount)
-                    : takeDamage(effect.amount);
-                result.damageDealt += dealt;
+                const DamageBreakdown breakdown = (effect.target == EffectTarget::Opponent)
+                    ? player.takeDamageDetailed(effect.amount)
+                    : takeDamageDetailed(effect.amount);
+                result.damageDealt += breakdown.health;
                 if (effect.target == EffectTarget::Opponent) {
+                    result.playerDamageEvents.push_back(breakdown);
                     result.hitCount += 1;
-                    appendFragment(actionFragments, "attacked for " + std::to_string(dealt) + " damage");
+                    appendFragment(actionFragments, "attacked for " + std::to_string(effect.amount) + " damage");
+                } else {
+                    result.enemyDamageEvents.push_back(breakdown);
                 }
                 break;
             }
@@ -305,13 +317,24 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
                 const int multiplier = std::max(1, counterValue);
                 const int totalDamage = effect.amount * multiplier;
                 result.damageAttempted += totalDamage;
-                const int dealt = (effect.target == EffectTarget::Opponent)
-                    ? player.takeDamage(totalDamage)
-                    : takeDamage(totalDamage);
-                result.damageDealt += dealt;
+                int totalHealthDamage = 0;
+                for (int hitIndex = 0; hitIndex < multiplier; ++hitIndex) {
+                    const DamageBreakdown breakdown = (effect.target == EffectTarget::Opponent)
+                        ? player.takeDamageDetailed(effect.amount)
+                        : takeDamageDetailed(effect.amount);
+                    totalHealthDamage += breakdown.health;
+                    if (effect.target == EffectTarget::Opponent) {
+                        result.playerDamageEvents.push_back(breakdown);
+                    } else {
+                        result.enemyDamageEvents.push_back(breakdown);
+                    }
+                }
+                result.damageDealt += totalHealthDamage;
                 if (effect.target == EffectTarget::Opponent) {
                     result.hitCount += multiplier;
-                    appendFragment(actionFragments, "attacked for " + std::to_string(dealt) + " damage");
+                    appendFragment(actionFragments,
+                                   "attacked for " + std::to_string(effect.amount)
+                                   + " x" + std::to_string(multiplier));
                 }
                 break;
             }

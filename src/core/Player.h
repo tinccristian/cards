@@ -2,6 +2,7 @@
 
 #include "config/Defines.h"
 #include "Card.h"
+#include "DamageResult.h"
 #include "Deck.h"
 #include "gameplay/StatusCollection.h"
 #include <optional>
@@ -9,7 +10,7 @@
 
 // Tracks all player state: health, mana, block, hand, and deck.
 struct PlayerTurnStartResult {
-    int poisonDamageTaken = 0;
+    DamageBreakdown poisonDamage;
 };
 
 class Player {
@@ -24,6 +25,7 @@ public:
 
     // Block absorbs damage first; overflow reduces health.
     int  takeDamage(int amount);
+    DamageBreakdown takeDamageDetailed(int amount);
     int  loseHealth(int amount); // bypasses block; used by damage-over-time effects
     int  heal(int amount); // Clamps to maxHealth, returns HP restored
 

@@ -68,8 +68,11 @@ int StatusCollection::tick(StatusType type) {
     while (it != m_statuses.end()) {
         if (it->type == type) {
             total += it->magnitude;
+            if (type == StatusType::Poison) {
+                it->magnitude -= 1;
+            }
             it->duration -= 1;
-            if (it->duration <= 0) {
+            if (it->duration <= 0 || it->magnitude <= 0) {
                 it = m_statuses.erase(it);
                 continue;
             }

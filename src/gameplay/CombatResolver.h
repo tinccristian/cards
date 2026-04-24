@@ -1,5 +1,8 @@
 #pragma once
 
+#include "core/DamageResult.h"
+
+#include <vector>
 #include <string>
 
 class Card;
@@ -16,6 +19,8 @@ struct CardResolutionSummary {
     int bonusManaGranted  = 0;
     int debuffsCleared    = 0;
     bool enemyTurnSkipped = false;
+    std::vector<DamageBreakdown> enemyDamageEvents;
+    std::vector<DamageBreakdown> playerDamageEvents;
 
     [[nodiscard]] bool hasGameplayEffect() const;
 };

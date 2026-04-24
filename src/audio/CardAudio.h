@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 class CardAudio {
 public:
@@ -8,6 +9,7 @@ public:
 
     bool initialize(std::string& warning);
     void shutdown();
+    void update(float dt);
 
     void playHover();
     void playShuffle();
@@ -22,9 +24,24 @@ public:
     void playEnemyDeath();
     void playPlayerDeath();
     void playGameOver();
+    void playNextTurn();
+    void scheduleDamage(float delaySecs = 0.0f);
+    void scheduleArmorHit(float delaySecs = 0.0f);
+    void scheduleEnemyHurt(float delaySecs = 0.0f);
 
 private:
     void applyConfiguredVolumes() const;
+
+    enum class ScheduledSoundType {
+        Damage,
+        ArmorHit,
+        EnemyHurt
+    };
+
+    struct ScheduledSound {
+        ScheduledSoundType type;
+        float delaySecs;
+    };
 
     bool m_hoverLoaded   = false;
     bool m_shuffleLoaded = false;
@@ -39,6 +56,11 @@ private:
     bool m_enemyDeathLoaded = false;
     bool m_playerDeathLoaded = false;
     bool m_gameOverLoaded = false;
+    bool m_nextTurnLoaded = false;
     int  m_hoverPitchIndex = 0;
     int  m_hoverVoiceIndex = 0;
+    int  m_damageVoiceIndex = 0;
+    int  m_armorHitVoiceIndex = 0;
+    int  m_enemyHurtVoiceIndex = 0;
+    std::vector<ScheduledSound> m_scheduledSounds;
 };

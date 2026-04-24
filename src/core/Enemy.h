@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Card.h"
+#include "DamageResult.h"
 #include "Deck.h"
 #include "content/EnemySpriteConfig.h"
 #include "gameplay/StatusCollection.h"
@@ -22,9 +23,12 @@ struct EnemyTurnResult {
     int  damageAttempted = 0;
     int  damageDealt  = 0;
     int  turnStartDamageTaken = 0;
+    DamageBreakdown turnStartDamage = {};
     int  hitCount = 0;
     int  blockGained  = 0;
     int  maxHealthGained = 0;
+    std::vector<DamageBreakdown> playerDamageEvents;
+    std::vector<DamageBreakdown> enemyDamageEvents;
     std::string actionText;
 };
 
@@ -57,6 +61,7 @@ public:
 
     // Reduce health by amount. Enemy block absorbs damage first.
     int takeDamage(int amount);
+    DamageBreakdown takeDamageDetailed(int amount);
 
     // --- Block ---
     int  getEnemyBlock() const;

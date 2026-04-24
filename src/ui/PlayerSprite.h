@@ -30,7 +30,7 @@ public:
     void update(float dt);
 
     // Blit the current frame scaled to fill destRect.
-    void draw(Rectangle destRect) const;
+    void draw(Rectangle destRect, Color tint = WHITE) const;
 
     // True once the death dissolve has fully completed (or if no shader loaded).
     bool isDeathDissolveComplete() const;

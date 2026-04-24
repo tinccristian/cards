@@ -63,6 +63,59 @@ void GameScreen::setTimeScale(float scale) {
     m_timeScale = std::max(0.01f, scale);
 }
 
+void GameScreen::showNextTurnVignette() {
+    m_turnVignetteTimer = LayoutConfig::TurnVignetteDuration;
+}
+
+void GameScreen::addDamageNumber(DamageNumberTarget target,
+                                 int value,
+                                 DamageNumberStyle style,
+                                 int hitIndex,
+                                 float delaySecs) {
+    if (value <= 0) {
+        return;
+    }
+
+    FloatingDamageNumber number;
+    number.target = target;
+    number.value = value;
+    number.style = style;
+    number.age = 0.0f;
+    number.delaySecs = delaySecs;
+    number.xOffset = (hitIndex % 2 == 0 ? -1.0f : 1.0f) * scalef(LayoutConfig::DamageNumberSpawnJitterX)
+        * (1.0f + 0.25f * (float)(hitIndex / 2));
+    number.yOffset = -(float)hitIndex * scalef(LayoutConfig::DamageNumberStackGap);
+    m_damageNumbers.push_back(number);
+}
+
+void GameScreen::addDamageNumbers(DamageNumberTarget target,
+                                  const std::vector<DamageBreakdown>& events,
+                                  int baseHitIndex,
+                                  float baseDelaySecs,
+                                  float delayStepSecs) {
+    int hitIndex = baseHitIndex;
+    float delaySecs = baseDelaySecs;
+    for (const DamageBreakdown& event : events) {
+        if (event.blocked > 0) {
+            addDamageNumber(target, event.blocked, DamageNumberStyle::Block, hitIndex++, delaySecs);
+            delaySecs += delayStepSecs;
+        }
+        if (event.health > 0) {
+            addDamageNumber(target, event.health, DamageNumberStyle::Health, hitIndex++, delaySecs);
+            delaySecs += delayStepSecs;
+        }
+    }
+}
+
+void GameScreen::resetCombatEffects() {
+    m_turnVignetteTimer = 0.0f;
+    m_enemyDeathPresentationTimer = 0.0f;
+    m_playerDeathPresentationTimer = 0.0f;
+    m_enemyDeathPresentationStarted = false;
+    m_playerDeathPresentationStarted = false;
+    m_damageNumbers.clear();
+}
+
 // Screen-specific overlays and menu/pause/options implementations live in
 // src/ui/screens/ so this file can stay focused on combat/map rendering and the
 // shared UI helpers that those screens depend on.
@@ -178,21 +231,6 @@ int GameScreen::drawMapScreen(const MapData& mapData,
         WHITE
     );
 
-    const char* title = "Select Next Node";
-    const char* hint = "Mouse wheel or drag to scroll";
-    const int titleFontSize = scalei(LayoutConfig::MapTitleFontSize);
-    const int hintFontSize = scalei(LayoutConfig::MapHintFontSize);
-    DrawText(title,
-             (m_width - MeasureText(title, titleFontSize)) / 2,
-             scalei(LayoutConfig::MapTitleTopMargin),
-             titleFontSize,
-             Colors::text_primary);
-    DrawText(hint,
-             m_width - MeasureText(hint, hintFontSize) - scalei(LayoutConfig::MapHintSideMargin),
-             m_height - scalei(LayoutConfig::MapHintBottomMargin),
-             hintFontSize,
-             Colors::text_secondary);
-
     std::vector<Vector2> nodePositions;
     nodePositions.reserve(mapData.nodes.size());
     for (const auto& node : mapData.nodes) {
@@ -206,8 +244,6 @@ int GameScreen::drawMapScreen(const MapData& mapData,
     const float outlineRadius = (float)scalei(LayoutConfig::MapNodeOutlineRadius);
     const float outlineThickness = scalef(LayoutConfig::MapNodeOutlineThickness);
     const float connectionThickness = scalef(LayoutConfig::MapConnectionThickness);
-    const int nodeLabelFontSize = scalei(LayoutConfig::MapNodeLabelFontSize);
-
     for (const auto& connection : mapData.connections) {
         const int fromIndex = mapData.findNodeIndex(connection.fromId);
         const int toIndex = mapData.findNodeIndex(connection.toId);
@@ -264,18 +300,6 @@ int GameScreen::drawMapScreen(const MapData& mapData,
         }
     }
 
-    if (hoveredNodeIndex >= 0) {
-        const auto* nodeType = mapData.findNodeType(mapData.nodes[hoveredNodeIndex].typeId);
-        if (nodeType != nullptr) {
-            const std::string label = nodeType->label;
-            DrawText(label.c_str(),
-                     (int)std::lround(nodePositions[hoveredNodeIndex].x - MeasureText(label.c_str(), nodeLabelFontSize) / 2.0f),
-                     (int)std::lround(nodePositions[hoveredNodeIndex].y - outlineRadius - scalei(LayoutConfig::MapNodeLabelFontSize) - 6),
-                     nodeLabelFontSize,
-                     Colors::text_primary);
-        }
-    }
-
     if (allowInteraction && releasedWithoutDrag && hoveredNodeIndex >= 0) {
         return hoveredNodeIndex;
     }
@@ -322,6 +346,23 @@ float handTValue(int index, int count) {
     return (float)index / (float)(count - 1);
 }
 
+float easeOutCubic(float t) {
+    const float inv = 1.0f - std::clamp(t, 0.0f, 1.0f);
+    return 1.0f - inv * inv * inv;
+}
+
+float easeOutBack(float t) {
+    t = std::clamp(t, 0.0f, 1.0f);
+    constexpr float c1 = 1.70158f;
+    constexpr float c3 = c1 + 1.0f;
+    const float u = t - 1.0f;
+    return 1.0f + c3 * u * u * u + c1 * u * u;
+}
+
+float lerpValue(float a, float b, float t) {
+    return a + (b - a) * std::clamp(t, 0.0f, 1.0f);
+}
+
 // Draw text with a 1-pixel black outline (4-direction).
 void DrawTextOutlined(const char* text, int x, int y, int fontSize, Color color) {
     DrawText(text, x - 1, y,     fontSize, BLACK);
@@ -331,11 +372,21 @@ void DrawTextOutlined(const char* text, int x, int y, int fontSize, Color color)
     DrawText(text, x,     y,     fontSize, color);
 }
 
+void DrawTextOutlinedAlpha(const char* text, int x, int y, int fontSize, Color color) {
+    const Color outline = { 0, 0, 0, color.a };
+    DrawText(text, x - 1, y,     fontSize, outline);
+    DrawText(text, x + 1, y,     fontSize, outline);
+    DrawText(text, x,     y - 1, fontSize, outline);
+    DrawText(text, x,     y + 1, fontSize, outline);
+    DrawText(text, x,     y,     fontSize, color);
+}
+
 std::string statusTooltipLine(const StatusInstance& status) {
     switch (status.type) {
     case StatusType::Poison:
         return "Poisoned for " + std::to_string(status.duration)
-            + " turns, takes " + std::to_string(status.magnitude) + " damage every turn.";
+            + " turns. Takes " + std::to_string(status.magnitude)
+            + " damage next turn, then loses 1 poison each turn.";
     case StatusType::BonusManaNextTurn:
         return "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
     case StatusType::SkipTurn:
@@ -486,6 +537,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
 
     const float dt = GetFrameTime() * m_timeScale;
     m_wiggleTime += dt;
+    updateTransientEffects(dt);
     {
         const bool isHovering = (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0);
         if (isHovering) {
@@ -532,7 +584,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     if (!m_playerSpriteLoaded) {
         m_playerSpriteLoaded = true;
         EnemySpriteConfig playerCfg = loadSpriteConfigFromJson(AssetPaths::PLAYER_SPRITE);
-        m_playerSprite.load(playerCfg, AssetPaths::DISSOLVE_SHADER, AssetPaths::HIT_SHADER);
+        m_playerSprite.load(playerCfg, "", AssetPaths::HIT_SHADER);
     }
     {
         // Hit detection for player.
@@ -540,15 +592,19 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         if (m_lastPlayerHp >= 0 && curPlayerHp < m_lastPlayerHp)
             m_playerSprite.triggerHit();
         m_lastPlayerHp = curPlayerHp;
-
-        // Start death dissolve only after the hit flash finishes.
-        if (state.isPlayerDefeated() && !m_playerSprite.isHitActive())
-            m_playerSprite.triggerDeath(); // idempotent
+        if (!state.isPlayerDefeated()) {
+            m_playerDeathPresentationStarted = false;
+        }
+        if (state.isPlayerDefeated() && !m_playerSprite.isHitActive() && !m_playerDeathPresentationStarted) {
+            m_playerDeathPresentationTimer = LayoutConfig::DeathPresentationDuration;
+            m_playerDeathPresentationStarted = true;
+        }
 
         m_playerSprite.update(dt);
 
         if (m_playerSprite.isLoaded()) {
-            m_playerSprite.draw(playerSpriteRect);
+            m_playerSprite.draw(playerSpriteRect,
+                                m_playerDeathPresentationTimer > 0.0f ? BLACK : WHITE);
         }
     }
 
@@ -562,7 +618,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             m_loadedEnemySpritePath = sheetPath;
             m_lastEnemyHp           = -1; // reset for new enemy
             if (!sheetPath.empty()) {
-                m_enemySprite.load(enemy.getSpriteConfig(), AssetPaths::DISSOLVE_SHADER, AssetPaths::HIT_SHADER);
+                m_enemySprite.load(enemy.getSpriteConfig(), "", AssetPaths::HIT_SHADER);
             }
         }
 
@@ -579,13 +635,15 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
                 if (!m_enemySprite.isHitActive()) {
                     if (m_enemySprite.getState() != EnemyAnimState::Death)
                         m_enemySprite.setState(EnemyAnimState::Death);
-                    // Once the death clip finishes (or has 0 frames), start dissolve.
-                    if (m_enemySprite.isDone())
-                        m_enemySprite.triggerDeathDissolve(); // idempotent
+                    if (!m_enemyDeathPresentationStarted) {
+                        m_enemyDeathPresentationTimer = LayoutConfig::DeathPresentationDuration;
+                        m_enemyDeathPresentationStarted = true;
+                    }
                 }
             } else if (m_enemySprite.getState() == EnemyAnimState::Death) {
                 // Same enemy re-encountered (new combat) – reset to idle.
                 m_enemySprite.setState(EnemyAnimState::Idle);
+                m_enemyDeathPresentationStarted = false;
             } else if (!isPlayerTurn) {
                 // Enemy turn begins: trigger attack animation once.
                 if (m_enemySprite.getState() == EnemyAnimState::Idle)
@@ -598,7 +656,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             }
 
             m_enemySprite.update(dt);
-            m_enemySprite.draw(enemySpriteRect);
+            m_enemySprite.draw(enemySpriteRect,
+                               m_enemyDeathPresentationTimer > 0.0f ? BLACK : WHITE);
         }
     }
 
@@ -608,6 +667,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     drawEntityHud(enemySpriteRect, enemy.getName(),
                   enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
     drawIntentIndicator(enemy, enemySpriteRect);
+    drawFloatingDamageNumbers(playerSpriteRect, enemySpriteRect);
+    drawDeathPresentationOverlay();
 
     // --- Combat log ---
     const std::string& action = state.getLastAction();
@@ -742,6 +803,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
                      curMana);
     }
 
+    drawTurnVignetteOverlay();
+
     // Flush deferred tooltips last so they render above every other element.
     flushTooltip();
 
@@ -750,16 +813,18 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
 
 
 bool GameScreen::isEnemyDeathAnimDone() const {
+    if (m_enemyDeathPresentationTimer > 0.0f) return false;
     if (!m_enemySprite.isLoaded()) return true;
-    // Must wait for: hit flash → death anim → death dissolve, in that order.
     if (m_enemySprite.isHitActive()) return false;
-    return m_enemySprite.isDeathDissolveComplete();
+    if (m_enemySprite.getState() == EnemyAnimState::Death && !m_enemySprite.isDone()) return false;
+    return true;
 }
 
 bool GameScreen::isPlayerDeathDissolveComplete() const {
+    if (m_playerDeathPresentationTimer > 0.0f) return false;
     if (!m_playerSprite.isLoaded()) return true;
     if (m_playerSprite.isHitActive()) return false;
-    return m_playerSprite.isDeathDissolveComplete();
+    return true;
 }
 
 void GameScreen::unloadAssets() {
@@ -1231,7 +1296,8 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             iconLoaded = m_poisonIconLoaded && m_poisonIcon.id != 0;
             title = "Poison";
             tooltip = "Poisoned for " + std::to_string(status.duration)
-                + " turns, takes " + std::to_string(status.magnitude) + " damage every turn.";
+                + " turns. Takes " + std::to_string(status.magnitude)
+                + " damage next turn, then loses 1 poison each turn.";
             break;
         case StatusType::BonusManaNextTurn:
             icon = m_buffIcon;
@@ -1658,6 +1724,115 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
             queueTooltip(enemy.getName(), body, hoverRect);
         }
     }
+}
+
+void GameScreen::drawTurnVignetteOverlay() const {
+    if (m_turnVignetteTimer <= 0.0f) {
+        return;
+    }
+
+    const float t = std::clamp(m_turnVignetteTimer / LayoutConfig::TurnVignetteDuration, 0.0f, 1.0f);
+    const float alphaScale = easeOutCubic(t);
+    const unsigned char edgeAlpha = (unsigned char)std::lround(LayoutConfig::TurnVignetteAlpha * alphaScale);
+    const unsigned char midAlpha = (unsigned char)std::lround(LayoutConfig::TurnVignetteAlpha * 0.28f * alphaScale);
+    const Color mid = { 255, 255, 255, midAlpha };
+    const Color edge = { 180, 30, 30, edgeAlpha };
+    const int topInset = scalei(LayoutConfig::TopHudBarHeight);
+    const int contentHeight = std::max(1, m_height - topInset);
+    DrawRectangle(0, topInset, m_width, contentHeight, mid);
+    DrawRectangleGradientV(0, topInset, m_width, contentHeight / 3, edge, BLANK);
+    DrawRectangleGradientV(0, m_height - contentHeight / 3, m_width, contentHeight / 3, BLANK, edge);
+    DrawRectangleGradientH(0, topInset, m_width / 5, contentHeight, edge, BLANK);
+    DrawRectangleGradientH(m_width - m_width / 5, topInset, m_width / 5, contentHeight, BLANK, edge);
+}
+
+void GameScreen::drawDeathPresentationOverlay() const {
+    const float timer = std::max(m_enemyDeathPresentationTimer, m_playerDeathPresentationTimer);
+    if (timer <= 0.0f) {
+        return;
+    }
+
+    const float t = std::clamp(timer / LayoutConfig::DeathPresentationDuration, 0.0f, 1.0f);
+    const unsigned char alpha = (unsigned char)std::lround(LayoutConfig::DeathScreenRedAlpha * easeOutCubic(t));
+    DrawRectangle(0, 0, m_width, m_height, Color{ 120, 0, 0, alpha });
+}
+
+void GameScreen::drawFloatingDamageNumbers(Rectangle playerSpriteRect, Rectangle enemySpriteRect) const {
+    if (m_damageNumbers.empty()) {
+        return;
+    }
+
+    const Vector2 playerCenter = {
+        playerSpriteRect.x + playerSpriteRect.width / 2.0f,
+        playerSpriteRect.y + playerSpriteRect.height / 2.0f
+    };
+    const Vector2 enemyCenter = {
+        enemySpriteRect.x + enemySpriteRect.width / 2.0f,
+        enemySpriteRect.y + enemySpriteRect.height / 2.0f
+    };
+
+    for (const FloatingDamageNumber& number : m_damageNumbers) {
+        if (number.delaySecs > 0.0f) {
+            continue;
+        }
+        const float t = std::clamp(number.age / LayoutConfig::DamageNumberLifetime, 0.0f, 1.0f);
+        const float rise = easeOutCubic(std::min(t / 0.65f, 1.0f));
+        const float settle = t > 0.55f ? (t - 0.55f) / 0.45f : 0.0f;
+        const float yOffset = -scalef(LayoutConfig::DamageNumberRiseDistance) * rise
+            + scalef(LayoutConfig::DamageNumberFallDistance) * easeOutCubic(settle)
+            + number.yOffset;
+        const float scale = t < 0.28f
+            ? lerpValue(LayoutConfig::DamageNumberScaleStart,
+                        LayoutConfig::DamageNumberScalePeak,
+                        easeOutBack(t / 0.28f))
+            : lerpValue(LayoutConfig::DamageNumberScalePeak,
+                        LayoutConfig::DamageNumberScaleEnd,
+                        (t - 0.28f) / 0.72f);
+        const float fade = t < 0.62f ? 1.0f : 1.0f - ((t - 0.62f) / 0.38f);
+        const int fontSize = std::max(1, (int)std::lround(scalei(LayoutConfig::DamageNumberFontSize) * scale));
+        const std::string text = std::to_string(number.value);
+        const int textWidth = MeasureText(text.c_str(), fontSize);
+        Vector2 center = number.target == DamageNumberTarget::Player ? playerCenter : enemyCenter;
+        center.x += number.target == DamageNumberTarget::Player
+            ? scalef(LayoutConfig::DamageNumberCenterOffsetX)
+            : -scalef(LayoutConfig::DamageNumberCenterOffsetX);
+        Color baseColor = Colors::health_color;
+        if (number.style == DamageNumberStyle::Block) {
+            baseColor = Colors::block_color;
+        } else if (number.style == DamageNumberStyle::Poison) {
+            baseColor = Colors::heal_color;
+        }
+        const Color color = {
+            baseColor.r,
+            baseColor.g,
+            baseColor.b,
+            (unsigned char)std::lround(255.0f * std::clamp(fade, 0.0f, 1.0f))
+        };
+        DrawTextOutlinedAlpha(text.c_str(),
+                              (int)std::lround(center.x + number.xOffset - textWidth / 2.0f),
+                              (int)std::lround(center.y + yOffset - fontSize / 2.0f),
+                              fontSize,
+                              color);
+    }
+}
+
+void GameScreen::updateTransientEffects(float dt) {
+    m_turnVignetteTimer = std::max(0.0f, m_turnVignetteTimer - dt);
+    m_enemyDeathPresentationTimer = std::max(0.0f, m_enemyDeathPresentationTimer - dt);
+    m_playerDeathPresentationTimer = std::max(0.0f, m_playerDeathPresentationTimer - dt);
+    for (FloatingDamageNumber& number : m_damageNumbers) {
+        if (number.delaySecs > 0.0f) {
+            number.delaySecs = std::max(0.0f, number.delaySecs - dt);
+        } else {
+            number.age += dt;
+        }
+    }
+    m_damageNumbers.erase(
+        std::remove_if(m_damageNumbers.begin(), m_damageNumbers.end(),
+                       [](const FloatingDamageNumber& number) {
+                           return number.age >= LayoutConfig::DamageNumberLifetime;
+                       }),
+        m_damageNumbers.end());
 }
 
 bool GameScreen::mouseOver(Rectangle rect) {

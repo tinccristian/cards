@@ -27,19 +27,12 @@ GameOverAction GameScreen::drawGameOver(const GameState& state) {
     DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
 
     const char* title = "You Died";
-    const char* subtitle = "The procedure failed. Start over or return to the menu.";
     const int titleSize = scalei(LayoutConfig::GameOverFontSize);
-    const int subtitleSize = scalei(LayoutConfig::GameOverSubtitleSize);
     DrawText(title,
              (int)(panel.x + (panel.width - MeasureText(title, titleSize)) / 2.0f),
-             (int)(panel.y + scalef(36.0f)),
+             (int)(panel.y + scalef(62.0f)),
              titleSize,
              Colors::damage_color);
-    DrawText(subtitle,
-             (int)(panel.x + (panel.width - MeasureText(subtitle, subtitleSize)) / 2.0f),
-             (int)(panel.y + scalef(112.0f)),
-             subtitleSize,
-             Colors::text_secondary);
 
     const int btnW = scalei(LayoutConfig::GameOverButtonWidth);
     const int btnH = scalei(LayoutConfig::GameOverButtonHeight);

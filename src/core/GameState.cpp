@@ -329,9 +329,10 @@ EnemyTurnResult GameState::executeEnemyTurn() {
 
     // Enemy plans next turn
     m_enemy->decideIntent();
-    if (startTurnResult.poisonDamageTaken > 0) {
-        result.turnStartDamageTaken = startTurnResult.poisonDamageTaken;
-        m_lastAction += " You took " + std::to_string(startTurnResult.poisonDamageTaken) + " poison damage.";
+    if (startTurnResult.poisonDamage.blocked > 0 || startTurnResult.poisonDamage.health > 0) {
+        result.turnStartDamage = startTurnResult.poisonDamage;
+        result.turnStartDamageTaken = startTurnResult.poisonDamage.health;
+        m_lastAction += " Poison dealt " + std::to_string(startTurnResult.poisonDamage.blocked + startTurnResult.poisonDamage.health) + " damage.";
     }
     m_turnNumber++;
     m_turnPhase = TurnPhase::PLAYER_TURN;

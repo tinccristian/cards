@@ -16,9 +16,16 @@ int  Player::getMaxHealth() const { return m_maxHealth; }
 bool Player::isDead()       const { return m_health <= 0; }
 
 int Player::takeDamage(int amount) {
+    return takeDamageDetailed(amount).health;
+}
+
+DamageBreakdown Player::takeDamageDetailed(int amount) {
+    DamageBreakdown result;
+    result.blocked = std::min(std::max(0, amount), m_block);
     int overflow = reduceBlock(amount);
+    result.health = std::max(0, std::min(m_health, overflow));
     m_health = std::max(0, m_health - overflow);
-    return overflow;
+    return result;
 }
 
 int Player::loseHealth(int amount) {
@@ -66,7 +73,7 @@ PlayerTurnStartResult Player::startTurn() {
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
     const int poisonDamage = m_statuses.tick(StatusType::Poison);
     if (poisonDamage > 0) {
-        result.poisonDamageTaken = loseHealth(poisonDamage);
+        result.poisonDamage = takeDamageDetailed(poisonDamage);
     }
     return result;
 }

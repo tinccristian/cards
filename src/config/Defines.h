@@ -40,6 +40,7 @@ inline constexpr const char* ENEMY_HURT_SOUND   = "assets/sounds/enemy/enemy _hu
 inline constexpr const char* ENEMY_DEATH_SOUND  = "assets/sounds/enemy/enemy_death.mp3";
 inline constexpr const char* PLAYER_DEATH_SOUND = "assets/sounds/player/player_death.mp3";
 inline constexpr const char* GAME_OVER_SOUND    = "assets/sounds/common/game_over.mp3";
+inline constexpr const char* NEXT_TURN_SOUND    = "assets/sounds/common/next_turn.mp3";
 } // namespace AudioPaths
 
 namespace AudioConfig {
@@ -57,6 +58,7 @@ inline constexpr float EnemyHurtVolume     = 32.0f;
 inline constexpr float EnemyDeathVolume    = 35.0f;
 inline constexpr float PlayerDeathVolume   = 36.0f;
 inline constexpr float GameOverVolume      = 34.0f;
+inline constexpr float NextTurnVolume      = 30.0f;
 inline constexpr int   MasterVolumeStep    = 5;     // how much +/- each options arrow click changes master volume
 inline constexpr int   CardHoverVoiceCount = 6;     // number of concurrent hover voices (prevents clipping)
 } // namespace AudioConfig
@@ -375,6 +377,33 @@ inline constexpr int GameOverVignetteAlpha = 190;
 // -----------------------------------------------------------------------------
 inline constexpr float DeathSlowMoScale    = 0.24f;
 inline constexpr float DeathSlowMoDuration = 0.70f;
+
+// -----------------------------------------------------------------------------
+// Turn feedback
+// -----------------------------------------------------------------------------
+inline constexpr float TurnVignetteAlpha     = 110.0f;
+inline constexpr float TurnVignetteDuration  = 0.55f;
+
+// -----------------------------------------------------------------------------
+// Death presentation
+// -----------------------------------------------------------------------------
+inline constexpr float DeathPresentationDuration = 2.0f;
+inline constexpr float DeathScreenRedAlpha       = 165.0f;
+
+// -----------------------------------------------------------------------------
+// Floating damage numbers
+// -----------------------------------------------------------------------------
+inline constexpr float DamageNumberLifetime      = 0.80f;
+inline constexpr float DamageNumberRiseDistance  = 44.0f;
+inline constexpr float DamageNumberFallDistance  = 12.0f;
+inline constexpr float DamageNumberSpawnJitterX  = 18.0f;
+inline constexpr float DamageNumberStackGap      = 18.0f;
+inline constexpr float DamageNumberCenterOffsetX = 72.0f;
+inline constexpr float DamageNumberScaleStart    = 0.55f;
+inline constexpr float DamageNumberScalePeak     = 1.25f;
+inline constexpr float DamageNumberScaleEnd      = 1.0f;
+inline constexpr int   DamageNumberFontSize      = 30;
+inline constexpr float HitEventDelayStep         = 0.08f;
 
 // -----------------------------------------------------------------------------
 // Map UI

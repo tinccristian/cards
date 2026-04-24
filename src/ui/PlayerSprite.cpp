@@ -74,7 +74,7 @@ void PlayerSprite::update(float dt) {
     }
 }
 
-void PlayerSprite::draw(Rectangle destRect) const {
+void PlayerSprite::draw(Rectangle destRect, Color tint) const {
     if (!m_loaded || m_texture.id == 0) return;
 
     Rectangle src = {
@@ -86,13 +86,13 @@ void PlayerSprite::draw(Rectangle destRect) const {
     if (m_dissolve.isActive()) {
         // Death dissolve takes priority over hit flash.
         m_dissolve.beginShader({ (float)m_texture.width, (float)m_texture.height });
-        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, WHITE);
+        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, tint);
         m_dissolve.endShader();
     } else if (m_hitEffect.isActive()) {
         m_hitEffect.beginShader();
-        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, WHITE);
+        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, tint);
         m_hitEffect.endShader();
     } else {
-        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, WHITE);
+        DrawTexturePro(m_texture, src, destRect, { 0.0f, 0.0f }, 0.0f, tint);
     }
 }
