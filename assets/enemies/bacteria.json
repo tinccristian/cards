@@ -13,27 +13,51 @@
   },
   "cards": [
     {
-      "id": "bacteria_attack",
-      "name": "Bacteria Attack",
-      "description": "Deal 4 damage",
+      "id": "fungus_poison_spores",
+      "name": "Poison Spores",
+      "description": "Inflict Poison for 3 turns",
       "cost": 0,
-      "type": "attack",
-      "tags": ["bacteria"],
+      "type": "skill",
+      "tags": ["fungus", "debuff"],
       "artPath": "",
       "effects": [
-        { "type": "damage", "target": "opponent", "amount": 4 }
+        { "type": "apply_status", "target": "opponent", "amount": 1, "duration": 3, "key": "poison" }
       ]
     },
     {
-      "id": "bacteria_defend",
-      "name": "Bacteria Shield",
-      "description": "Gain 3 block",
+      "id": "fungus_bloom_strike",
+      "name": "Bloom Strike",
+      "description": "Deal 6 damage for each Spore Growth use",
       "cost": 0,
-      "type": "skill",
-      "tags": ["bacteria"],
+      "type": "attack",
+      "tags": ["fungus", "attack"],
       "artPath": "",
       "effects": [
-        { "type": "block", "target": "self", "amount": 3 }
+        { "type": "damage_per_counter", "target": "opponent", "amount": 6, "key": "spore_growth" }
+      ]
+    },
+    {
+      "id": "fungus_spore_growth",
+      "name": "Spore Growth",
+      "description": "Gain 10% max HP",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["fungus", "buff"],
+      "artPath": "",
+      "effects": [
+        { "type": "modify_max_health_percent", "target": "self", "amount": 10, "key": "spore_growth" }
+      ]
+    },
+    {
+      "id": "fungus_spore_guard",
+      "name": "Spore Guard",
+      "description": "Gain 8 block",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["fungus", "block"],
+      "artPath": "",
+      "effects": [
+        { "type": "block", "target": "self", "amount": 8 }
       ]
     }
   ]

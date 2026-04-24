@@ -183,7 +183,9 @@ void SettingsManager::applyDisplaySettings(const AppSettings& rawSettings) {
     const int monitorWidth = GetMonitorWidth(monitorIndex);
     const int monitorHeight = GetMonitorHeight(monitorIndex);
 
-    if (settings.windowMode != WindowMode::Fullscreen && IsWindowState(FLAG_FULLSCREEN_MODE)) {
+    // Avoid exclusive fullscreen. It traps focus on some Windows setups and
+    // prevents normal Alt-Tab / second-monitor taskbar behavior.
+    if (IsWindowState(FLAG_FULLSCREEN_MODE)) {
         ToggleFullscreen();
     }
 
@@ -200,19 +202,17 @@ void SettingsManager::applyDisplaySettings(const AppSettings& rawSettings) {
 
     switch (settings.windowMode) {
     case WindowMode::Windowed:
+        ClearWindowState(FLAG_WINDOW_UNDECORATED);
+        ClearWindowState(FLAG_WINDOW_MAXIMIZED);
         SetWindowSize(resolution.width, resolution.height);
         centerWindowOnMonitor(monitorIndex, resolution.width, resolution.height);
         break;
 
     case WindowMode::Fullscreen:
-        ClearWindowState(FLAG_WINDOW_UNDECORATED);
+        SetWindowState(FLAG_WINDOW_UNDECORATED);
         ClearWindowState(FLAG_WINDOW_MAXIMIZED);
         SetWindowSize(monitorWidth, monitorHeight);
         SetWindowPosition(static_cast<int>(monitorPosition.x), static_cast<int>(monitorPosition.y));
-        if (!IsWindowState(FLAG_FULLSCREEN_MODE)) {
-            ToggleFullscreen();
-        }
-        SetWindowMonitor(monitorIndex);
         break;
 
     case WindowMode::Borderless:

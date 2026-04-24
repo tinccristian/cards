@@ -2,7 +2,9 @@
 
 #include "Enemy.h"
 #include "Player.h"
+#include "gameplay/CombatResolver.h"
 #include "gameplay/RewardState.h"
+#include <optional>
 #include <memory>
 #include <string>
 
@@ -61,8 +63,8 @@ public:
 
     // Attempt to play the card at handIndex.
     // Resolves the card's effects and updates the combat log.
-    // Returns false if the player has insufficient mana.
-    bool playCard(int cardIndex);
+    // Returns nullopt if the player has insufficient mana.
+    std::optional<CardResolutionSummary> playCard(int cardIndex);
 
     // Signal end of player turn: sets phase to ENEMY_TURN.
     void endPlayerTurn();
@@ -70,7 +72,7 @@ public:
     // Execute enemy intent (called after the ENEMY_TURN display delay).
     // Applies damage/block, resets player state, draws card, decides next intent,
     // increments turn, returns to PLAYER_TURN.
-    void executeEnemyTurn();
+    EnemyTurnResult executeEnemyTurn();
 
     bool        isGameOver() const;
     bool        isCombatWon() const;

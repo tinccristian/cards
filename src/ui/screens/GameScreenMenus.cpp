@@ -3,24 +3,72 @@
 #include <algorithm>
 #include <iterator>
 
-bool GameScreen::drawGameOver(const GameState& state) {
+GameOverAction GameScreen::drawGameOver(const GameState& state) {
     syncWindowSize();
+    (void)state;
 
-    std::string winner   = state.getWinner();
-    std::string msg      = (winner == "Player") ? "You Win!" : "You Lose!";
-    Color       msgColor = (winner == "Player") ? Colors::heal_color : Colors::damage_color;
+    const Color mid = { 0, 0, 0, (unsigned char)(LayoutConfig::GameOverVignetteAlpha / 2) };
+    const Color edge = { 0, 0, 0, (unsigned char)LayoutConfig::GameOverVignetteAlpha };
+    DrawRectangle(0, 0, m_width, m_height, mid);
+    DrawRectangleGradientV(0, 0, m_width, m_height / 3, edge, BLANK);
+    DrawRectangleGradientV(0, m_height - m_height / 3, m_width, m_height / 3, BLANK, edge);
+    DrawRectangleGradientH(0, 0, m_width / 4, m_height, edge, BLANK);
+    DrawRectangleGradientH(m_width - m_width / 4, 0, m_width / 4, m_height, BLANK, edge);
 
-    const int msgSz = scalei(LayoutConfig::GameOverFontSize);
-    DrawText(msg.c_str(), (m_width - MeasureText(msg.c_str(), msgSz)) / 2,
-             m_height / 3, msgSz, msgColor);
+    const int panelW = scalei(LayoutConfig::GameOverPanelWidth);
+    const int panelH = scalei(LayoutConfig::GameOverPanelHeight);
+    const Rectangle panel = {
+        (float)((m_width - panelW) / 2),
+        (float)((m_height - panelH) / 2),
+        (float)panelW,
+        (float)panelH
+    };
+    DrawRectangleRec(panel, Colors::light_bg);
+    DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+
+    const char* title = "You Died";
+    const char* subtitle = "The procedure failed. Start over or return to the menu.";
+    const int titleSize = scalei(LayoutConfig::GameOverFontSize);
+    const int subtitleSize = scalei(LayoutConfig::GameOverSubtitleSize);
+    DrawText(title,
+             (int)(panel.x + (panel.width - MeasureText(title, titleSize)) / 2.0f),
+             (int)(panel.y + scalef(36.0f)),
+             titleSize,
+             Colors::damage_color);
+    DrawText(subtitle,
+             (int)(panel.x + (panel.width - MeasureText(subtitle, subtitleSize)) / 2.0f),
+             (int)(panel.y + scalef(112.0f)),
+             subtitleSize,
+             Colors::text_secondary);
 
     const int btnW = scalei(LayoutConfig::GameOverButtonWidth);
     const int btnH = scalei(LayoutConfig::GameOverButtonHeight);
-    Rectangle btn = { (float)((m_width - btnW) / 2), (float)(m_height / 2 + scalei(LayoutConfig::GameOverButtonOffsetY)),
-                      (float)btnW, (float)btnH };
-    const bool hovered = mouseOver(btn);
-    drawButton(btn, "Return to Menu", hovered);
-    return hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+    const int btnGap = scalei(LayoutConfig::GameOverButtonGap);
+    Rectangle newRunBtn = {
+        panel.x + (panel.width - btnW) / 2.0f,
+        panel.y + panel.height - btnH * 2.0f - btnGap - scalef(32.0f),
+        (float)btnW,
+        (float)btnH
+    };
+    Rectangle menuBtn = {
+        panel.x + (panel.width - btnW) / 2.0f,
+        newRunBtn.y + btnH + btnGap,
+        (float)btnW,
+        (float)btnH
+    };
+
+    const bool newRunHovered = mouseOver(newRunBtn);
+    const bool menuHovered = mouseOver(menuBtn);
+    drawButton(newRunBtn, "New Run", newRunHovered);
+    drawButton(menuBtn, "Main Menu", menuHovered);
+
+    if (newRunHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return GameOverAction::NewRun;
+    }
+    if (menuHovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return GameOverAction::MainMenu;
+    }
+    return GameOverAction::None;
 }
 
 PauseAction GameScreen::drawPauseMenu() {
@@ -164,66 +212,40 @@ OptionsMenuAction GameScreen::drawOptionsMenu(AppSettings& settings,
     int rowIndex = 0;
 
     if (activeSection == OptionsSection::Display) {
-        static constexpr int widths[] = { 1280, 1366, 1600, 1920, 2560 };
-        static constexpr int heights[] = { 720, 768, 900, 1080, 1440 };
-        static constexpr int resolutionCount = static_cast<int>(std::size(widths));
+        const auto& resolutionOptions = SettingsManager::resolutionOptions();
+        const int resolutionCount = static_cast<int>(resolutionOptions.size());
 
-        std::string resolution = std::to_string(settings.screenWidth) + "x" + std::to_string(settings.screenHeight);
+        std::string resolution = SettingsManager::resolutionLabel(settings.resolutionIndex);
         const int resolutionDelta = drawStepperRow(rowStartY + rowIndex++ * rowHeight, "Resolution", resolution);
         if (resolutionDelta != 0) {
-            int currentIndex = 0;
-            for (int i = 0; i < resolutionCount; ++i) {
-                if (widths[i] == settings.screenWidth && heights[i] == settings.screenHeight) {
-                    currentIndex = i;
-                    break;
-                }
-            }
-            currentIndex = std::clamp(currentIndex + resolutionDelta, 0, resolutionCount - 1);
-            settings.screenWidth = widths[currentIndex];
-            settings.screenHeight = heights[currentIndex];
-            settings.applyWindowMode();
-            settings.save();
+            settings.resolutionIndex = std::clamp(settings.resolutionIndex + resolutionDelta, 0, resolutionCount - 1);
         }
 
-        const char* modeLabel = nullptr;
-        switch (settings.windowMode) {
-        case WindowMode::Windowed: modeLabel = "Windowed"; break;
-        case WindowMode::Fullscreen: modeLabel = "Fullscreen"; break;
-        case WindowMode::Borderless: modeLabel = "Borderless"; break;
-        }
+        const char* modeLabel = SettingsManager::windowModeLabel(settings.windowMode);
         const int modeDelta = drawStepperRow(rowStartY + rowIndex++ * rowHeight, "Window Mode", modeLabel);
         if (modeDelta != 0) {
             int modeIndex = static_cast<int>(settings.windowMode);
             modeIndex = std::clamp(modeIndex + modeDelta, 0, 2);
             settings.windowMode = static_cast<WindowMode>(modeIndex);
-            settings.applyWindowMode();
-            settings.save();
         }
 
         const std::string displayLabel = std::to_string(settings.monitorIndex + 1);
         const int displayDelta = drawStepperRow(rowStartY + rowIndex++ * rowHeight, "Display", displayLabel);
         if (displayDelta != 0) {
             settings.monitorIndex = std::clamp(settings.monitorIndex + displayDelta, 0, monitorCount - 1);
-            settings.applyWindowMode();
-            settings.save();
         }
 
         if (drawCheckboxRow(rowStartY + rowIndex++ * rowHeight, "VSync", settings.vsyncEnabled)) {
             settings.vsyncEnabled = !settings.vsyncEnabled;
-            settings.applyGraphicsSettings();
-            settings.save();
         }
 
         if (drawCheckboxRow(rowStartY + rowIndex++ * rowHeight, "Show FPS", settings.showFps)) {
             settings.showFps = !settings.showFps;
-            settings.save();
         }
     } else {
         const int volumeDelta = drawStepperRow(rowStartY, "Master Volume", std::to_string(settings.masterVolume));
         if (volumeDelta != 0) {
             settings.masterVolume = std::clamp(settings.masterVolume + volumeDelta * AudioConfig::MasterVolumeStep, 0, 100);
-            settings.applyAudioSettings();
-            settings.save();
         }
     }
 

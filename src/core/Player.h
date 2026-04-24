@@ -8,6 +8,10 @@
 #include <vector>
 
 // Tracks all player state: health, mana, block, hand, and deck.
+struct PlayerTurnStartResult {
+    int poisonDamageTaken = 0;
+};
+
 class Player {
 public:
     explicit Player(int maxHealth = CombatConfig::PlayerMaxHealth,
@@ -20,6 +24,7 @@ public:
 
     // Block absorbs damage first; overflow reduces health.
     int  takeDamage(int amount);
+    int  loseHealth(int amount); // bypasses block; used by damage-over-time effects
     int  heal(int amount); // Clamps to maxHealth, returns HP restored
 
     // --- Block (expires after the opposing side finishes its turn) ---
@@ -32,7 +37,7 @@ public:
     // --- Mana ---
     int  getMana()    const;
     int  getMaxMana() const;
-    void startTurn();
+    PlayerTurnStartResult startTurn();
     void gainMana(int amount);
     int  getGold() const;
     void addGold(int amount);
@@ -70,6 +75,7 @@ public:
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     int  clearNegativeStatuses();
     int  getStatusMagnitude(StatusType type) const;
+    const StatusCollection& getStatuses() const;
 
     Deck& getDeck();
     const Deck& getDeck() const;

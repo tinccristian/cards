@@ -31,6 +31,16 @@ int StatusCollection::getMagnitude(StatusType type) const {
     return total;
 }
 
+int StatusCollection::getDuration(StatusType type) const {
+    int longest = 0;
+    for (const auto& status : m_statuses) {
+        if (status.type == type) {
+            longest = std::max(longest, status.duration);
+        }
+    }
+    return longest;
+}
+
 bool StatusCollection::has(StatusType type) const {
     return getMagnitude(type) > 0;
 }
@@ -46,6 +56,25 @@ int StatusCollection::consume(StatusType type) {
         } else {
             ++it;
         }
+    }
+
+    return total;
+}
+
+int StatusCollection::tick(StatusType type) {
+    int total = 0;
+
+    auto it = m_statuses.begin();
+    while (it != m_statuses.end()) {
+        if (it->type == type) {
+            total += it->magnitude;
+            it->duration -= 1;
+            if (it->duration <= 0) {
+                it = m_statuses.erase(it);
+                continue;
+            }
+        }
+        ++it;
     }
 
     return total;

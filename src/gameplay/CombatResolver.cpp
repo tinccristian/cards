@@ -23,8 +23,10 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
         switch (effect.type) {
         case EffectType::Damage:
             if (effect.target == EffectTarget::Opponent) {
+                summary.damageAttempted += effect.amount;
                 summary.damageDealt += enemy.takeDamage(effect.amount);
             } else {
+                summary.damageAttempted += effect.amount;
                 summary.damageDealt += player.takeDamage(effect.amount);
             }
             break;
@@ -81,6 +83,9 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
             }
             break;
 
+        case EffectType::ApplyStatus:
+        case EffectType::ModifyMaxHealthPercent:
+        case EffectType::DamagePerCounter:
         case EffectType::Unknown:
             break;
         }

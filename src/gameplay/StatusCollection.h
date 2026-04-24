@@ -5,6 +5,7 @@
 enum class StatusType {
     BonusManaNextTurn,
     SkipTurn,
+    Poison,
     Infection,
     Weakness,
     Vulnerable
@@ -26,8 +27,10 @@ class StatusCollection {
 public:
     void add(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     int  getMagnitude(StatusType type) const;
+    int  getDuration(StatusType type) const;
     bool has(StatusType type) const;
     int  consume(StatusType type);
+    int  tick(StatusType type);
     int  clearNegative();
     void remove(StatusType type);
 

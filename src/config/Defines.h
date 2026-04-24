@@ -17,6 +17,9 @@ inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs
 inline constexpr const char* INTENT_FLOAT_SHADER = "assets/shaders/intent_float.vs";   // subtle bobbing motion for intent icons
 inline constexpr const char* BLOCK_ICON          = "assets/common/block.png";          // 16×16 shield sprite
 inline constexpr const char* ATTACK_ICON         = "assets/common/attack.png";         // 16×16 sword sprite
+inline constexpr const char* BUFF_ICON           = "assets/common/buff.png";
+inline constexpr const char* DEBUFF_ICON         = "assets/common/debuff.png";
+inline constexpr const char* POISON_ICON         = "assets/common/poison.png";
 inline constexpr const char* CARD_BORDER         = "assets/common/card_border.png";    // 120×180 border overlay (alpha)
 } // namespace AssetPaths
 
@@ -26,12 +29,34 @@ inline constexpr const char* CARD_BORDER         = "assets/common/card_border.pn
 namespace AudioPaths {
 inline constexpr const char* CARD_HOVER_SOUND   = "assets/sounds/cards/card_hover.mp3";
 inline constexpr const char* CARD_SHUFFLE_SOUND = "assets/sounds/cards/card_shuffle.mp3";
+inline constexpr const char* CARD_PICKED_SOUND  = "assets/sounds/cards/card_picked.mp3";
+inline constexpr const char* BONUS_SOUND        = "assets/sounds/common/bonus.mp3";
+inline constexpr const char* ARMOR_SOUND        = "assets/sounds/common/armor.mp3";
+inline constexpr const char* ARMOR_HIT_SOUND    = "assets/sounds/common/armor_hit.mp3";
+inline constexpr const char* DAMAGE_SOUND       = "assets/sounds/common/damage.mp3";
+inline constexpr const char* COIN_PICKED_SOUND  = "assets/sounds/common/coin_picked.mp3";
+inline constexpr const char* ENEMY_BUFF_SOUND   = "assets/sounds/enemy/enemy_buff.mp3";
+inline constexpr const char* ENEMY_HURT_SOUND   = "assets/sounds/enemy/enemy _hurt.mp3";
+inline constexpr const char* ENEMY_DEATH_SOUND  = "assets/sounds/enemy/enemy_death.mp3";
+inline constexpr const char* PLAYER_DEATH_SOUND = "assets/sounds/player/player_death.mp3";
+inline constexpr const char* GAME_OVER_SOUND    = "assets/sounds/common/game_over.mp3";
 } // namespace AudioPaths
 
 namespace AudioConfig {
 inline constexpr float MasterVolume        = 50.0f; // default master volume (0–100)
 inline constexpr float CardHoverVolume     = 15.0f; // per-voice volume for hover SFX
 inline constexpr float CardShuffleVolume   = 25.0f;
+inline constexpr float CardPickedVolume    = 28.0f;
+inline constexpr float RewardEnterVolume   = 30.0f;
+inline constexpr float ArmorVolume         = 24.0f;
+inline constexpr float ArmorHitVolume      = 24.0f;
+inline constexpr float DamageVolume        = 32.0f;
+inline constexpr float CoinPickedVolume    = 32.0f;
+inline constexpr float EnemyBuffVolume     = 28.0f;
+inline constexpr float EnemyHurtVolume     = 32.0f;
+inline constexpr float EnemyDeathVolume    = 35.0f;
+inline constexpr float PlayerDeathVolume   = 36.0f;
+inline constexpr float GameOverVolume      = 34.0f;
 inline constexpr int   MasterVolumeStep    = 5;     // how much +/- each options arrow click changes master volume
 inline constexpr int   CardHoverVoiceCount = 6;     // number of concurrent hover voices (prevents clipping)
 } // namespace AudioConfig
@@ -237,6 +262,10 @@ inline constexpr int EntityNameFontSize = 20;
 inline constexpr int EntityTextPadding  = 10;
 inline constexpr int HealthBarHeight    = 18; // px; block slot is drawn at 1.5× this height
 inline constexpr int EntityStatFontSize = 16; // hp text inside the bar, and block / intent numbers
+inline constexpr int EntityStatusGap    = 8;
+inline constexpr int EntityStatusIconSize = 18;
+inline constexpr int EntityStatusIconGap  = 4;
+inline constexpr int EntityStatusValueSize = 12;
 
 // -----------------------------------------------------------------------------
 // Mana HUD  (small box above the draw pile showing current / max mana)
@@ -265,7 +294,7 @@ inline constexpr float IntentFloatAmplitude  = 3.0f;  // vertical bob in logical
 inline constexpr float IntentFloatSpeed      = 1.8f;  // slightly quicker bob so the intent reads as alive
 inline constexpr float IntentFloatPhaseStep  = 0.9f;  // phase separation between sibling icons
 inline constexpr float IntentAttackValueOffsetX = 8.0f; // pushes the attack number farther outside the icon on the left
-inline constexpr float IntentAttackValueOffsetY = 5.0f; // nudges the attack number lower toward the icon corner
+inline constexpr float IntentAttackValueOffsetY = 12.0f; // keeps attack multipliers clear of adjacent intent icons
 
 // -----------------------------------------------------------------------------
 // Overlays  (Pause / Options — both reuse the same centred panel)
@@ -335,6 +364,17 @@ inline constexpr int GameOverFontSize      = 60;
 inline constexpr int GameOverButtonWidth   = 240;
 inline constexpr int GameOverButtonHeight  = 60;
 inline constexpr int GameOverButtonOffsetY = 20; // px below the "Game Over" title text
+inline constexpr int GameOverSubtitleSize  = 22;
+inline constexpr int GameOverButtonGap     = 18;
+inline constexpr int GameOverPanelWidth    = 560;
+inline constexpr int GameOverPanelHeight   = 300;
+inline constexpr int GameOverVignetteAlpha = 190;
+
+// -----------------------------------------------------------------------------
+// Death presentation
+// -----------------------------------------------------------------------------
+inline constexpr float DeathSlowMoScale    = 0.24f;
+inline constexpr float DeathSlowMoDuration = 0.70f;
 
 // -----------------------------------------------------------------------------
 // Map UI

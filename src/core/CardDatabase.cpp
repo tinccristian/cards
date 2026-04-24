@@ -75,17 +75,18 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
                     *effectType,
                     *effectTarget,
                     effectEntry.value("amount", 0),
-                    effectEntry.value("duration", CombatConfig::DefaultEffectDuration)
+                    effectEntry.value("duration", CombatConfig::DefaultEffectDuration),
+                    effectEntry.value("key", "")
                 });
             }
         } else {
             const int power = entry.value("power", 0);
             const int blockAmount = entry.value("blockAmount", 0);
             if (power > 0) {
-                effects.push_back(CardEffect{ EffectType::Damage, EffectTarget::Opponent, power, CombatConfig::DefaultEffectDuration });
+                effects.push_back(CardEffect{ EffectType::Damage, EffectTarget::Opponent, power, CombatConfig::DefaultEffectDuration, "" });
             }
             if (blockAmount > 0) {
-                effects.push_back(CardEffect{ EffectType::Block, EffectTarget::Self, blockAmount, CombatConfig::DefaultEffectDuration });
+                effects.push_back(CardEffect{ EffectType::Block, EffectTarget::Self, blockAmount, CombatConfig::DefaultEffectDuration, "" });
             }
         }
 

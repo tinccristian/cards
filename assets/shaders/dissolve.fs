@@ -5,44 +5,58 @@ in vec4 fragColor;
 
 uniform sampler2D texture0;
 uniform vec4 colDiffuse;
-
-// 0.0 = fully visible, 1.0 = fully dissolved.
-uniform float sensitivity;
-// Full texture dimensions in pixels (used for pixel-grid snapping).
-uniform vec2  texSize;
-// Elapsed time in seconds for animated wind turbulence.
+uniform float sensitivity; // 0.0 visible -> 1.0 gone
+uniform vec2 texSize;
 uniform float time;
 
 out vec4 finalColor;
 
-float random(vec2 uv) {
-    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 438.5453);
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 void main() {
-    // Snap UV to pixel boundaries for a stable per-pixel dissolve pattern.
-    vec2 UVr = vec2(
+    vec2 snappedUV = vec2(
         floor(fragTexCoord.x * texSize.x) / texSize.x,
         floor(fragTexCoord.y * texSize.y) / texSize.y
     );
 
-    // Per-pixel dissolve threshold — constant across animation frames.
-    float threshold = random(UVr);
+    vec4 source = texture(texture0, snappedUV) * colDiffuse * fragColor;
+    if (source.a <= 0.0) {
+        discard;
+    }
 
-    // Wind displacement: pixels near the dissolve boundary drift before vanishing.
-    // edgeFactor: 1.0 far from the dissolve edge, 0.0 right at it.
-    float edgeFactor = clamp((threshold - sensitivity) / 0.25, 0.0, 1.0);
-    float windForce  = 1.0 - edgeFactor;
+    float grain = noise(snappedUV * texSize * 0.22);
+    float verticalBias = pow(1.0 - snappedUV.y, 1.6);
+    float threshold = grain * 0.55 + verticalBias * 0.45;
 
-    // Rightward wind with animated vertical turbulence.
-    float dispX =  windForce * (4.0 + sin(time * 3.0 + UVr.y * 20.0)) / texSize.x;
-    float dispY =  windForce * sin(time * 2.5 + UVr.x * 15.0 + UVr.y * 5.0) * 2.0 / texSize.y;
+    float edgeBand = 0.08;
+    float edge = smoothstep(sensitivity - edgeBand, sensitivity + edgeBand, threshold);
+    float dissolveMask = step(sensitivity, threshold);
 
-    vec2 displacedUV = clamp(fragTexCoord + vec2(dispX, dispY), 0.0, 1.0);
-    vec4 pixelColor  = texture(texture0, displacedUV) * colDiffuse * fragColor;
+    float ashLift = (1.0 - dissolveMask) * (0.012 + 0.008 * sin(time * 7.0 + snappedUV.x * 18.0));
+    float ashSway = (1.0 - dissolveMask) * 0.006 * sin(time * 5.0 + snappedUV.y * 22.0);
+    vec2 displacedUV = clamp(snappedUV + vec2(ashSway, -ashLift), 0.0, 1.0);
 
-    // Binary dissolve: pixels with threshold < sensitivity vanish.
-    float visible = step(sensitivity, threshold);
+    vec4 displaced = texture(texture0, displacedUV) * colDiffuse * fragColor;
+    vec3 ember = mix(vec3(0.78, 0.10, 0.05), vec3(1.0, 0.74, 0.28), 1.0 - edge);
+    vec3 color = mix(ember, displaced.rgb, dissolveMask);
 
-    finalColor = vec4(pixelColor.rgb, pixelColor.a * visible);
+    float alpha = displaced.a * mix(0.0, 1.0, dissolveMask);
+    float emberAlpha = displaced.a * (1.0 - dissolveMask) * (1.0 - edge) * 0.9;
+
+    finalColor = vec4(mix(color, ember, emberAlpha), max(alpha, emberAlpha));
 }

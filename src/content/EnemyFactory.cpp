@@ -66,7 +66,8 @@ std::optional<Card> parseEnemyCard(const nlohmann::json& entry, std::string& err
                     *effectType,
                     *effectTarget,
                     effectEntry.value("amount", 0),
-                    effectEntry.value("duration", CombatConfig::DefaultEffectDuration)
+                    effectEntry.value("duration", CombatConfig::DefaultEffectDuration),
+                    effectEntry.value("key", "")
                 });
             }
 

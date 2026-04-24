@@ -59,6 +59,10 @@ GameScreen::GameScreen(int screenWidth, int screenHeight, CardAudio* cardAudio)
     , m_cardAudio(cardAudio)
 {}
 
+void GameScreen::setTimeScale(float scale) {
+    m_timeScale = std::max(0.01f, scale);
+}
+
 // Screen-specific overlays and menu/pause/options implementations live in
 // src/ui/screens/ so this file can stay focused on combat/map rendering and the
 // shared UI helpers that those screens depend on.
@@ -327,6 +331,78 @@ void DrawTextOutlined(const char* text, int x, int y, int fontSize, Color color)
     DrawText(text, x,     y,     fontSize, color);
 }
 
+std::string statusTooltipLine(const StatusInstance& status) {
+    switch (status.type) {
+    case StatusType::Poison:
+        return "Poisoned for " + std::to_string(status.duration)
+            + " turns, takes " + std::to_string(status.magnitude) + " damage every turn.";
+    case StatusType::BonusManaNextTurn:
+        return "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
+    case StatusType::SkipTurn:
+    case StatusType::Infection:
+    case StatusType::Weakness:
+    case StatusType::Vulnerable:
+        return "Status active for " + std::to_string(status.duration) + " turns.";
+    }
+    return "";
+}
+
+std::vector<std::string> wrapTooltipText(const std::string& body, int fontSize, int maxContentW) {
+    std::vector<std::string> wrappedLines;
+    std::string paragraph;
+
+    const auto wrapParagraph = [&](const std::string& text) {
+        if (text.empty()) {
+            wrappedLines.push_back("");
+            return;
+        }
+
+        std::vector<std::string> words;
+        std::string word;
+        for (char c : text) {
+            if (c == ' ') {
+                if (!word.empty()) {
+                    words.push_back(word);
+                    word.clear();
+                }
+            } else {
+                word += c;
+            }
+        }
+        if (!word.empty()) {
+            words.push_back(word);
+        }
+
+        std::string current;
+        for (const std::string& w : words) {
+            const std::string candidate = current.empty() ? w : current + " " + w;
+            if (MeasureText(candidate.c_str(), fontSize) <= maxContentW) {
+                current = candidate;
+            } else {
+                if (!current.empty()) {
+                    wrappedLines.push_back(current);
+                }
+                current = w;
+            }
+        }
+        if (!current.empty()) {
+            wrappedLines.push_back(current);
+        }
+    };
+
+    for (char c : body) {
+        if (c == '\n') {
+            wrapParagraph(paragraph);
+            paragraph.clear();
+        } else {
+            paragraph += c;
+        }
+    }
+    wrapParagraph(paragraph);
+
+    return wrappedLines;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -408,7 +484,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const Enemy&  enemy  = state.getEnemy();
     const Deck&   deck   = player.getDeck();
 
-    const float dt = GetFrameTime();
+    const float dt = GetFrameTime() * m_timeScale;
     m_wiggleTime += dt;
     {
         const bool isHovering = (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0);
@@ -527,7 +603,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     }
 
     drawEntityHud(playerSpriteRect, "You",
-                  player.getHealth(), player.getMaxHealth(), player.getBlock());
+                  player.getHealth(), player.getMaxHealth(), player.getBlock(),
+                  &player.getStatuses());
     drawEntityHud(enemySpriteRect, enemy.getName(),
                   enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
     drawIntentIndicator(enemy, enemySpriteRect);
@@ -709,6 +786,21 @@ void GameScreen::unloadAssets() {
         UnloadTexture(m_attackIcon);
         m_attackIcon = {};
         m_attackIconLoaded = false;
+    }
+    if (m_buffIconLoaded && m_buffIcon.id != 0) {
+        UnloadTexture(m_buffIcon);
+        m_buffIcon = {};
+        m_buffIconLoaded = false;
+    }
+    if (m_debuffIconLoaded && m_debuffIcon.id != 0) {
+        UnloadTexture(m_debuffIcon);
+        m_debuffIcon = {};
+        m_debuffIconLoaded = false;
+    }
+    if (m_poisonIconLoaded && m_poisonIcon.id != 0) {
+        UnloadTexture(m_poisonIcon);
+        m_poisonIcon = {};
+        m_poisonIconLoaded = false;
     }
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
@@ -1026,7 +1118,8 @@ void GameScreen::drawHealthBar(Rectangle bar, float ratio, bool hasBlock) const 
 }
 
 void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
-                               int health, int maxHealth, int block) const {
+                               int health, int maxHealth, int block,
+                               const StatusCollection* statuses) const {
     // Lazy-load block icon (const_cast: texture loading is logically const).
     if (!m_blockIconLoaded) {
         auto* self = const_cast<GameScreen*>(this);
@@ -1036,23 +1129,37 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             SetTextureFilter(self->m_blockIcon, TEXTURE_FILTER_POINT);
         }
     }
+    if (!m_buffIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_buffIconLoaded = true;
+        if (FileExists(AssetPaths::BUFF_ICON)) {
+            self->m_buffIcon = LoadTexture(AssetPaths::BUFF_ICON);
+            SetTextureFilter(self->m_buffIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+    if (!m_debuffIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_debuffIconLoaded = true;
+        if (FileExists(AssetPaths::DEBUFF_ICON)) {
+            self->m_debuffIcon = LoadTexture(AssetPaths::DEBUFF_ICON);
+            SetTextureFilter(self->m_debuffIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+    if (!m_poisonIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_poisonIconLoaded = true;
+        if (FileExists(AssetPaths::POISON_ICON)) {
+            self->m_poisonIcon = LoadTexture(AssetPaths::POISON_ICON);
+            SetTextureFilter(self->m_poisonIcon, TEXTURE_FILTER_POINT);
+        }
+    }
 
     const float hudWidth     = scalef(LayoutConfig::EntityHudWidth);
     const float hudX         = spriteRect.x + (spriteRect.width - hudWidth) / 2.0f;
     const float hudTop       = spriteRect.y + spriteRect.height + scalef(LayoutConfig::EntityHudGap);
-    const int   nameFontSize = scalei(LayoutConfig::EntityNameFontSize);
     const int   statFontSize = scalei(LayoutConfig::EntityStatFontSize);
     const int   barHeight    = scalei(LayoutConfig::HealthBarHeight);
-
-    // --- Name ---
-    const int nameWidth = MeasureText(name.c_str(), nameFontSize);
-    DrawText(name.c_str(),
-             (int)std::round(hudX + (hudWidth - nameWidth) / 2.0f),
-             (int)std::round(hudTop),
-             nameFontSize,
-             Colors::text_primary);
-
-    const float barY = hudTop + nameFontSize + scalef(LayoutConfig::EntityHudNameGap);
+    const float barY = hudTop;
 
     // --- Block slot geometry ---
     // Slot is 1.5× the bar height (square), vertically centred on the bar,
@@ -1100,6 +1207,94 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             queueTooltip("Block",
                          "Will block " + std::to_string(block) + " damage",
                          slot);
+    }
+
+    if (!statuses || statuses->getAll().empty()) {
+        return;
+    }
+
+    const float statusY = barY + barHeight + scalef(LayoutConfig::EntityStatusGap);
+    float statusX = bar.x;
+    const float statusSize = scalef(LayoutConfig::EntityStatusIconSize);
+    const float statusGap = scalef(LayoutConfig::EntityStatusIconGap);
+    const int statusValueSize = scalei(LayoutConfig::EntityStatusValueSize);
+
+    for (const auto& status : statuses->getAll()) {
+        Texture2D icon = {};
+        bool iconLoaded = false;
+        std::string title;
+        std::string tooltip;
+
+        switch (status.type) {
+        case StatusType::Poison:
+            icon = m_poisonIcon;
+            iconLoaded = m_poisonIconLoaded && m_poisonIcon.id != 0;
+            title = "Poison";
+            tooltip = "Poisoned for " + std::to_string(status.duration)
+                + " turns, takes " + std::to_string(status.magnitude) + " damage every turn.";
+            break;
+        case StatusType::BonusManaNextTurn:
+            icon = m_buffIcon;
+            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+            title = "Bonus Mana";
+            tooltip = "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
+            break;
+        case StatusType::SkipTurn:
+        case StatusType::Infection:
+        case StatusType::Weakness:
+        case StatusType::Vulnerable:
+            icon = status.disposition == StatusDisposition::Positive ? m_buffIcon : m_debuffIcon;
+            iconLoaded = icon.id != 0;
+            title = status.disposition == StatusDisposition::Positive ? "Buff" : "Debuff";
+            tooltip = "Status active for " + std::to_string(status.duration) + " turns.";
+            break;
+        }
+
+        const Rectangle statusRect = { statusX, statusY, statusSize, statusSize };
+        if (iconLoaded) {
+            const Rectangle src = { 0, 0, (float)icon.width, (float)icon.height };
+            DrawTexturePro(icon, src, statusRect, { 0, 0 }, 0.0f, WHITE);
+        } else {
+            DrawRectangleRec(statusRect,
+                status.disposition == StatusDisposition::Positive ? Colors::heal_color : Colors::damage_color);
+        }
+
+        const std::string valueText = std::to_string(status.magnitude);
+        const int valueWidth = MeasureText(valueText.c_str(), statusValueSize);
+        DrawTextOutlined(valueText.c_str(),
+                         (int)std::round(statusRect.x + (statusRect.width - valueWidth) / 2.0f),
+                         (int)std::round(statusRect.y + statusRect.height - statusValueSize),
+                         statusValueSize,
+                         WHITE);
+
+        if (mouseOver(statusRect)) {
+            queueTooltip(title, tooltip, statusRect);
+        }
+
+        statusX += statusSize + statusGap;
+    }
+
+    const Rectangle hoverRect = {
+        std::min(spriteRect.x, hudX),
+        spriteRect.y,
+        std::max(spriteRect.x + spriteRect.width, hudX + hudWidth) - std::min(spriteRect.x, hudX),
+        (statusY + statusSize) - spriteRect.y
+    };
+    if (mouseOver(hoverRect)) {
+        std::string body;
+        for (const auto& status : statuses->getAll()) {
+            const std::string line = statusTooltipLine(status);
+            if (line.empty()) {
+                continue;
+            }
+            if (!body.empty()) {
+                body += "\n";
+            }
+            body += line;
+        }
+        if (!body.empty()) {
+            queueTooltip(name, body, hoverRect);
+        }
     }
 }
 
@@ -1253,29 +1448,7 @@ void GameScreen::flushTooltip() const {
 
     // --- Word-wrap body into lines using pixel measurement ---
     std::vector<std::string> lines;
-    {
-        const std::string& body = m_pendingTooltip.body;
-        // Split into words.
-        std::vector<std::string> words;
-        std::string word;
-        for (char c : body) {
-            if (c == ' ') { if (!word.empty()) { words.push_back(word); word.clear(); } }
-            else           { word += c; }
-        }
-        if (!word.empty()) words.push_back(word);
-
-        std::string current;
-        for (const std::string& w : words) {
-            std::string candidate = current.empty() ? w : current + " " + w;
-            if (MeasureText(candidate.c_str(), tsz) <= maxContentW) {
-                current = candidate;
-            } else {
-                if (!current.empty()) lines.push_back(current);
-                current = w;
-            }
-        }
-        if (!current.empty()) lines.push_back(current);
-    }
+    lines = wrapTooltipText(m_pendingTooltip.body, tsz, maxContentW);
 
     // --- Measure content to determine panel size ---
     const int titleW = MeasureText(m_pendingTooltip.title.c_str(), ttsz);
@@ -1333,6 +1506,22 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
             SetTextureFilter(self->m_blockIcon, TEXTURE_FILTER_POINT);
         }
     }
+    if (!m_buffIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_buffIconLoaded = true;
+        if (FileExists(AssetPaths::BUFF_ICON)) {
+            self->m_buffIcon = LoadTexture(AssetPaths::BUFF_ICON);
+            SetTextureFilter(self->m_buffIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+    if (!m_debuffIconLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_debuffIconLoaded = true;
+        if (FileExists(AssetPaths::DEBUFF_ICON)) {
+            self->m_debuffIcon = LoadTexture(AssetPaths::DEBUFF_ICON);
+            SetTextureFilter(self->m_debuffIcon, TEXTURE_FILTER_POINT);
+        }
+    }
     if (!m_intentFloatShaderLoaded) {
         auto* self = const_cast<GameScreen*>(this);
         self->m_intentFloatShaderLoaded = true;
@@ -1347,18 +1536,14 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
         }
     }
 
-    const int   dmg      = enemy.getIntentDamage();
-    const int   blk      = enemy.getIntentBlock();
-    const bool  hasAtk   = (dmg > 0);
-    const bool  hasBlk   = (blk > 0);
-    if (!hasAtk && !hasBlk) return;
+    const auto& indicators = enemy.getIntentIndicators();
+    if (indicators.empty()) return;
 
     // Intent sprites sit directly below the HUD (name + gap + health bar + gap).
     const float hudWidth    = scalef(LayoutConfig::EntityHudWidth);
     const float hudX        = enemySpriteRect.x + (enemySpriteRect.width - hudWidth) / 2.0f;
     const float hudTop      = enemySpriteRect.y + enemySpriteRect.height + scalef(LayoutConfig::EntityHudGap);
-    const float barY        = hudTop + scalei(LayoutConfig::EntityNameFontSize)
-                              + scalef(LayoutConfig::EntityHudNameGap);
+    const float barY        = hudTop;
     const float belowBarY   = barY + scalei(LayoutConfig::HealthBarHeight)
                               + scalef(LayoutConfig::EntityHudGap);
 
@@ -1373,7 +1558,7 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
     const float textBobOffset = std::sin(timeValue * bobSpeed + synchronizedPhase) * bobAmplitude;
 
     // Centre the group of icons under the HUD.
-    const int   count       = (hasAtk ? 1 : 0) + (hasBlk ? 1 : 0);
+    const int   count       = (int)indicators.size();
     const float groupW      = count * iconSize + (count - 1) * gap;
     float iconX             = hudX + (hudWidth - groupW) / 2.0f;
     const float iconY       = belowBarY;
@@ -1411,32 +1596,68 @@ void GameScreen::drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRe
         return slot;
     };
 
-    Rectangle atkRect = { 0, 0, 0, 0 };
-    Rectangle blkRect = { 0, 0, 0, 0 };
+    for (const auto& indicator : indicators) {
+        Texture2D icon = {};
+        bool iconLoaded = false;
+        Color fallback = Colors::mixed_intent_color;
 
-    if (hasAtk) {
-        atkRect = drawIcon(m_attackIcon, m_attackIconLoaded, Colors::damage_color, synchronizedPhase);
-        const std::string numStr = std::to_string(dmg);
-        const int nw = MeasureText(numStr.c_str(), statFontSize);
-        const int numberX = (int)std::round(atkRect.x - nw + scalef(LayoutConfig::IntentAttackValueOffsetX));
-        const int numberY = (int)std::round(
-            atkRect.y + textBobOffset + atkRect.height - statFontSize + scalef(LayoutConfig::IntentAttackValueOffsetY));
-        DrawTextOutlined(numStr.c_str(), numberX, numberY, statFontSize, WHITE);
-    }
-    if (hasBlk) {
-        blkRect = drawIcon(m_blockIcon, m_blockIconLoaded, Colors::block_color, synchronizedPhase);
+        switch (indicator.type) {
+        case IntentIconType::Attack:
+            icon = m_attackIcon;
+            iconLoaded = m_attackIconLoaded && m_attackIcon.id != 0;
+            fallback = Colors::damage_color;
+            break;
+        case IntentIconType::Block:
+            icon = m_blockIcon;
+            iconLoaded = m_blockIconLoaded && m_blockIcon.id != 0;
+            fallback = Colors::block_color;
+            break;
+        case IntentIconType::Buff:
+            icon = m_buffIcon;
+            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+            fallback = Colors::heal_color;
+            break;
+        case IntentIconType::Debuff:
+            icon = m_debuffIcon;
+            iconLoaded = m_debuffIconLoaded && m_debuffIcon.id != 0;
+            fallback = Colors::damage_color;
+            break;
+        }
+
+        const Rectangle iconRect = drawIcon(icon, iconLoaded, fallback, synchronizedPhase);
+        if (!indicator.label.empty()) {
+            const int labelWidth = MeasureText(indicator.label.c_str(), statFontSize);
+            const int numberX = (int)std::round(iconRect.x - labelWidth + scalef(LayoutConfig::IntentAttackValueOffsetX));
+            const int numberY = (int)std::round(
+                iconRect.y + textBobOffset + iconRect.height - statFontSize + scalef(LayoutConfig::IntentAttackValueOffsetY));
+            DrawTextOutlined(indicator.label.c_str(), numberX, numberY, statFontSize, WHITE);
+        }
+        if (mouseOver(iconRect)) {
+            queueTooltip(enemy.getName(), indicator.tooltip, iconRect);
+        }
     }
 
-    // Queue deferred tooltips — rendered at end-of-frame so they appear above all UI.
-    // Attack takes priority if both are hovered simultaneously (unlikely but safe).
-    if (hasBlk && mouseOver(blkRect))
-        queueTooltip(enemy.getName(),
-                      "Intends to block next turn.",
-                      blkRect);
-    if (hasAtk && mouseOver(atkRect))
-        queueTooltip(enemy.getName(),
-                      "Intends to attack for " + std::to_string(dmg),
-                      atkRect);
+    const Rectangle hoverRect = {
+        std::min(enemySpriteRect.x, hudX),
+        enemySpriteRect.y,
+        std::max(enemySpriteRect.x + enemySpriteRect.width, hudX + hudWidth) - std::min(enemySpriteRect.x, hudX),
+        (iconY + iconSize) - enemySpriteRect.y
+    };
+    if (mouseOver(hoverRect)) {
+        std::string body;
+        for (const auto& indicator : indicators) {
+            if (indicator.tooltip.empty()) {
+                continue;
+            }
+            if (!body.empty()) {
+                body += "\n";
+            }
+            body += indicator.tooltip;
+        }
+        if (!body.empty()) {
+            queueTooltip(enemy.getName(), body, hoverRect);
+        }
+    }
 }
 
 bool GameScreen::mouseOver(Rectangle rect) {

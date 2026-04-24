@@ -7,6 +7,7 @@ class Enemy;
 class Player;
 
 struct CardResolutionSummary {
+    int damageAttempted    = 0;
     int damageDealt       = 0;
     int blockGained       = 0;
     int healingDone       = 0;

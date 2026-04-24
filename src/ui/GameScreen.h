@@ -37,6 +37,12 @@ enum class OptionsMenuAction {
     Back
 };
 
+enum class GameOverAction {
+    None,
+    NewRun,
+    MainMenu
+};
+
 enum class RewardPopupAction {
     None,
     CollectGold,
@@ -102,8 +108,10 @@ public:
     int drawRewardCardChoice(const RewardState& rewards,
                              bool allowInteraction = true);
 
-    // Draw the game-over screen. Returns true when "Return to Menu" is clicked.
-    bool drawGameOver(const GameState& state);
+    // Draw the game-over screen and return the selected action for this frame.
+    GameOverAction drawGameOver(const GameState& state);
+
+    void setTimeScale(float scale);
 
     void unloadAssets();
 
@@ -128,6 +136,7 @@ private:
 
     int          m_width;
     int          m_height;
+    float        m_timeScale = 1.0f;
     int          m_hoveredCardIndex = -1;
     float        m_hoverProgress      = 0.0f;
     int          m_hoverProgressIndex = -1;
@@ -156,6 +165,12 @@ private:
     bool         m_blockIconLoaded    = false;
     Texture2D    m_attackIcon         = {};
     bool         m_attackIconLoaded   = false;
+    Texture2D    m_buffIcon           = {};
+    bool         m_buffIconLoaded     = false;
+    Texture2D    m_debuffIcon         = {};
+    bool         m_debuffIconLoaded   = false;
+    Texture2D    m_poisonIcon         = {};
+    bool         m_poisonIconLoaded   = false;
     bool         m_mapHudHoveredLast  = false;
     bool         m_deckHudHoveredLast = false;
     bool         m_backHudHoveredLast = false;
@@ -189,7 +204,8 @@ private:
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
     void drawHealthBar(Rectangle bar, float ratio, bool hasBlock = false) const;
     void drawEntityHud(Rectangle spriteRect, const std::string& name,
-                       int health, int maxHealth, int block) const;
+                       int health, int maxHealth, int block,
+                       const StatusCollection* statuses = nullptr) const;
     void drawManaHud(const Player& player) const;
     // playerMana: current mana (used to colour cost red when unaffordable). -1 = neutral.
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,

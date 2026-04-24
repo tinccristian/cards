@@ -72,11 +72,11 @@ bool testGameStateResolvesSpecialCards() {
     hand.push_back(*immuneBoost);
     hand.push_back(*quarantine);
 
-    if (!assertTrue(state.playCard(0), "immune boost should play successfully")) {
+    if (!assertTrue(state.playCard(0).has_value(), "immune boost should play successfully")) {
         return false;
     }
 
-    if (!assertTrue(state.playCard(0), "quarantine should play successfully")) {
+    if (!assertTrue(state.playCard(0).has_value(), "quarantine should play successfully")) {
         return false;
     }
 
@@ -95,7 +95,7 @@ bool testEnemyFactoryLoadsEnemy() {
         return false;
     }
 
-    return assertTrue(enemy->getName() == "Bacteria", "enemy should keep its configured name");
+    return assertTrue(enemy->getName() == "Fungus", "enemy should keep its configured name");
 }
 
 } // namespace

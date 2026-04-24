@@ -13,6 +13,7 @@
 #include "ui/ScreenTransition.h"
 #include "ui/UIState.h"
 
+#include <algorithm>
 #include <functional>
 #include <string>
 
@@ -79,6 +80,10 @@ int main() {
 
     float       enemyTurnElapsed    = 0.0f;
     const float enemyTurnDuration   = CombatConfig::EnemyTurnDelaySecs;
+    float       deathSlowMoTimer    = 0.0f;
+    bool        enemyDeathSoundPlayed = false;
+    bool        playerDeathSoundPlayed = false;
+    bool        gameOverSoundPlayed = false;
 
     if (!sceneTransition.load(AssetPaths::TRANSITION_SHADER)) {
         TraceLog(LOG_WARNING, "Screen transition shader unavailable: %s", AssetPaths::TRANSITION_SHADER);
@@ -159,6 +164,9 @@ int main() {
 
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
+        deathSlowMoTimer = std::max(0.0f, deathSlowMoTimer - GetFrameTime());
+        const bool deathSlowMoActive = (state.getPhase() == GamePhase::COMBAT) && deathSlowMoTimer > 0.0f;
+        screen.setTimeScale(deathSlowMoActive ? LayoutConfig::DeathSlowMoScale : 1.0f);
         const bool allowSceneInteraction = !sceneTransition.blocksInteraction();
 
         BeginTextureMode(sceneFrame);
@@ -253,6 +261,10 @@ int main() {
 
                     uiState.setMode(UIMode::NORMAL);
                     enemyTurnElapsed = 0.0f;
+                    deathSlowMoTimer = 0.0f;
+                    enemyDeathSoundPlayed = false;
+                    playerDeathSoundPlayed = false;
+                    gameOverSoundPlayed = false;
                     state.setPhase(GamePhase::COMBAT);
                 });
             }
@@ -403,7 +415,33 @@ int main() {
                 } else if (discardClicked) {
                     uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
                 } else if (cardIdx >= 0 && !state.isGameOver()) {
-                    state.playCard(cardIdx);
+                    const int enemyHealthBefore = state.getEnemy().getHealth();
+                    const int playerHealthBefore = state.getPlayer().getHealth();
+                    const auto playResult = state.playCard(cardIdx);
+                    if (playResult.has_value()) {
+                        if (playResult->blockGained > 0) {
+                            cardAudio.playArmor();
+                        }
+                        if (playResult->damageDealt > 0) {
+                            cardAudio.playDamage();
+                            if (state.getEnemy().getHealth() < enemyHealthBefore) {
+                                cardAudio.playEnemyHurt();
+                            }
+                        }
+                        if (playResult->damageAttempted > playResult->damageDealt) {
+                            cardAudio.playArmorHit();
+                        }
+                        if (!enemyDeathSoundPlayed && state.getEnemy().isDead()) {
+                            cardAudio.playEnemyDeath();
+                            deathSlowMoTimer = LayoutConfig::DeathSlowMoDuration;
+                            enemyDeathSoundPlayed = true;
+                        }
+                        if (!playerDeathSoundPlayed && playerHealthBefore > 0 && state.getPlayer().isDead()) {
+                            cardAudio.playPlayerDeath();
+                            deathSlowMoTimer = LayoutConfig::DeathSlowMoDuration;
+                            playerDeathSoundPlayed = true;
+                        }
+                    }
                 } else if (endTurn && !state.isGameOver()) {
                     state.endPlayerTurn();
                     enemyTurnElapsed = 0.0f;
@@ -418,7 +456,33 @@ int main() {
                 }
                 enemyTurnElapsed += GetFrameTime();
                 if (enemyTurnElapsed >= enemyTurnDuration) {
-                    state.executeEnemyTurn();
+                    const int playerHealthBefore = state.getPlayer().getHealth();
+                    const EnemyTurnResult enemyResult = state.executeEnemyTurn();
+                    const int enemyHitSoundCount = std::max(1, enemyResult.hitCount);
+                    if (enemyResult.blockGained > 0) {
+                        cardAudio.playArmor();
+                    }
+                    if (enemyResult.maxHealthGained > 0) {
+                        cardAudio.playEnemyBuff();
+                    }
+                    if (enemyResult.damageDealt > 0) {
+                        for (int hitIndex = 0; hitIndex < enemyHitSoundCount; ++hitIndex) {
+                            cardAudio.playDamage();
+                        }
+                    }
+                    if (enemyResult.turnStartDamageTaken > 0) {
+                        cardAudio.playDamage();
+                    }
+                    if (enemyResult.damageAttempted > enemyResult.damageDealt) {
+                        for (int hitIndex = 0; hitIndex < enemyHitSoundCount; ++hitIndex) {
+                            cardAudio.playArmorHit();
+                        }
+                    }
+                    if (!playerDeathSoundPlayed && playerHealthBefore > 0 && state.getPlayer().isDead()) {
+                        cardAudio.playPlayerDeath();
+                        deathSlowMoTimer = LayoutConfig::DeathSlowMoDuration;
+                        playerDeathSoundPlayed = true;
+                    }
                     enemyTurnElapsed = 0.0f;
                 }
             }
@@ -433,8 +497,10 @@ int main() {
                     if (!state.prepareCombatRewards(rewardError)) {
                         TraceLog(LOG_ERROR, "%s", rewardError.c_str());
                     } else {
+                        cardAudio.playRewardEnter();
                         uiState.setMode(UIMode::NORMAL);
                         enemyTurnElapsed = 0.0f;
+                        deathSlowMoTimer = 0.0f;
                         state.setPhase(GamePhase::REWARDS);
                     }
                 }
@@ -489,7 +555,9 @@ int main() {
                 if (allowSceneInteraction && selectedRewardCard == GameScreen::RewardChoiceSkip) {
                     state.skipRewardCard();
                 } else if (allowSceneInteraction && selectedRewardCard >= 0) {
-                    state.claimRewardCard(selectedRewardCard);
+                    if (state.claimRewardCard(selectedRewardCard)) {
+                        cardAudio.playCardPicked();
+                    }
                 }
             } else {
                 int rewardMaxScroll = 0;
@@ -499,7 +567,9 @@ int main() {
                                                rewardMaxScroll,
                                                allowSceneInteraction)) {
                 case RewardPopupAction::CollectGold:
-                    state.collectRewardGold();
+                    if (state.collectRewardGold() > 0) {
+                        cardAudio.playCoinPicked();
+                    }
                     break;
                 case RewardPopupAction::OpenCardChoice:
                     rewards.openCardChoice();
@@ -526,9 +596,37 @@ int main() {
 
         // -------------------------------------------------------------------
         case GamePhase::GAME_OVER: {
-            bool returnToMenu = screen.drawGameOver(state);
-            if (allowSceneInteraction && returnToMenu) {
-                beginSceneTransition([&state]() {
+            if (!gameOverSoundPlayed) {
+                cardAudio.playGameOver();
+                gameOverSoundPlayed = true;
+            }
+
+            const GameOverAction action = screen.drawGameOver(state);
+            if (allowSceneInteraction && action == GameOverAction::NewRun) {
+                beginSceneTransition([&]() {
+                    std::string newRunError;
+                    if (!state.startNewRun(newRunError)) {
+                        TraceLog(LOG_ERROR, "%s", newRunError.c_str());
+                        return;
+                    }
+                    mapRun.initialize(activeMap);
+                    screen.resetMapView();
+                    uiState.setMode(UIMode::NORMAL);
+                    enemyTurnElapsed = 0.0f;
+                    deathSlowMoTimer = 0.0f;
+                    enemyDeathSoundPlayed = false;
+                    playerDeathSoundPlayed = false;
+                    gameOverSoundPlayed = false;
+                    state.setPhase(GamePhase::MAP);
+                });
+            } else if (allowSceneInteraction && action == GameOverAction::MainMenu) {
+                beginSceneTransition([&]() {
+                    uiState.setMode(UIMode::NORMAL);
+                    showMainMenuOptions = false;
+                    deathSlowMoTimer = 0.0f;
+                    enemyDeathSoundPlayed = false;
+                    playerDeathSoundPlayed = false;
+                    gameOverSoundPlayed = false;
                     state.setPhase(GamePhase::MENU);
                 });
             }

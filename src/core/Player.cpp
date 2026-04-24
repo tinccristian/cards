@@ -21,6 +21,12 @@ int Player::takeDamage(int amount) {
     return overflow;
 }
 
+int Player::loseHealth(int amount) {
+    const int applied = std::max(0, std::min(m_health, amount));
+    m_health -= applied;
+    return applied;
+}
+
 int Player::heal(int amount) {
     const int previousHealth = m_health;
     m_health = std::min(m_maxHealth, m_health + amount);
@@ -55,8 +61,14 @@ int  Player::getMana()    const { return m_currentMana; }
 int  Player::getMaxMana() const { return m_maxMana;     }
 int  Player::getGold()    const { return m_gold;        }
 
-void Player::startTurn() {
+PlayerTurnStartResult Player::startTurn() {
+    PlayerTurnStartResult result;
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
+    const int poisonDamage = m_statuses.tick(StatusType::Poison);
+    if (poisonDamage > 0) {
+        result.poisonDamageTaken = loseHealth(poisonDamage);
+    }
+    return result;
 }
 
 void Player::gainMana(int amount) {
@@ -169,6 +181,10 @@ int Player::clearNegativeStatuses() {
 
 int Player::getStatusMagnitude(StatusType type) const {
     return m_statuses.getMagnitude(type);
+}
+
+const StatusCollection& Player::getStatuses() const {
+    return m_statuses;
 }
 
 Deck&       Player::getDeck()       { return m_deck; }

@@ -4,6 +4,7 @@
 #include "Deck.h"
 #include "content/EnemySpriteConfig.h"
 #include "gameplay/StatusCollection.h"
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -18,8 +19,26 @@ enum class EnemyIntent {
 
 struct EnemyTurnResult {
     bool skipped      = false;
+    int  damageAttempted = 0;
     int  damageDealt  = 0;
+    int  turnStartDamageTaken = 0;
+    int  hitCount = 0;
     int  blockGained  = 0;
+    int  maxHealthGained = 0;
+    std::string actionText;
+};
+
+enum class IntentIconType {
+    Attack,
+    Block,
+    Buff,
+    Debuff
+};
+
+struct IntentIndicator {
+    IntentIconType type = IntentIconType::Attack;
+    std::string    label;
+    std::string    tooltip;
 };
 
 // Represents a pathogen or health threat the player fights in combat.
@@ -49,6 +68,7 @@ public:
     int         getIntentDamage() const; // Total attack damage planned
     int         getIntentBlock()  const; // Total block planned
     std::string getIntentDescription() const;
+    const std::vector<IntentIndicator>& getIntentIndicators() const;
 
     // Draw the configured number of cards from the enemy deck and set the intent for this turn.
     void decideIntent();
@@ -68,10 +88,12 @@ public:
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
     void queueSkipTurn(int magnitude, int duration);
     int  getStatusMagnitude(StatusType type) const;
+    int  getCounterValue(const std::string& key) const;
 
 private:
     void discardPlannedCards();
     void resetIntent();
+    int  applyMaxHealthGrowthPercent(int percent, bool trackCounter, const std::string& counterKey);
 
     std::string       m_name;
     int               m_health;
@@ -81,8 +103,12 @@ private:
     EnemyIntent       m_intent      = EnemyIntent::IDLE;
     int               m_intentDamage = 0;
     int               m_intentBlock  = 0;
+    std::vector<IntentIndicator> m_intentIndicators;
     StatusCollection  m_statuses;
     EnemySpriteConfig m_spriteConfig;
     Deck              m_enemyDeck;
     std::vector<Card> m_playedCards;
+    // Generic enemy-side counters let content scale future moves without
+    // adding one-off member variables for every new mechanic.
+    std::unordered_map<std::string, int> m_counters;
 };

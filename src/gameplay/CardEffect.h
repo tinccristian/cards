@@ -18,6 +18,9 @@ enum class EffectType {
     GainManaNextTurn,
     SkipEnemyTurn,
     DrawCards,
+    ApplyStatus,
+    ModifyMaxHealthPercent,
+    DamagePerCounter,
     Unknown
 };
 
@@ -31,6 +34,9 @@ struct CardEffect {
     EffectTarget target   = EffectTarget::Opponent;
     int          amount   = 0;
     int          duration = 0;
+    // Optional identifier used by data-driven effects such as
+    // `apply_status` ("poison") or counter-based scaling ("spore_growth").
+    std::string  key;
 };
 
 std::optional<CardType> cardTypeFromString(const std::string& value);

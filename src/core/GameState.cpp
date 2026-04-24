@@ -273,16 +273,16 @@ void GameState::playerDrawCard() {
     m_player.drawCardFromDeck();
 }
 
-bool GameState::playCard(int cardIndex) {
+std::optional<CardResolutionSummary> GameState::playCard(int cardIndex) {
     if (!m_enemy || m_turnPhase != TurnPhase::PLAYER_TURN) {
-        return false;
+        return std::nullopt;
     }
 
     // Player::playCard handles mana check, hand removal, and discard
     auto optCard = m_player.playCard(cardIndex);
     if (!optCard) {
         m_lastAction = "Not enough mana!";
-        return false;
+        return std::nullopt;
     }
 
     const CardResolutionSummary summary =
@@ -290,7 +290,7 @@ bool GameState::playCard(int cardIndex) {
 
     m_lastAction = CombatResolver::buildPlayerActionText(*optCard, summary);
 
-    return true;
+    return summary;
 }
 
 void GameState::endPlayerTurn() {
@@ -301,25 +301,17 @@ void GameState::endPlayerTurn() {
     m_lastAction = m_enemy->getName() + " – " + m_enemy->getIntentDescription() + "!";
 }
 
-void GameState::executeEnemyTurn() {
+EnemyTurnResult GameState::executeEnemyTurn() {
     if (!m_enemy) {
-        return;
+        return EnemyTurnResult{};
     }
 
-    const EnemyTurnResult result = m_enemy->executeTurn(m_player);
+    EnemyTurnResult result = m_enemy->executeTurn(m_player);
 
     if (result.skipped) {
         m_lastAction = m_enemy->getName() + " could not act.";
-    } else if (result.damageDealt > 0 && result.blockGained > 0) {
-        m_lastAction = m_enemy->getName() + " attacked for "
-                     + std::to_string(result.damageDealt) + " damage and gained "
-                     + std::to_string(result.blockGained) + " block!";
-    } else if (result.damageDealt > 0) {
-        m_lastAction = m_enemy->getName() + " attacked for "
-                     + std::to_string(result.damageDealt) + " damage!";
-    } else if (result.blockGained > 0) {
-        m_lastAction = m_enemy->getName() + " gained "
-                     + std::to_string(result.blockGained) + " block!";
+    } else if (!result.actionText.empty()) {
+        m_lastAction = m_enemy->getName() + " " + result.actionText + "!";
     } else {
         m_lastAction = m_enemy->getName() + " repositioned.";
     }
@@ -328,7 +320,7 @@ void GameState::executeEnemyTurn() {
 
     // Discard entire player hand, then begin the next player turn.
     m_player.discardHand();
-    m_player.startTurn();
+    const PlayerTurnStartResult startTurnResult = m_player.startTurn();
 
     // Draw a fresh hand for the next player turn
     for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
@@ -337,8 +329,13 @@ void GameState::executeEnemyTurn() {
 
     // Enemy plans next turn
     m_enemy->decideIntent();
+    if (startTurnResult.poisonDamageTaken > 0) {
+        result.turnStartDamageTaken = startTurnResult.poisonDamageTaken;
+        m_lastAction += " You took " + std::to_string(startTurnResult.poisonDamageTaken) + " poison damage.";
+    }
     m_turnNumber++;
     m_turnPhase = TurnPhase::PLAYER_TURN;
+    return result;
 }
 
 // ---------------------------------------------------------------------------
