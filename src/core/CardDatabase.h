@@ -12,12 +12,14 @@ class CardDatabase {
 public:
     // Parse player card definitions from a JSON file into the static registry.
     static bool loadCardsFromJSON(const std::string& filePath, std::string& error);
+    static bool appendCardsFromJSON(const std::string& filePath, std::string& error);
 
     // Return a player card by its unique ID.
     static std::optional<Card> findCard(const std::string& cardId);
 
     // Return every registered player card.
     static const std::vector<Card>& getAllCards();
+    static std::vector<Card> getCardsWithTag(const std::string& tag);
 
     // Parse a deck config JSON file and return the ordered list of card IDs.
     // Each ID may appear multiple times to indicate duplicates.

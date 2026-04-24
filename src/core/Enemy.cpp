@@ -268,6 +268,7 @@ void Enemy::decideIntent() {
             case EffectType::CleanseDebuffs:
             case EffectType::GainMana:
             case EffectType::GainManaNextTurn:
+            case EffectType::NextCardFree:
             case EffectType::SkipEnemyTurn:
             case EffectType::DrawCards:
             case EffectType::Unknown:
@@ -367,6 +368,7 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
             case EffectType::CleanseDebuffs:
             case EffectType::GainMana:
             case EffectType::GainManaNextTurn:
+            case EffectType::NextCardFree:
             case EffectType::SkipEnemyTurn:
             case EffectType::DrawCards:
             case EffectType::Unknown:

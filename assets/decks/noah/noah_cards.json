@@ -1,0 +1,38 @@
+{
+  "cards": [
+    {
+      "id": "noah_red_hurt",
+      "name": "Red Hurt",
+      "displayName": "5n4ter tes6",
+      "tier": "uncommon",
+      "description": "Deal 7 damage.",
+      "displayDescription": "nnnnnnnnnnnnnnnnnqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      "cost": 1,
+      "type": "attack",
+      "tags": ["noah", "event", "attack"],
+      "artPath": "assets/cards/noah_red_hurt.png",
+      "obscured": true,
+      "hideFooterStats": true,
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 7 }
+      ]
+    },
+    {
+      "id": "noah_think_fast",
+      "name": "Think fast!",
+      "displayName": "vvvvvvbn",
+      "tier": "rare",
+      "description": "Make next card cost 0",
+      "displayDescription": ".ioju7k8hn9iyug bjhg yrtbvctrfcrvhy",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["noah", "event", "utility"],
+      "artPath": "assets/cards/noah_think_fast.png",
+      "obscured": true,
+      "hideFooterStats": true,
+      "effects": [
+        { "type": "next_card_free", "target": "self", "amount": 1 }
+      ]
+    }
+  ]
+}

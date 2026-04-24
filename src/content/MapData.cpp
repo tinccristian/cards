@@ -29,6 +29,9 @@ std::optional<MapNodeKind> nodeKindFromString(const std::string& value) {
     if (value == "enemy") {
         return MapNodeKind::Enemy;
     }
+    if (value == "event") {
+        return MapNodeKind::Event;
+    }
     if (value == "reward") {
         return MapNodeKind::Reward;
     }

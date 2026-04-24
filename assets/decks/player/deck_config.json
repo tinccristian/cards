@@ -2,20 +2,13 @@
   "starter_deck": [
     "injection",
     "injection",
+    "injection",
+    "injection",
     "stabilize",
     "stabilize",
-    "immune_boost",
+    "stabilize",
+    "stabilize",
     "heartbeat",
-    "heartbeat",
-    "heartbeat",
-    "ambulance",
-    "ambulance",
-    "ambulance",
-    "ambulance",
-    "antiviral",
-    "antiviral",
-    "quarantine",
-    "quarantine",
-    "cough_syrup"
+    "antiviral"
   ]
 }

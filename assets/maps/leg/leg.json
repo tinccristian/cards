@@ -30,8 +30,8 @@
     },
     {
       "id": "shin_center",
-      "type": "enemy",
-      "encounterId": "bacteria",
+      "type": "noah_event",
+      "encounterId": "noah",
       "x": 1280,
       "y": 1190,
       "initiallyUnlocked": false

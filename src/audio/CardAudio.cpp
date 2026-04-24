@@ -31,6 +31,7 @@ Sound g_enemyDeathSound = {};
 Sound g_playerDeathSound = {};
 Sound g_gameOverSound = {};
 Sound g_nextTurnSound = {};
+Sound g_noahEventSound = {};
 Wave g_hoverWave = {};
 std::vector<Sound> g_hoverVoices;
 Wave g_damageWave = {};
@@ -122,13 +123,14 @@ bool CardAudio::initialize(std::string& warning) {
     loadOneShot(AudioPaths::PLAYER_DEATH_SOUND, g_playerDeathSound, m_playerDeathLoaded, "player death");
     loadOneShot(AudioPaths::GAME_OVER_SOUND, g_gameOverSound, m_gameOverLoaded, "game over");
     loadOneShot(AudioPaths::NEXT_TURN_SOUND, g_nextTurnSound, m_nextTurnLoaded, "next turn");
+    loadOneShot(AudioPaths::NOAH_EVENT_SOUND, g_noahEventSound, m_noahEventLoaded, "noah event");
 
     applyConfiguredVolumes();
     return m_hoverLoaded && m_shuffleLoaded && m_cardPickedLoaded && m_rewardEnterLoaded
         && m_armorLoaded && m_armorHitLoaded && m_damageLoaded
         && m_coinPickedLoaded && m_enemyBuffLoaded && m_enemyHurtLoaded
         && m_enemyDeathLoaded && m_playerDeathLoaded && m_gameOverLoaded
-        && m_nextTurnLoaded;
+        && m_nextTurnLoaded && m_noahEventLoaded;
 }
 
 void CardAudio::shutdown() {
@@ -218,6 +220,11 @@ void CardAudio::shutdown() {
         UnloadSound(g_nextTurnSound);
         g_nextTurnSound = {};
         m_nextTurnLoaded = false;
+    }
+    if (m_noahEventLoaded) {
+        UnloadSound(g_noahEventSound);
+        g_noahEventSound = {};
+        m_noahEventLoaded = false;
     }
 
     m_hoverPitchIndex = 0;
@@ -378,6 +385,14 @@ void CardAudio::playNextTurn() {
     PlaySound(g_nextTurnSound);
 }
 
+void CardAudio::playNoahEvent() {
+    if (!m_noahEventLoaded) {
+        return;
+    }
+    applyConfiguredVolumes();
+    PlaySound(g_noahEventSound);
+}
+
 void CardAudio::scheduleDamage(float delaySecs) {
     m_scheduledSounds.push_back({ ScheduledSoundType::Damage, delaySecs });
 }
@@ -445,5 +460,8 @@ void CardAudio::applyConfiguredVolumes() const {
     }
     if (m_nextTurnLoaded) {
         SetSoundVolume(g_nextTurnSound, clampPercent(AudioConfig::NextTurnVolume) / 100.0f);
+    }
+    if (m_noahEventLoaded) {
+        SetSoundVolume(g_noahEventSound, clampPercent(AudioConfig::NoahEventVolume) / 100.0f);
     }
 }

@@ -25,7 +25,11 @@ public:
          std::vector<std::string> tags,
          std::vector<CardEffect> effects,
          std::string description = "",
-         std::string artPath = "");
+         std::string artPath = "",
+         std::string displayName = "",
+         std::string displayDescription = "",
+         bool obscured = false,
+         bool hideFooterStats = false);
 
     const std::string&              getId() const;
     const std::string&              getName() const;
@@ -36,6 +40,10 @@ public:
     const std::vector<CardEffect>&  getEffects() const;
     const std::string&              getDescription() const;
     const std::string&              getArtPath() const;
+    const std::string&              getDisplayName() const;
+    const std::string&              getDisplayDescription() const;
+    bool                            isObscured() const;
+    bool                            shouldHideFooterStats() const;
 
     const char* getTypeLabel() const;
 
@@ -57,4 +65,8 @@ private:
     std::vector<CardEffect>  m_effects;
     std::string              m_description;
     std::string              m_artPath;
+    std::string              m_displayName;
+    std::string              m_displayDescription;
+    bool                     m_obscured = false;
+    bool                     m_hideFooterStats = false;
 };

@@ -24,6 +24,7 @@ std::optional<EffectType> effectTypeFromString(const std::string& value) {
     if (value == "gain_mana_next_turn") return EffectType::GainManaNextTurn;
     if (value == "skip_enemy_turn")     return EffectType::SkipEnemyTurn;
     if (value == "draw_cards")          return EffectType::DrawCards;
+    if (value == "next_card_free")      return EffectType::NextCardFree;
     if (value == "apply_status")        return EffectType::ApplyStatus;
     if (value == "modify_max_health_percent") return EffectType::ModifyMaxHealthPercent;
     if (value == "damage_per_counter")  return EffectType::DamagePerCounter;
@@ -40,6 +41,7 @@ const char* toString(EffectType type) {
     case EffectType::GainManaNextTurn: return "Gain Mana Next Turn";
     case EffectType::SkipEnemyTurn:    return "Skip Enemy Turn";
     case EffectType::DrawCards:        return "Draw Cards";
+    case EffectType::NextCardFree:     return "Next Card Free";
     case EffectType::ApplyStatus:      return "Apply Status";
     case EffectType::ModifyMaxHealthPercent: return "Modify Max Health Percent";
     case EffectType::DamagePerCounter: return "Damage Per Counter";

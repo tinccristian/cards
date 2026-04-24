@@ -5,6 +5,7 @@
 #include "CardDatabase.h"
 #include "gameplay/CombatResolver.h"
 
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <random>
@@ -12,6 +13,11 @@
 #include <unordered_map>
 
 namespace {
+
+bool hasTag(const Card& card, const std::string& tag) {
+    const auto& tags = card.getTags();
+    return std::find(tags.begin(), tags.end(), tag) != tags.end();
+}
 
 CardTier rollRewardTier(std::mt19937& rng) {
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
@@ -63,6 +69,9 @@ std::vector<Card> generateRewardCards(int count) {
     fallbackCards.reserve(allCards.size());
 
     for (const Card& card : allCards) {
+        if (hasTag(card, "noah")) {
+            continue;
+        }
         fallbackCards.push_back(&card);
         switch (card.getTier()) {
         case CardTier::Common:   commonCards.push_back(&card); break;
@@ -97,6 +106,39 @@ std::vector<Card> generateRewardCards(int count) {
     return results;
 }
 
+std::vector<Card> generateTaggedCards(const std::string& tag, int count) {
+    std::vector<Card> results;
+    const auto& allCards = CardDatabase::getAllCards();
+    if (count <= 0 || allCards.empty()) {
+        return results;
+    }
+
+    std::vector<const Card*> pool;
+    pool.reserve(allCards.size());
+    for (const Card& card : allCards) {
+        if (hasTag(card, tag)) {
+            pool.push_back(&card);
+        }
+    }
+
+    if (pool.empty()) {
+        return results;
+    }
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::unordered_set<std::string> usedIds;
+    while (static_cast<int>(results.size()) < count && usedIds.size() < pool.size()) {
+        const Card* selected = pickRandomCardFromPool(pool, usedIds, rng);
+        if (selected == nullptr) {
+            break;
+        }
+        results.push_back(*selected);
+    }
+
+    return results;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -124,6 +166,8 @@ Player&       GameState::getPlayer()       { return m_player; }
 const Player& GameState::getPlayer() const { return m_player; }
 RewardState&       GameState::getRewardState()       { return m_rewardState; }
 const RewardState& GameState::getRewardState() const { return m_rewardState; }
+NoahEventState&       GameState::getNoahEventState()       { return m_noahEventState; }
+const NoahEventState& GameState::getNoahEventState() const { return m_noahEventState; }
 
 Enemy& GameState::getEnemy() {
     assert(m_enemy && "No enemy – call startCombatForEnemy() first");
@@ -154,6 +198,7 @@ bool GameState::startNewRun(std::string& error) {
     m_lastAction = "";
     m_enemy.reset();
     m_rewardState.clear();
+    m_noahEventState.clear();
 
     // Load deck config — single source of truth for starter deck composition
     std::vector<std::string> deckConfig =
@@ -198,6 +243,7 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
     m_lastAction.clear();
     m_enemy.reset();
     m_rewardState.clear();
+    m_noahEventState.clear();
 
     m_player.rebuildCombatDeck();
 
@@ -220,6 +266,141 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
 
     m_enemy->decideIntent();
     return true;
+}
+
+bool GameState::beginNoahEvent(std::string& error) {
+    error.clear();
+    m_rewardState.clear();
+    m_enemy.reset();
+    m_noahEventState.begin();
+    m_lastAction = "Noah wants to trade scribbles.";
+    return true;
+}
+
+bool GameState::chooseNoahGainCards(std::string& error) {
+    error.clear();
+    const std::vector<Card> offers = generateTaggedCards("noah", 2);
+    if (offers.empty()) {
+        error = "No Noah cards are available.";
+        return false;
+    }
+
+    m_player.addGold(50);
+    m_noahEventState.startGainCards(offers, 50, static_cast<int>(offers.size()));
+    m_lastAction = "You took Noah's bargain and gained 50 gold.";
+    return true;
+}
+
+bool GameState::chooseNoahTransform(std::string& error) {
+    error.clear();
+    if (m_player.getGold() < 10) {
+        error = "Not enough gold for Noah's transform.";
+        return false;
+    }
+    if (static_cast<int>(m_player.getOwnedCards().size()) < 2) {
+        error = "You need at least 2 cards to transform.";
+        return false;
+    }
+
+    const std::vector<Card> offers = generateTaggedCards("noah", 2);
+    if (static_cast<int>(offers.size()) < 2) {
+        error = "Not enough Noah cards are available for a transform.";
+        return false;
+    }
+
+    m_noahEventState.startTransform(offers, -10);
+    m_lastAction = "Pick 2 cards for Noah to rewrite.";
+    return true;
+}
+
+bool GameState::confirmNoahTransform(std::string& error) {
+    error.clear();
+    if (m_noahEventState.getStage() != NoahEventStage::SelectTransformCards
+        || !m_noahEventState.hasRequiredDeckSelections()) {
+        error = "Select 2 cards to transform.";
+        return false;
+    }
+    if (!m_player.spendGold(10)) {
+        error = "Not enough gold for Noah's transform.";
+        return false;
+    }
+
+    if (!m_player.replaceOwnedCards(m_noahEventState.getSelectedDeckIndices(),
+                                    m_noahEventState.getOfferedCards())) {
+        error = "Could not transform the selected cards.";
+        return false;
+    }
+
+    m_noahEventState.showResult(NoahEventChoice::TransformCardsLoseGold,
+                                m_noahEventState.getOfferedCards(),
+                                -10);
+    m_lastAction = "Noah transformed 2 cards.";
+    return true;
+}
+
+bool GameState::chooseNoahRemoveRandom(std::string& error) {
+    error.clear();
+    if (m_player.getOwnedCards().empty()) {
+        error = "There are no cards to remove.";
+        return false;
+    }
+
+    const std::vector<Card> offers = generateTaggedCards("noah", 1);
+    if (offers.empty()) {
+        error = "No Noah cards are available.";
+        return false;
+    }
+
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_int_distribution<int> dist(0, static_cast<int>(m_player.getOwnedCards().size()) - 1);
+    const int removedIndex = dist(rng);
+    const std::string removedName = m_player.getOwnedCards()[removedIndex].getName();
+    if (!m_player.removeOwnedCardAt(removedIndex)) {
+        error = "Could not remove a random card.";
+        return false;
+    }
+
+    m_player.addCardToDeck(offers.front());
+    m_noahEventState.showResult(NoahEventChoice::RemoveRandomAddCard,
+                                offers,
+                                0,
+                                removedName);
+    m_lastAction = "Noah traded one random card.";
+    return true;
+}
+
+bool GameState::claimSelectedNoahCards(std::string& error) {
+    error.clear();
+    if (m_noahEventState.getStage() != NoahEventStage::SelectNoahCards
+        || !m_noahEventState.hasRequiredOfferSelections()) {
+        error = "Select Noah's cards first.";
+        return false;
+    }
+
+    std::vector<Card> selectedCards;
+    for (int index : m_noahEventState.getSelectedOfferIndices()) {
+        if (index < 0 || index >= static_cast<int>(m_noahEventState.getOfferedCards().size())) {
+            error = "Selected Noah card index is invalid.";
+            return false;
+        }
+        selectedCards.push_back(m_noahEventState.getOfferedCards()[index]);
+    }
+
+    for (const Card& card : selectedCards) {
+        m_player.addCardToDeck(card);
+    }
+
+    m_noahEventState.showResult(NoahEventChoice::AddCardsGainGold,
+                                selectedCards,
+                                50);
+    m_lastAction = "You took Noah's cards.";
+    return true;
+}
+
+void GameState::endNoahEvent() {
+    m_noahEventState.clear();
+    m_lastAction.clear();
 }
 
 bool GameState::prepareCombatRewards(std::string& error) {
@@ -264,6 +445,7 @@ bool GameState::skipRewardCard() {
 void GameState::endCombat() {
     m_enemy.reset();
     m_rewardState.clear();
+    m_noahEventState.clear();
     m_turnPhase = TurnPhase::PLAYER_TURN;
     m_turnNumber = CombatConfig::StartingTurnNumber;
     m_lastAction.clear();

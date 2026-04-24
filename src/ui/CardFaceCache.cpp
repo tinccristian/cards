@@ -167,12 +167,13 @@ bool CardFaceCache::FaceKey::operator==(const FaceKey& other) const {
         && name == other.name
         && description == other.description
         && artPath == other.artPath
-        && cost == other.cost
+        && visibleCostText == other.visibleCostText
         && damage == other.damage
         && block == other.block
         && heal == other.heal
         && draw == other.draw
         && nextTurnMana == other.nextTurnMana
+        && hideFooterStats == other.hideFooterStats
         && targetWidth == other.targetWidth
         && targetHeight == other.targetHeight
         && emphasized == other.emphasized
@@ -186,12 +187,13 @@ std::size_t CardFaceCache::FaceKeyHash::operator()(const FaceKey& key) const {
     hashCombine(seed, std::hash<std::string>{}(key.name));
     hashCombine(seed, std::hash<std::string>{}(key.description));
     hashCombine(seed, std::hash<std::string>{}(key.artPath));
-    hashCombine(seed, std::hash<int>{}(key.cost));
+    hashCombine(seed, std::hash<std::string>{}(key.visibleCostText));
     hashCombine(seed, std::hash<int>{}(key.damage));
     hashCombine(seed, std::hash<int>{}(key.block));
     hashCombine(seed, std::hash<int>{}(key.heal));
     hashCombine(seed, std::hash<int>{}(key.draw));
     hashCombine(seed, std::hash<int>{}(key.nextTurnMana));
+    hashCombine(seed, std::hash<bool>{}(key.hideFooterStats));
     hashCombine(seed, std::hash<int>{}(key.targetWidth));
     hashCombine(seed, std::hash<int>{}(key.targetHeight));
     hashCombine(seed, std::hash<bool>{}(key.emphasized));
@@ -204,6 +206,7 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
                                                    int targetWidth,
                                                    int targetHeight,
                                                    bool emphasized,
+                                                   const std::string& visibleCostText,
                                                    bool affordable,
                                                    bool crispPresentation) {
     if (targetWidth <= 0 || targetHeight <= 0) {
@@ -212,15 +215,16 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
 
     const FaceKey key{
         card.getId(),
-        card.getName(),
-        card.getDescription(),
+        card.getDisplayName(),
+        card.getDisplayDescription(),
         card.getArtPath(),
-        card.getCost(),
+        visibleCostText,
         card.getDamageAmount(),
         card.getBlockAmount(),
         card.getHealAmount(),
         card.getCardsDrawn(),
         card.getNextTurnManaAmount(),
+        card.shouldHideFooterStats(),
         targetWidth,
         targetHeight,
         emphasized,
@@ -233,7 +237,13 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
         return existing->second;
     }
 
-    Texture2D texture = buildTexture(card, targetWidth, targetHeight, emphasized, affordable, crispPresentation);
+    Texture2D texture = buildTexture(card,
+                                     targetWidth,
+                                     targetHeight,
+                                     emphasized,
+                                     visibleCostText,
+                                     affordable,
+                                     crispPresentation);
     if (texture.id == 0) {
         return std::nullopt;
     }
@@ -331,6 +341,7 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
                                       int targetWidth,
                                       int targetHeight,
                                       bool emphasized,
+                                      const std::string& visibleCostText,
                                       bool affordable,
                                       bool crispPresentation) {
     const float renderScale = LayoutConfig::CardFaceRenderScale;
@@ -401,15 +412,14 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
             - std::ceil(cardScale * (crispPresentation ? 6.0f : 4.0f)));
 
     {
-        const std::string costStr = std::to_string(card.getCost());
         const int fontSize = scaledInt(emphasized ? LayoutConfig::HoveredCardNameSize
                                                   : LayoutConfig::CardNameFontSize,
                                        cardScale);
-        const Vector2 measure = MeasureTextEx(font, costStr.c_str(), (float)fontSize, 0.0f);
+        const Vector2 measure = MeasureTextEx(font, visibleCostText.c_str(), (float)fontSize, 0.0f);
         const float x = std::round(manaBox.x + (manaBox.width - measure.x) * 0.5f);
         const float y = std::round(manaBox.y + (manaBox.height - (float)fontSize) * 0.5f);
         const Color color = affordable ? Colors::draw_pile_accent : Colors::damage_color;
-        imageDrawTextOutlined(&canvas, font, costStr.c_str(), x, y, (float)fontSize, 0.0f, renderScale, color);
+        imageDrawTextOutlined(&canvas, font, visibleCostText.c_str(), x, y, (float)fontSize, 0.0f, renderScale, color);
     }
 
     const int descriptionGap = scaledInt(LayoutConfig::CardDescriptionGap, cardScale);
@@ -420,13 +430,13 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
                                               : LayoutConfig::CardNameFontSize,
                                    cardScale);
     const float nameSpacing = LayoutConfig::CardNameLetterSpacing * cardScale;
-    const std::string fittedName = fitTextWithEllipsis(font, card.getName(), (float)nameSize, nameSpacing, titleSafeWidth);
+    const std::string fittedName = fitTextWithEllipsis(font, card.getDisplayName(), (float)nameSize, nameSpacing, titleSafeWidth);
     const Vector2 nameMeasure = MeasureTextEx(font, fittedName.c_str(), (float)nameSize, nameSpacing);
     const float nameX = std::round(nameBox.x + textBoxInset + std::max(0.0f, (titleSafeWidth - nameMeasure.x) * 0.5f));
     const float nameY = std::round(nameBox.y + std::max(0.0f, (nameBox.height - (float)nameSize) * 0.5f));
     imageDrawTextOutlined(&canvas, font, fittedName.c_str(), nameX, nameY, (float)nameSize, nameSpacing, renderScale, Colors::text_primary);
 
-    const std::string& desc = card.getDescription();
+    const std::string& desc = card.getDisplayDescription();
     if (!desc.empty()) {
         const int descSize = scaledInt(LayoutConfig::CardDescriptionSize, cardScale);
         const float descSpacing = LayoutConfig::CardDescriptionLetterSpacing * cardScale;
@@ -452,14 +462,14 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
                                    cardScale);
     const int footerY = internalHeight - footerMargin;
 
-    if (card.getDamageAmount() > 0) {
+    if (!card.shouldHideFooterStats() && card.getDamageAmount() > 0) {
         const std::string text = std::to_string(card.getDamageAmount()) + " dmg";
         const Vector2 measure = MeasureTextEx(font, text.c_str(), (float)infoSize, 0.0f);
         const float x = (float)internalWidth - measure.x - (float)rightStatPadding;
         imageDrawTextOutlined(&canvas, font, text.c_str(), x, (float)footerY, (float)infoSize, 0.0f, renderScale, Colors::damage_color);
     }
 
-    if (card.getBlockAmount() > 0) {
+    if (!card.shouldHideFooterStats() && card.getBlockAmount() > 0) {
         const std::string text = std::to_string(card.getBlockAmount()) + " blk";
         const Vector2 measure = MeasureTextEx(font, text.c_str(), (float)infoSize, 0.0f);
         const float x = (float)internalWidth - measure.x - (float)rightStatPadding;

@@ -99,7 +99,11 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
             std::move(tags),
             std::move(effects),
             entry.value("description", ""),
-            entry.value("artPath", "")
+            entry.value("artPath", ""),
+            entry.value("displayName", ""),
+            entry.value("displayDescription", ""),
+            entry.value("obscured", false),
+            entry.value("hideFooterStats", false)
         );
     } catch (const nlohmann::json::exception& ex) {
         error = ex.what();
@@ -131,7 +135,11 @@ bool CardDatabase::loadCardsFromJSON(const std::string& filePath, std::string& e
     error.clear();
     s_cards.clear();
     s_index.clear();
+    return appendCardsFromJSON(filePath, error);
+}
 
+bool CardDatabase::appendCardsFromJSON(const std::string& filePath, std::string& error) {
+    error.clear();
     nlohmann::json root = readJSON(filePath, error);
     if (root.is_null()) {
         return false;
@@ -204,4 +212,15 @@ std::optional<Card> CardDatabase::findCard(const std::string& cardId) {
 
 const std::vector<Card>& CardDatabase::getAllCards() {
     return s_cards;
+}
+
+std::vector<Card> CardDatabase::getCardsWithTag(const std::string& tag) {
+    std::vector<Card> results;
+    for (const Card& card : s_cards) {
+        const auto& tags = card.getTags();
+        if (std::find(tags.begin(), tags.end(), tag) != tags.end()) {
+            results.push_back(card);
+        }
+    }
+    return results;
 }

@@ -268,7 +268,16 @@ int GameScreen::drawMapScreen(const MapData& mapData,
         const bool unlocked = runState.isUnlocked(index);
         const bool completed = runState.isCompleted(index);
         const bool canEnter = allowInteraction && runState.canEnterNode(mapData, index);
-        const bool hovered = canEnter && CheckCollisionPointCircle(GetMousePosition(), nodePositions[index], outlineRadius);
+        const bool eventNode = nodeType->kind == MapNodeKind::Event;
+        const Rectangle eventBounds = {
+            nodePositions[index].x - outlineRadius,
+            nodePositions[index].y - outlineRadius,
+            outlineRadius * 2.0f,
+            outlineRadius * 2.0f
+        };
+        const bool hovered = canEnter && (eventNode
+            ? CheckCollisionPointRec(GetMousePosition(), eventBounds)
+            : CheckCollisionPointCircle(GetMousePosition(), nodePositions[index], outlineRadius));
         if (hovered) {
             hoveredNodeIndex = index;
         }
@@ -285,18 +294,39 @@ int GameScreen::drawMapScreen(const MapData& mapData,
             fillColor = ColorAlpha(fillColor, 0.75f);
         }
 
-        DrawCircleV(nodePositions[index], outlineRadius, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
-        DrawRing(nodePositions[index],
-                 outlineRadius - outlineThickness,
-                 outlineRadius,
-                 0.0f,
-                 360.0f,
-                 32,
-                 hovered ? Colors::text_primary : outlineColor);
-        DrawCircleV(nodePositions[index], nodeRadius, fillColor);
+        if (eventNode) {
+            DrawRectangleRec(eventBounds, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
+            DrawRectangleLinesEx(eventBounds, outlineThickness, hovered ? Colors::text_primary : outlineColor);
+            const Rectangle innerRect = {
+                nodePositions[index].x - nodeRadius,
+                nodePositions[index].y - nodeRadius,
+                nodeRadius * 2.0f,
+                nodeRadius * 2.0f
+            };
+            DrawRectangleRec(innerRect, fillColor);
+            if (completed) {
+                const Rectangle completeRect = {
+                    nodePositions[index].x - nodeRadius * 0.45f,
+                    nodePositions[index].y - nodeRadius * 0.45f,
+                    nodeRadius * 0.9f,
+                    nodeRadius * 0.9f
+                };
+                DrawRectangleRec(completeRect, Colors::light_bg);
+            }
+        } else {
+            DrawCircleV(nodePositions[index], outlineRadius, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
+            DrawRing(nodePositions[index],
+                     outlineRadius - outlineThickness,
+                     outlineRadius,
+                     0.0f,
+                     360.0f,
+                     32,
+                     hovered ? Colors::text_primary : outlineColor);
+            DrawCircleV(nodePositions[index], nodeRadius, fillColor);
 
-        if (completed) {
-            DrawCircleV(nodePositions[index], nodeRadius * 0.45f, Colors::light_bg);
+            if (completed) {
+                DrawCircleV(nodePositions[index], nodeRadius * 0.45f, Colors::light_bg);
+            }
         }
     }
 
@@ -389,6 +419,8 @@ std::string statusTooltipLine(const StatusInstance& status) {
             + " damage next turn, then loses 1 poison each turn.";
     case StatusType::BonusManaNextTurn:
         return "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
+    case StatusType::NextCardFree:
+        return "Your next card costs 0.";
     case StatusType::SkipTurn:
     case StatusType::Infection:
     case StatusType::Weakness:
@@ -770,20 +802,30 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     // Draw non-hovered cards first
     for (int i = 0; i < n; ++i) {
         if (i == m_hoveredCardIndex || i == m_draggedCardIndex) continue;
-        drawCardFace(layout[i].bounds, hand[i], layout[i].scaled, layout[i].rotation, curMana);
+        drawCardFace(layout[i].bounds,
+                     hand[i],
+                     layout[i].scaled,
+                     layout[i].rotation,
+                     curMana,
+                     player.getEffectiveCost(hand[i]));
     }
 
     // Hovered card on top
     if (allowInteraction && m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0) {
         int i = m_hoveredCardIndex;
         Rectangle r = layout[i].bounds;
-        drawCardFace(r, hand[i], true, layout[i].rotation, curMana);
+        drawCardFace(r,
+                     hand[i],
+                     true,
+                     layout[i].rotation,
+                     curMana,
+                     player.getEffectiveCost(hand[i]));
 
         float tipX = r.x + r.width + scalef(LayoutConfig::TooltipHorizontalGap);
         if (tipX + scalei(LayoutConfig::TooltipWidth) > m_width) {
             tipX = r.x - scalei(LayoutConfig::TooltipWidth) - scalei(LayoutConfig::TooltipScreenMargin);
         }
-        drawCardTooltip(hand[i], tipX, r.y);
+        drawCardTooltip(hand[i], tipX, r.y, player.getEffectiveCost(hand[i]));
 
     }
 
@@ -798,9 +840,12 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             layout[dragIndex].bounds.height
         };
         draggedRect = snapRect(draggedRect);
-        drawCardFace(draggedRect, hand[dragIndex], true,
+        drawCardFace(draggedRect,
+                     hand[dragIndex],
+                     true,
                      normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor,
-                     curMana);
+                     curMana,
+                     player.getEffectiveCost(hand[dragIndex]));
     }
 
     drawTurnVignetteOverlay();
@@ -872,6 +917,11 @@ void GameScreen::unloadAssets() {
         m_mapTexture = {};
         m_mapTextureLoaded = false;
         m_loadedMapTexturePath.clear();
+    }
+    if (m_noahEventTextureLoaded && m_noahEventTexture.id != 0) {
+        UnloadTexture(m_noahEventTexture);
+        m_noahEventTexture = {};
+        m_noahEventTextureLoaded = false;
     }
 }
 
@@ -1305,6 +1355,12 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             title = "Bonus Mana";
             tooltip = "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
             break;
+        case StatusType::NextCardFree:
+            icon = m_buffIcon;
+            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+            title = "Quick Thought";
+            tooltip = "Your next card costs 0.";
+            break;
         case StatusType::SkipTurn:
         case StatusType::Infection:
         case StatusType::Weakness:
@@ -1364,6 +1420,21 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
     }
 }
 
+void GameScreen::ensureNoahEventTextureLoaded() {
+    if (m_noahEventTextureLoaded && m_noahEventTexture.id != 0) {
+        return;
+    }
+    if (!FileExists(AssetPaths::NOAH_EVENT_BG)) {
+        return;
+    }
+
+    m_noahEventTexture = LoadTexture(AssetPaths::NOAH_EVENT_BG);
+    if (m_noahEventTexture.id != 0) {
+        SetTextureFilter(m_noahEventTexture, TEXTURE_FILTER_BILINEAR);
+        m_noahEventTextureLoaded = true;
+    }
+}
+
 void GameScreen::drawManaHud(const Player& player) const {
     const Rectangle pileRect = drawPileRect();
     const float hudWidth = (float)scalei(LayoutConfig::ManaHudWidth);
@@ -1398,14 +1469,21 @@ void GameScreen::drawManaHud(const Player& player) const {
 }
 
 void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
-                              int playerMana, bool crispPresentation) const {
+                              int playerMana, int effectiveCostOverride, bool crispPresentation) const {
     rect = snapRect(rect);
+    const int effectiveCost = effectiveCostOverride >= 0 ? effectiveCostOverride : card.getCost();
+    const bool affordable = (playerMana < 0 || effectiveCost <= playerMana);
+    const bool revealEffectiveCost = effectiveCostOverride >= 0 && effectiveCost == 0;
+    const std::string visibleCostText = (card.isObscured() && !revealEffectiveCost)
+        ? "?"
+        : std::to_string(effectiveCost);
     const auto faceOpt = m_cardFaceCache.getTexture(
         card,
         std::max(1, (int)std::lround(rect.width)),
         std::max(1, (int)std::lround(rect.height)),
         scaled,
-        (playerMana < 0 || card.getCost() <= playerMana),
+        visibleCostText,
+        affordable,
         crispPresentation);
     if (!faceOpt.has_value()) {
         return;
@@ -1423,45 +1501,30 @@ void GameScreen::drawCardFace(Rectangle rect, const Card& card, bool scaled, flo
     rlPopMatrix();
 }
 
-void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
+void GameScreen::drawCardTooltip(const Card& card, float x, float y, int effectiveCostOverride) const {
     const int pad      = scalei(LayoutConfig::TooltipPadding);
     const int tsz      = scalei(LayoutConfig::TooltipTextSize);
     const int ttsz     = scalei(LayoutConfig::TooltipTitleSize);
     const int mtsz     = scalei(LayoutConfig::TooltipMetaSize);
     const int maxContentW = scalei(280);
+    const int effectiveCost = effectiveCostOverride >= 0 ? effectiveCostOverride : card.getCost();
+    const bool revealEffectiveCost = effectiveCostOverride >= 0 && effectiveCost == 0;
+    const std::string visibleCost = (card.isObscured() && !revealEffectiveCost)
+        ? "?"
+        : std::to_string(effectiveCost);
 
     // Build meta line.
-    std::string meta = std::string(card.getTypeLabel()) + "  Cost:" + std::to_string(card.getCost());
-    if (card.getDamageAmount() > 0) meta += "  Dmg:" + std::to_string(card.getDamageAmount());
-    if (card.getBlockAmount()  > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
-    if (card.getHealAmount()   > 0) meta += "  Heal:" + std::to_string(card.getHealAmount());
-
-    // Word-wrap description using pixel measurement.
-    std::vector<std::string> descLines;
-    {
-        std::vector<std::string> words;
-        std::string w;
-        for (char c : card.getDescription()) {
-            if (c == ' ') { if (!w.empty()) { words.push_back(w); w.clear(); } }
-            else           { w += c; }
-        }
-        if (!w.empty()) words.push_back(w);
-
-        std::string current;
-        for (const std::string& word : words) {
-            std::string candidate = current.empty() ? word : current + " " + word;
-            if (MeasureText(candidate.c_str(), tsz) <= maxContentW) {
-                current = candidate;
-            } else {
-                if (!current.empty()) descLines.push_back(current);
-                current = word;
-            }
-        }
-        if (!current.empty()) descLines.push_back(current);
+    std::string meta = std::string(card.getTypeLabel()) + "  Cost:" + visibleCost;
+    if (!card.shouldHideFooterStats()) {
+        if (card.getDamageAmount() > 0) meta += "  Dmg:" + std::to_string(card.getDamageAmount());
+        if (card.getBlockAmount()  > 0) meta += "  Blk:" + std::to_string(card.getBlockAmount());
+        if (card.getHealAmount()   > 0) meta += "  Heal:" + std::to_string(card.getHealAmount());
     }
 
+    const std::vector<std::string> descLines = wrapTooltipText(card.getDisplayDescription(), tsz, maxContentW);
+
     // Measure all rows to get the required panel width.
-    int maxW = MeasureText(card.getName().c_str(), ttsz);
+    int maxW = MeasureText(card.getDisplayName().c_str(), ttsz);
     maxW = std::max(maxW, MeasureText(meta.c_str(), mtsz));
     for (const std::string& l : descLines)
         maxW = std::max(maxW, MeasureText(l.c_str(), tsz));
@@ -1483,7 +1546,7 @@ void GameScreen::drawCardTooltip(const Card& card, float x, float y) const {
     DrawRectangleLinesEx(tip, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
 
     const int tx = (int)x + pad;
-    DrawText(card.getName().c_str(), tx, (int)y + pad, ttsz, Colors::text_primary);
+    DrawText(card.getDisplayName().c_str(), tx, (int)y + pad, ttsz, Colors::text_primary);
 
     const int divAbsY = (int)y + dividerRelY;
     DrawLine(tx, divAbsY, tx + tipW - 2 * pad, divAbsY, Colors::card_border);

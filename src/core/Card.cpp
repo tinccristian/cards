@@ -33,7 +33,11 @@ Card::Card(std::string id,
            std::vector<std::string> tags,
            std::vector<CardEffect> effects,
            std::string description,
-           std::string artPath)
+           std::string artPath,
+           std::string displayName,
+           std::string displayDescription,
+           bool obscured,
+           bool hideFooterStats)
     : m_id(std::move(id))
     , m_name(std::move(name))
     , m_cost(cost)
@@ -43,6 +47,10 @@ Card::Card(std::string id,
     , m_effects(std::move(effects))
     , m_description(std::move(description))
     , m_artPath(std::move(artPath))
+    , m_displayName(std::move(displayName))
+    , m_displayDescription(std::move(displayDescription))
+    , m_obscured(obscured)
+    , m_hideFooterStats(hideFooterStats)
 {}
 
 const std::string& Card::getId() const { return m_id; }
@@ -54,6 +62,10 @@ const std::vector<std::string>& Card::getTags() const { return m_tags; }
 const std::vector<CardEffect>& Card::getEffects() const { return m_effects; }
 const std::string& Card::getDescription() const { return m_description; }
 const std::string& Card::getArtPath() const { return m_artPath; }
+const std::string& Card::getDisplayName() const { return m_displayName.empty() ? m_name : m_displayName; }
+const std::string& Card::getDisplayDescription() const { return m_displayDescription.empty() ? m_description : m_displayDescription; }
+bool Card::isObscured() const { return m_obscured; }
+bool Card::shouldHideFooterStats() const { return m_hideFooterStats; }
 
 const char* Card::getTypeLabel() const {
     return toString(m_type);

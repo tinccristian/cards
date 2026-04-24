@@ -11,7 +11,8 @@
 
 bool CardResolutionSummary::hasGameplayEffect() const {
     return damageDealt > 0 || blockGained > 0 || healingDone > 0 || cardsDrawn > 0
-        || manaGained > 0 || bonusManaGranted > 0 || debuffsCleared > 0 || enemyTurnSkipped;
+        || manaGained > 0 || bonusManaGranted > 0 || debuffsCleared > 0
+        || nextCardFreeGranted || enemyTurnSkipped;
 }
 
 namespace CombatResolver {
@@ -87,6 +88,13 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
             }
             break;
 
+        case EffectType::NextCardFree:
+            if (effect.target == EffectTarget::Self) {
+                player.addStatus(StatusType::NextCardFree, 1, 1, StatusDisposition::Positive);
+                summary.nextCardFreeGranted = true;
+            }
+            break;
+
         case EffectType::ApplyStatus:
         case EffectType::ModifyMaxHealthPercent:
         case EffectType::DamagePerCounter:
@@ -100,7 +108,7 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
 
 std::string buildPlayerActionText(const Card& card, const CardResolutionSummary& summary) {
     if (!summary.hasGameplayEffect()) {
-        return "You played " + card.getName() + ".";
+        return "You played " + card.getDisplayName() + ".";
     }
 
     std::vector<std::string> fragments;
@@ -126,6 +134,9 @@ std::string buildPlayerActionText(const Card& card, const CardResolutionSummary&
     if (summary.bonusManaGranted > 0) {
         fragments.push_back("banked +" + std::to_string(summary.bonusManaGranted) + " mana for next turn");
     }
+    if (summary.nextCardFreeGranted) {
+        fragments.push_back("made the next card cost 0");
+    }
     if (summary.debuffsCleared > 0) {
         fragments.push_back("cleansed " + std::to_string(summary.debuffsCleared) + " debuff");
         if (summary.debuffsCleared > 1) {
@@ -137,7 +148,7 @@ std::string buildPlayerActionText(const Card& card, const CardResolutionSummary&
     }
 
     std::ostringstream builder;
-    builder << "You played " << card.getName() << ": ";
+    builder << "You played " << card.getDisplayName() << ": ";
 
     for (size_t index = 0; index < fragments.size(); ++index) {
         if (index > 0) {

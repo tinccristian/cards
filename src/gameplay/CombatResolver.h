@@ -18,6 +18,7 @@ struct CardResolutionSummary {
     int manaGained        = 0;
     int bonusManaGranted  = 0;
     int debuffsCleared    = 0;
+    bool nextCardFreeGranted = false;
     bool enemyTurnSkipped = false;
     std::vector<DamageBreakdown> enemyDamageEvents;
     std::vector<DamageBreakdown> playerDamageEvents;

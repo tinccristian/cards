@@ -4,6 +4,7 @@
 
 enum class StatusType {
     BonusManaNextTurn,
+    NextCardFree,
     SkipTurn,
     Poison,
     Infection,

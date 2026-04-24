@@ -6,6 +6,13 @@
       "kind": "enemy",
       "fillColor": [214, 74, 73, 255],
       "outlineColor": [255, 225, 157, 255]
+    },
+    {
+      "id": "noah_event",
+      "label": "Noah",
+      "kind": "event",
+      "fillColor": [222, 187, 82, 255],
+      "outlineColor": [255, 241, 190, 255]
     }
   ]
 }

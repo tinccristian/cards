@@ -467,3 +467,337 @@ void GameScreen::drawVignetteOverlay() const {
     DrawRectangleGradientH(0, topInset, m_width / 4, contentHeight, edge, BLANK);
     DrawRectangleGradientH(m_width - m_width / 4, topInset, m_width / 4, contentHeight, BLANK, edge);
 }
+
+NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
+                                            const Player& player,
+                                            int scrollOffset,
+                                            int& maxScroll,
+                                            bool allowInteraction) {
+    syncWindowSize();
+    maxScroll = 0;
+    ensureNoahEventTextureLoaded();
+
+    if (m_noahEventTextureLoaded && m_noahEventTexture.id != 0) {
+        const float scale = std::max((float)m_width / (float)m_noahEventTexture.width,
+                                     (float)m_height / (float)m_noahEventTexture.height);
+        const Rectangle dst = {
+            (m_width - m_noahEventTexture.width * scale) / 2.0f,
+            (m_height - m_noahEventTexture.height * scale) / 2.0f,
+            m_noahEventTexture.width * scale,
+            m_noahEventTexture.height * scale
+        };
+        DrawTexturePro(m_noahEventTexture,
+                       { 0.0f, 0.0f, (float)m_noahEventTexture.width, (float)m_noahEventTexture.height },
+                       dst,
+                       { 0.0f, 0.0f },
+                       0.0f,
+                       WHITE);
+    } else {
+        ClearBackground(Colors::dark_bg);
+    }
+
+    DrawRectangle(0, 0, m_width, m_height, ColorAlpha(BLACK, 0.35f));
+
+    const int titleSize = scalei(LayoutConfig::NoahEventTitleSize);
+    const int subtitleSize = scalei(LayoutConfig::NoahEventSubtitleSize);
+    const int leftX = scalei(LayoutConfig::NoahEventLeftMargin);
+    const int topY = scalei(LayoutConfig::NoahEventTopMargin);
+    DrawText("Noah's Event", leftX, topY, titleSize, Colors::text_primary);
+
+    std::string subtitle = "He offers unreadable help.";
+    switch (eventState.getStage()) {
+    case NoahEventStage::Options:
+        subtitle = "Pick one bargain.";
+        break;
+    case NoahEventStage::SelectNoahCards:
+        subtitle = "Select both Noah cards to keep.";
+        break;
+    case NoahEventStage::SelectTransformCards:
+        subtitle = "Select 2 of your cards to transform.";
+        break;
+    case NoahEventStage::RevealResult:
+        subtitle = "Noah changed your run.";
+        break;
+    }
+    DrawText(subtitle.c_str(), leftX, topY + titleSize + scalei(10), subtitleSize, Colors::text_secondary);
+
+    if (eventState.getStage() == NoahEventStage::Options) {
+        const float panelWidth = scalef(LayoutConfig::NoahPanelWidth);
+        const float panelHeight = scalef(LayoutConfig::NoahPanelHeight);
+        const Rectangle panel = {
+            m_width - panelWidth - scalef(LayoutConfig::NoahPanelRightMargin),
+            m_height - panelHeight - scalef(LayoutConfig::NoahPanelBottomMargin),
+            panelWidth,
+            panelHeight
+        };
+        DrawRectangleRec(panel, ColorAlpha(Colors::light_bg, 0.95f));
+        DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+        DrawText("Options",
+                 (int)std::round(panel.x + scalef(18.0f)),
+                 (int)std::round(panel.y + scalef(LayoutConfig::NoahPanelTitleTop)),
+                 scalei(LayoutConfig::NoahPanelTitleSize),
+                 Colors::text_primary);
+
+        struct EventOption {
+            const char* title;
+            const char* body;
+            bool enabled;
+        };
+
+        const EventOption options[3] = {
+            { "Add 2 Noah cards", "Gain 50g", true },
+            { "Transform 2 cards", "Lose 10g", player.getGold() >= 10 && player.getOwnedCards().size() >= 2 },
+            { "Remove random card", "Add 1 Noah card", !player.getOwnedCards().empty() }
+        };
+
+        for (int index = 0; index < 3; ++index) {
+            Rectangle optionRect = {
+                panel.x + (panel.width - scalef(LayoutConfig::NoahOptionWidth)) / 2.0f,
+                panel.y + scalef(LayoutConfig::NoahOptionTopOffset)
+                    + index * scalef(LayoutConfig::NoahOptionHeight + LayoutConfig::NoahOptionGap),
+                scalef(LayoutConfig::NoahOptionWidth),
+                scalef(LayoutConfig::NoahOptionHeight)
+            };
+            const bool hovered = allowInteraction && options[index].enabled && mouseOver(optionRect);
+            DrawRectangleRec(optionRect, hovered ? Colors::button_hover : Colors::button_bg);
+            DrawRectangleLinesEx(optionRect,
+                                 scalef(LayoutConfig::ThinBorderThickness),
+                                 options[index].enabled ? Colors::card_border : Colors::text_secondary);
+            DrawText(options[index].title,
+                     (int)std::round(optionRect.x + scalef(12.0f)),
+                     (int)std::round(optionRect.y + scalef(10.0f)),
+                     scalei(LayoutConfig::NoahOptionTitleSize),
+                     options[index].enabled ? Colors::text_primary : Colors::text_secondary);
+            DrawText(options[index].body,
+                     (int)std::round(optionRect.x + scalef(12.0f)),
+                     (int)std::round(optionRect.y + scalef(38.0f)),
+                     scalei(LayoutConfig::NoahOptionBodySize),
+                     index == 0 ? Colors::gold_color : Colors::text_secondary);
+            if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                return { NoahEventUiActionType::SelectOption, index };
+            }
+        }
+
+        return {};
+    }
+
+    if (eventState.getStage() == NoahEventStage::SelectNoahCards) {
+        const auto& cards = eventState.getOfferedCards();
+        const auto& selected = eventState.getSelectedOfferIndices();
+        const float preferredWidth = scalef(LayoutConfig::NoahChoiceCardWidth);
+        const float preferredHeight = scalef(LayoutConfig::NoahChoiceCardHeight);
+        const float gap = scalef(LayoutConfig::NoahChoiceCardGap);
+        const float totalWidth = preferredWidth * cards.size() + gap * std::max(0, (int)cards.size() - 1);
+        const float startX = ((float)m_width - totalWidth) / 2.0f;
+        const float y = scalef(LayoutConfig::NoahChoiceTop);
+
+        for (int index = 0; index < static_cast<int>(cards.size()); ++index) {
+            Rectangle rect = {
+                startX + index * (preferredWidth + gap),
+                y,
+                preferredWidth,
+                preferredHeight
+            };
+            const bool picked = std::find(selected.begin(), selected.end(), index) != selected.end();
+            const bool hovered = allowInteraction && mouseOver(rect);
+            if (hovered) {
+                const float hoverScale = LayoutConfig::NoahChoiceHoverScale;
+                const float scaledWidth = rect.width * hoverScale;
+                const float scaledHeight = rect.height * hoverScale;
+                rect.x -= (scaledWidth - rect.width) / 2.0f;
+                rect.y -= (scaledHeight - rect.height) / 2.0f;
+                rect.width = scaledWidth;
+                rect.height = scaledHeight;
+            }
+            drawCardFace(rect, cards[index], false, 0.0f, -1, -1, true);
+            if (picked) {
+                DrawRectangleLinesEx(rect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+            }
+            if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                return { NoahEventUiActionType::ToggleOfferCard, index };
+            }
+        }
+
+        const Rectangle confirmRect = {
+            ((float)m_width - scalef(LayoutConfig::NoahConfirmButtonWidth)) / 2.0f,
+            y + preferredHeight + scalef(LayoutConfig::NoahConfirmButtonBottomGap),
+            scalef(LayoutConfig::NoahConfirmButtonWidth),
+            scalef(LayoutConfig::NoahConfirmButtonHeight)
+        };
+        const bool ready = eventState.hasRequiredOfferSelections();
+        const bool hovered = allowInteraction && ready && mouseOver(confirmRect);
+        DrawRectangleRec(confirmRect, hovered ? Colors::button_hover : Colors::button_bg);
+        DrawRectangleLinesEx(confirmRect,
+                             scalef(LayoutConfig::ThinBorderThickness),
+                             ready ? Colors::gold_color : Colors::text_secondary);
+        DrawText("Claim Both",
+                 (int)std::round(confirmRect.x + (confirmRect.width - MeasureText("Claim Both", scalei(LayoutConfig::DefaultButtonFontSize))) / 2.0f),
+                 (int)std::round(confirmRect.y + (confirmRect.height - scalei(LayoutConfig::DefaultButtonFontSize)) / 2.0f),
+                 scalei(LayoutConfig::DefaultButtonFontSize),
+                 ready ? Colors::text_primary : Colors::text_secondary);
+        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            return { NoahEventUiActionType::ConfirmOfferCards, 0 };
+        }
+
+        return {};
+    }
+
+    if (eventState.getStage() == NoahEventStage::SelectTransformCards) {
+        const float panelWidth = scalef(LayoutConfig::NoahDeckPanelWidth);
+        const float panelHeight = scalef(LayoutConfig::NoahDeckPanelHeight);
+        const Rectangle panel = {
+            ((float)m_width - panelWidth) / 2.0f,
+            scalef(LayoutConfig::NoahDeckPanelTop),
+            panelWidth,
+            panelHeight
+        };
+        DrawRectangleRec(panel, ColorAlpha(Colors::dark_bg, 0.94f));
+        DrawRectangleLinesEx(panel, scalef(LayoutConfig::PanelBorderThickness), Colors::card_border);
+
+        const int cols = LayoutConfig::NoahDeckColumns;
+        const float visibleRows = LayoutConfig::NoahDeckVisibleRows;
+        const float gridGap = scalef(LayoutConfig::NoahDeckGridGap);
+        const float gridTop = panel.y + scalef(LayoutConfig::NoahDeckTopPadding);
+        const float gridHeight = panel.height - scalef(LayoutConfig::NoahDeckTopPadding + LayoutConfig::NoahDeckBottomPadding);
+        const float cardAspect = (float)LayoutConfig::CardWidth / (float)LayoutConfig::CardHeight;
+        const float cardHeightFromRows = ((gridHeight - gridGap * (visibleRows - 1.0f)) / visibleRows);
+        const float cardWidthFromCols = ((panel.width - scalef(48.0f) - gridGap * (cols - 1)) / (float)cols);
+        const float drawWidth = std::floor(std::min(cardWidthFromCols, cardHeightFromRows * cardAspect));
+        const float drawHeight = std::floor(drawWidth / cardAspect);
+        const float gridWidth = drawWidth * cols + gridGap * (cols - 1);
+        const float gridX = panel.x + (panel.width - gridWidth) / 2.0f;
+        const float rowStride = drawHeight + gridGap;
+        const int rows = ((int)player.getOwnedCards().size() + cols - 1) / cols;
+        const int fullyVisibleRows = std::max(1, (int)std::floor(visibleRows));
+        maxScroll = std::max(0, rows - fullyVisibleRows);
+
+        BeginScissorMode((int)std::round(panel.x),
+                         (int)std::round(gridTop),
+                         (int)std::round(panel.width),
+                         (int)std::round(gridHeight));
+
+        int hoveredCardIndex = -1;
+        Rectangle hoveredRect = {};
+        for (int index = 0; index < static_cast<int>(player.getOwnedCards().size()); ++index) {
+            const int col = index % cols;
+            const int row = index / cols;
+            const Rectangle rect = {
+                gridX + col * (drawWidth + gridGap),
+                gridTop + (row - scrollOffset) * rowStride,
+                drawWidth,
+                drawHeight
+            };
+            if (rect.y + rect.height < gridTop || rect.y > gridTop + gridHeight) {
+                continue;
+            }
+
+            const bool hovered = allowInteraction && mouseOver(rect);
+            if (hovered) {
+                hoveredCardIndex = index;
+                hoveredRect = rect;
+            } else {
+                drawCardFace(rect, player.getOwnedCards()[index], false, 0.0f, -1, -1, true);
+                if (std::find(eventState.getSelectedDeckIndices().begin(),
+                              eventState.getSelectedDeckIndices().end(),
+                              index) != eventState.getSelectedDeckIndices().end()) {
+                    DrawRectangleLinesEx(rect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+                }
+            }
+        }
+        EndScissorMode();
+
+        if (hoveredCardIndex >= 0) {
+            Rectangle drawRect = hoveredRect;
+            const float hoverScale = LayoutConfig::NoahDeckHoverScale;
+            drawRect.x -= (drawRect.width * hoverScale - drawRect.width) / 2.0f;
+            drawRect.y -= (drawRect.height * hoverScale - drawRect.height) / 2.0f;
+            drawRect.width *= hoverScale;
+            drawRect.height *= hoverScale;
+            drawCardFace(drawRect, player.getOwnedCards()[hoveredCardIndex], true, 0.0f, -1, -1, true);
+            if (std::find(eventState.getSelectedDeckIndices().begin(),
+                          eventState.getSelectedDeckIndices().end(),
+                          hoveredCardIndex) != eventState.getSelectedDeckIndices().end()) {
+                DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+            }
+            if (allowInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                return { NoahEventUiActionType::ToggleDeckCard, hoveredCardIndex };
+            }
+        }
+
+        const Rectangle confirmRect = {
+            panel.x + panel.width - scalef(LayoutConfig::NoahConfirmButtonWidth) - scalef(24.0f),
+            panel.y + panel.height - scalef(LayoutConfig::NoahConfirmButtonHeight) - scalef(20.0f),
+            scalef(LayoutConfig::NoahConfirmButtonWidth),
+            scalef(LayoutConfig::NoahConfirmButtonHeight)
+        };
+        const bool ready = eventState.hasRequiredDeckSelections();
+        const bool hovered = allowInteraction && ready && mouseOver(confirmRect);
+        DrawRectangleRec(confirmRect, hovered ? Colors::button_hover : Colors::button_bg);
+        DrawRectangleLinesEx(confirmRect,
+                             scalef(LayoutConfig::ThinBorderThickness),
+                             ready ? Colors::gold_color : Colors::text_secondary);
+        DrawText("Transform",
+                 (int)std::round(confirmRect.x + (confirmRect.width - MeasureText("Transform", scalei(LayoutConfig::DefaultButtonFontSize))) / 2.0f),
+                 (int)std::round(confirmRect.y + (confirmRect.height - scalei(LayoutConfig::DefaultButtonFontSize)) / 2.0f),
+                 scalei(LayoutConfig::DefaultButtonFontSize),
+                 ready ? Colors::text_primary : Colors::text_secondary);
+        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            return { NoahEventUiActionType::ConfirmTransform, 0 };
+        }
+
+        return {};
+    }
+
+    if (eventState.getStage() == NoahEventStage::RevealResult) {
+        const auto& cards = eventState.getResultCards();
+        if (!eventState.getRemovedCardName().empty()) {
+            const std::string removed = "Removed: " + eventState.getRemovedCardName();
+            DrawText(removed.c_str(),
+                     leftX,
+                     scalei(LayoutConfig::NoahRevealTop),
+                     scalei(LayoutConfig::NoahRevealBodySize),
+                     Colors::damage_color);
+        }
+        if (eventState.getGoldDelta() != 0) {
+            const std::string goldText = eventState.getGoldDelta() > 0
+                ? "Gold +" + std::to_string(eventState.getGoldDelta())
+                : "Gold " + std::to_string(eventState.getGoldDelta());
+            DrawText(goldText.c_str(),
+                     leftX,
+                     scalei(LayoutConfig::NoahRevealTop) + scalei(26),
+                     scalei(LayoutConfig::NoahRevealBodySize),
+                     eventState.getGoldDelta() > 0 ? Colors::gold_color : Colors::damage_color);
+        }
+
+        if (!cards.empty()) {
+            const float cardWidth = scalef(LayoutConfig::NoahChoiceCardWidth);
+            const float cardHeight = scalef(LayoutConfig::NoahChoiceCardHeight);
+            const float gap = scalef(LayoutConfig::NoahChoiceCardGap);
+            const float totalWidth = cardWidth * cards.size() + gap * std::max(0, (int)cards.size() - 1);
+            const float startX = ((float)m_width - totalWidth) / 2.0f;
+            for (int index = 0; index < static_cast<int>(cards.size()); ++index) {
+                Rectangle rect = {
+                    startX + index * (cardWidth + gap),
+                    scalef(LayoutConfig::NoahChoiceTop),
+                    cardWidth,
+                    cardHeight
+                };
+                drawCardFace(rect, cards[index], false, 0.0f, -1, -1, true);
+            }
+        }
+
+        const Rectangle continueRect = {
+            ((float)m_width - scalef(LayoutConfig::NoahConfirmButtonWidth)) / 2.0f,
+            m_height - scalef(LayoutConfig::NoahConfirmButtonHeight + LayoutConfig::NoahConfirmButtonBottomGap),
+            scalef(LayoutConfig::NoahConfirmButtonWidth),
+            scalef(LayoutConfig::NoahConfirmButtonHeight)
+        };
+        const bool hovered = allowInteraction && mouseOver(continueRect);
+        drawButton(continueRect, "Continue", hovered);
+        if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            return { NoahEventUiActionType::Continue, 0 };
+        }
+    }
+
+    return {};
+}

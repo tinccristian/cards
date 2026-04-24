@@ -3,6 +3,7 @@
 #include "Enemy.h"
 #include "Player.h"
 #include "gameplay/CombatResolver.h"
+#include "gameplay/NoahEventState.h"
 #include "gameplay/RewardState.h"
 #include <optional>
 #include <memory>
@@ -13,6 +14,7 @@ enum class GamePhase {
     MAP,
     NEW_GAME,
     COMBAT,
+    EVENT,
     REWARDS,
     GAME_OVER
 };
@@ -44,6 +46,8 @@ public:
     const Enemy&  getEnemy()  const;
     RewardState&       getRewardState();
     const RewardState& getRewardState() const;
+    NoahEventState&       getNoahEventState();
+    const NoahEventState& getNoahEventState() const;
 
     // --- Game flow ---
 
@@ -52,6 +56,13 @@ public:
     bool startNewGame(std::string& error);
     bool startNewRun(std::string& error);
     bool startCombatForEnemy(const std::string& enemyId, std::string& error);
+    bool beginNoahEvent(std::string& error);
+    bool chooseNoahGainCards(std::string& error);
+    bool chooseNoahTransform(std::string& error);
+    bool confirmNoahTransform(std::string& error);
+    bool chooseNoahRemoveRandom(std::string& error);
+    bool claimSelectedNoahCards(std::string& error);
+    void endNoahEvent();
     bool prepareCombatRewards(std::string& error);
     int  collectRewardGold();
     bool claimRewardCard(int rewardIndex);
@@ -86,5 +97,6 @@ private:
     Player                 m_player;
     std::unique_ptr<Enemy> m_enemy;
     RewardState            m_rewardState;
+    NoahEventState         m_noahEventState;
     std::string            m_lastAction;
 };

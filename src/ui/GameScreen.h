@@ -13,6 +13,7 @@
 #include "EnemySprite.h"
 #include "PlayerSprite.h"
 #include "gameplay/MapRunState.h"
+#include "gameplay/NoahEventState.h"
 #include "raylib.h"
 #include <string>
 #include <vector>
@@ -49,6 +50,21 @@ enum class RewardPopupAction {
     CollectGold,
     OpenCardChoice,
     Continue
+};
+
+enum class NoahEventUiActionType {
+    None,
+    SelectOption,
+    ToggleOfferCard,
+    ConfirmOfferCards,
+    ToggleDeckCard,
+    ConfirmTransform,
+    Continue
+};
+
+struct NoahEventUiAction {
+    NoahEventUiActionType type = NoahEventUiActionType::None;
+    int index = -1;
 };
 
 enum class RunHudAction {
@@ -119,6 +135,11 @@ public:
                                       bool allowInteraction = true);
     int drawRewardCardChoice(const RewardState& rewards,
                              bool allowInteraction = true);
+    NoahEventUiAction drawNoahEvent(const NoahEventState& eventState,
+                                    const Player& player,
+                                    int scrollOffset,
+                                    int& maxScroll,
+                                    bool allowInteraction = true);
 
     // Draw the game-over screen and return the selected action for this frame.
     GameOverAction drawGameOver(const GameState& state);
@@ -179,6 +200,8 @@ private:
     Texture2D    m_mapTexture       = {};
     bool         m_mapTextureLoaded = false;
     std::string  m_loadedMapTexturePath;
+    Texture2D    m_noahEventTexture = {};
+    bool         m_noahEventTextureLoaded = false;
     EnemySprite  m_enemySprite;
     std::string  m_loadedEnemySpritePath; // tracks which sheet is currently loaded
     PlayerSprite m_playerSprite;
@@ -239,6 +262,7 @@ private:
     int scalei(int value) const;
     float scalef(float value) const;
     void ensureMapTextureLoaded(const std::string& texturePath);
+    void ensureNoahEventTextureLoaded();
     float clampedMapOffset(float offset) const;
     Rectangle mapTextureRect() const;
     void drawButton(Rectangle rect, const std::string& text, bool hovered) const;
@@ -250,8 +274,9 @@ private:
     // playerMana: current mana (used to colour cost red when unaffordable). -1 = neutral.
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
                       int playerMana = -1,
+                      int effectiveCostOverride = -1,
                       bool crispPresentation = false) const;
-    void drawCardTooltip(const Card& card, float x, float y) const;
+    void drawCardTooltip(const Card& card, float x, float y, int effectiveCostOverride = -1) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const;
 
     // Queue a deferred tooltip to be drawn at end-of-frame (renders on top of everything).

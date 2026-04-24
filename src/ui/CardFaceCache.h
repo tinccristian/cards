@@ -15,6 +15,7 @@ public:
                                         int targetWidth,
                                         int targetHeight,
                                         bool emphasized,
+                                        const std::string& visibleCostText,
                                         bool affordable,
                                         bool crispPresentation = false);
     void unloadAll();
@@ -25,12 +26,13 @@ private:
         std::string name;
         std::string description;
         std::string artPath;
-        int         cost = 0;
+        std::string visibleCostText;
         int         damage = 0;
         int         block = 0;
         int         heal = 0;
         int         draw = 0;
         int         nextTurnMana = 0;
+        bool        hideFooterStats = false;
         int         targetWidth = 0;
         int         targetHeight = 0;
         bool        emphasized = false;
@@ -50,6 +52,7 @@ private:
                            int targetWidth,
                            int targetHeight,
                            bool emphasized,
+                           const std::string& visibleCostText,
                            bool affordable,
                            bool crispPresentation);
 

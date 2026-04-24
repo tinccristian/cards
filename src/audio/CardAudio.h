@@ -25,6 +25,7 @@ public:
     void playPlayerDeath();
     void playGameOver();
     void playNextTurn();
+    void playNoahEvent();
     void scheduleDamage(float delaySecs = 0.0f);
     void scheduleArmorHit(float delaySecs = 0.0f);
     void scheduleEnemyHurt(float delaySecs = 0.0f);
@@ -57,6 +58,7 @@ private:
     bool m_playerDeathLoaded = false;
     bool m_gameOverLoaded = false;
     bool m_nextTurnLoaded = false;
+    bool m_noahEventLoaded = false;
     int  m_hoverPitchIndex = 0;
     int  m_hoverVoiceIndex = 0;
     int  m_damageVoiceIndex = 0;

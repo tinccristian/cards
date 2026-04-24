@@ -43,8 +43,10 @@ public:
     void gainMana(int amount);
     int  getGold() const;
     void addGold(int amount);
+    bool spendGold(int amount);
     // Deduct 'amount' mana. Returns false (no change) if insufficient.
     bool useMana(int amount);
+    int  getEffectiveCost(const Card& card) const;
 
     // --- Hand / Deck ---
     std::vector<Card>&       getHand();
@@ -70,6 +72,8 @@ public:
 
     // Add a card directly to the deck (used when building the starter deck).
     void addCardToDeck(const Card& card);
+    bool removeOwnedCardAt(int index);
+    bool replaceOwnedCards(const std::vector<int>& indices, const std::vector<Card>& replacements);
     void rebuildCombatDeck();
     void moveCardInHand(int fromIndex, int toIndex);
     const std::vector<Card>& getOwnedCards() const;

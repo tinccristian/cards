@@ -56,6 +56,14 @@ int main() {
         CloseWindow();
         return 1;
     }
+    if (!CardDatabase::appendCardsFromJSON(AssetPaths::NOAH_CARD_LIBRARY, startupError)) {
+        TraceLog(LOG_ERROR, "%s", startupError.c_str());
+        Deck::setShuffleCallback({});
+        cardAudio.shutdown();
+        CloseAudioDevice();
+        CloseWindow();
+        return 1;
+    }
 
     MapData activeMap;
     if (!MapContentLoader::loadMap(AssetPaths::MAP_NODE_TYPES, AssetPaths::LEG_MAP_DATA, activeMap, startupError)) {
@@ -253,10 +261,29 @@ int main() {
                         return;
                     }
 
-                    const std::string encounterId = activeMap.nodes[selectedNodeIndex].encounterId;
-                    std::string combatError;
-                    if (!state.startCombatForEnemy(encounterId, combatError)) {
-                        TraceLog(LOG_ERROR, "%s", combatError.c_str());
+                    const MapNodeDefinition& selectedNode = activeMap.nodes[selectedNodeIndex];
+                    const auto* nodeType = activeMap.findNodeType(selectedNode.typeId);
+                    if (nodeType == nullptr) {
+                        mapRun.clearActiveNode();
+                        return;
+                    }
+
+                    std::string phaseError;
+                    if (nodeType->kind == MapNodeKind::Event) {
+                        if (!state.beginNoahEvent(phaseError)) {
+                            TraceLog(LOG_ERROR, "%s", phaseError.c_str());
+                            mapRun.clearActiveNode();
+                            return;
+                        }
+                        cardAudio.playNoahEvent();
+                        state.setPhase(GamePhase::EVENT);
+                        uiState.setMode(UIMode::NORMAL);
+                        uiState.resetScroll();
+                        return;
+                    }
+
+                    if (!state.startCombatForEnemy(selectedNode.encounterId, phaseError)) {
+                        TraceLog(LOG_ERROR, "%s", phaseError.c_str());
                         mapRun.clearActiveNode();
                         return;
                     }
@@ -270,6 +297,86 @@ int main() {
                     gameOverSoundPlayed = false;
                     state.setPhase(GamePhase::COMBAT);
                 });
+            }
+            break;
+        }
+
+        // -------------------------------------------------------------------
+        case GamePhase::EVENT: {
+            int eventMaxScroll = 0;
+            const NoahEventUiAction action = screen.drawNoahEvent(state.getNoahEventState(),
+                                                                  state.getPlayer(),
+                                                                  uiState.getScrollOffset(),
+                                                                  eventMaxScroll,
+                                                                  allowSceneInteraction);
+            screen.drawRunHud(state.getPlayer(), "Noah", false, false, false, false);
+            const int eventScroll = InputHandler::getScrollInput();
+            if (eventScroll < 0) uiState.scrollUp();
+            if (eventScroll > 0) uiState.scrollDown(eventMaxScroll);
+            uiState.clampScroll(eventMaxScroll);
+
+            if (!allowSceneInteraction) {
+                break;
+            }
+
+            std::string eventError;
+            switch (action.type) {
+            case NoahEventUiActionType::SelectOption:
+                if (action.index == 0) {
+                    if (!state.chooseNoahGainCards(eventError)) {
+                        TraceLog(LOG_ERROR, "%s", eventError.c_str());
+                    } else {
+                        cardAudio.playCoinPicked();
+                        uiState.resetScroll();
+                    }
+                } else if (action.index == 1) {
+                    if (!state.chooseNoahTransform(eventError)) {
+                        TraceLog(LOG_ERROR, "%s", eventError.c_str());
+                    } else {
+                        uiState.resetScroll();
+                    }
+                } else if (action.index == 2) {
+                    if (!state.chooseNoahRemoveRandom(eventError)) {
+                        TraceLog(LOG_ERROR, "%s", eventError.c_str());
+                    } else {
+                        uiState.resetScroll();
+                    }
+                }
+                break;
+            case NoahEventUiActionType::ToggleOfferCard:
+                state.getNoahEventState().toggleOfferSelection(action.index);
+                break;
+            case NoahEventUiActionType::ConfirmOfferCards:
+                if (!state.claimSelectedNoahCards(eventError)) {
+                    TraceLog(LOG_ERROR, "%s", eventError.c_str());
+                } else {
+                    cardAudio.playCardPicked();
+                    cardAudio.playCardPicked();
+                    uiState.resetScroll();
+                }
+                break;
+            case NoahEventUiActionType::ToggleDeckCard:
+                state.getNoahEventState().toggleDeckSelection(action.index);
+                break;
+            case NoahEventUiActionType::ConfirmTransform:
+                if (!state.confirmNoahTransform(eventError)) {
+                    TraceLog(LOG_ERROR, "%s", eventError.c_str());
+                } else {
+                    cardAudio.playCardPicked();
+                    cardAudio.playCardPicked();
+                    uiState.resetScroll();
+                }
+                break;
+            case NoahEventUiActionType::Continue:
+                beginSceneTransition([&]() {
+                    mapRun.completeActiveNode(activeMap);
+                    state.endNoahEvent();
+                    uiState.setMode(UIMode::NORMAL);
+                    state.setPhase(GamePhase::MAP);
+                });
+                break;
+            case NoahEventUiActionType::None:
+                break;
             }
             break;
         }

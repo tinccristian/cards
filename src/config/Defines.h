@@ -5,11 +5,13 @@
 // =============================================================================
 namespace AssetPaths {
 inline constexpr const char* PLAYER_CARD_LIBRARY = "assets/decks/player/cards.json";  // full card database
+inline constexpr const char* NOAH_CARD_LIBRARY   = "assets/decks/noah/noah_cards.json";
 inline constexpr const char* PLAYER_STARTER_DECK = "assets/decks/player/deck_config.json"; // which cards to start with
 inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json";
 inline constexpr const char* ENEMY_DIRECTORY     = "assets/enemies";                   // scanned at runtime for enemy JSONs
 inline constexpr const char* MAP_NODE_TYPES      = "assets/maps/nodes.json";
 inline constexpr const char* LEG_MAP_DATA        = "assets/maps/leg/leg.json";
+inline constexpr const char* NOAH_EVENT_BG       = "assets/events/noah/noah.png";
 inline constexpr const char* PLAYER_SPRITE       = "assets/player/player.json";        // idle anim config + sheet path
 inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";       // wind-dissolve death effect
 inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";            // color-cycle flash on damage
@@ -41,6 +43,7 @@ inline constexpr const char* ENEMY_DEATH_SOUND  = "assets/sounds/enemy/enemy_dea
 inline constexpr const char* PLAYER_DEATH_SOUND = "assets/sounds/player/player_death.mp3";
 inline constexpr const char* GAME_OVER_SOUND    = "assets/sounds/common/game_over.mp3";
 inline constexpr const char* NEXT_TURN_SOUND    = "assets/sounds/common/next_turn.mp3";
+inline constexpr const char* NOAH_EVENT_SOUND   = "assets/sounds/event/noah_event.mp3";
 } // namespace AudioPaths
 
 namespace AudioConfig {
@@ -59,6 +62,7 @@ inline constexpr float EnemyDeathVolume    = 35.0f;
 inline constexpr float PlayerDeathVolume   = 36.0f;
 inline constexpr float GameOverVolume      = 34.0f;
 inline constexpr float NextTurnVolume      = 30.0f;
+inline constexpr float NoahEventVolume     = 34.0f;
 inline constexpr int   MasterVolumeStep    = 5;     // how much +/- each options arrow click changes master volume
 inline constexpr int   CardHoverVoiceCount = 6;     // number of concurrent hover voices (prevents clipping)
 } // namespace AudioConfig
@@ -404,6 +408,47 @@ inline constexpr float DamageNumberScalePeak     = 1.25f;
 inline constexpr float DamageNumberScaleEnd      = 1.0f;
 inline constexpr int   DamageNumberFontSize      = 30;
 inline constexpr float HitEventDelayStep         = 0.08f;
+
+// -----------------------------------------------------------------------------
+// Noah Event
+// -----------------------------------------------------------------------------
+inline constexpr int   NoahPanelWidth             = 340;
+inline constexpr int   NoahPanelHeight            = 330;
+inline constexpr int   NoahPanelBottomMargin      = 28;
+inline constexpr int   NoahPanelRightMargin       = 28;
+inline constexpr int   NoahPanelTitleSize         = 24;
+inline constexpr int   NoahPanelTitleTop          = 16;
+inline constexpr int   NoahOptionWidth            = 280;
+inline constexpr int   NoahOptionHeight           = 74;
+inline constexpr int   NoahOptionGap              = 12;
+inline constexpr int   NoahOptionTitleSize        = 18;
+inline constexpr int   NoahOptionBodySize         = 14;
+inline constexpr int   NoahOptionTopOffset        = 58;
+inline constexpr int   NoahEventTitleSize         = 36;
+inline constexpr int   NoahEventSubtitleSize      = 18;
+inline constexpr int   NoahEventLeftMargin        = 58;
+inline constexpr int   NoahEventTopMargin         = 68;
+inline constexpr int   NoahChoiceCardWidth        = 220;
+inline constexpr int   NoahChoiceCardHeight       = 330;
+inline constexpr int   NoahChoiceCardGap          = 34;
+inline constexpr int   NoahChoiceTop              = 180;
+inline constexpr float NoahChoiceHoverScale       = 1.10f;
+inline constexpr int   NoahConfirmButtonWidth     = 180;
+inline constexpr int   NoahConfirmButtonHeight    = 42;
+inline constexpr int   NoahConfirmButtonBottomGap = 36;
+inline constexpr int   NoahDeckPanelWidth         = 900;
+inline constexpr int   NoahDeckPanelHeight        = 590;
+inline constexpr int   NoahDeckPanelTop           = 108;
+inline constexpr int   NoahDeckColumns            = 5;
+inline constexpr float NoahDeckVisibleRows        = 2.5f;
+inline constexpr int   NoahDeckGridGap            = 16;
+inline constexpr int   NoahDeckTopPadding         = 54;
+inline constexpr int   NoahDeckBottomPadding      = 56;
+inline constexpr float NoahDeckHoverScale         = 1.30f;
+inline constexpr int   NoahDeckSelectionThickness = 4;
+inline constexpr int   NoahRevealTitleSize        = 30;
+inline constexpr int   NoahRevealBodySize         = 18;
+inline constexpr int   NoahRevealTop              = 160;
 
 // -----------------------------------------------------------------------------
 // Map UI

@@ -92,10 +92,25 @@ void Player::addGold(int amount) {
     m_gold += amount;
 }
 
+bool Player::spendGold(int amount) {
+    if (amount <= 0 || m_gold < amount) {
+        return false;
+    }
+    m_gold -= amount;
+    return true;
+}
+
 bool Player::useMana(int amount) {
     if (m_currentMana < amount) return false;
     m_currentMana -= amount;
     return true;
+}
+
+int Player::getEffectiveCost(const Card& card) const {
+    if (m_statuses.has(StatusType::NextCardFree)) {
+        return 0;
+    }
+    return card.getCost();
 }
 
 // --- Hand / Deck ---
@@ -123,7 +138,12 @@ void Player::drawCard(const Card& card) {
 std::optional<Card> Player::playCard(int handIndex) {
     if (handIndex < 0 || handIndex >= static_cast<int>(m_hand.size()))
         return std::nullopt;
-    if (!useMana(m_hand[handIndex].getCost())) return std::nullopt;
+    const bool hadNextCardFree = m_statuses.has(StatusType::NextCardFree);
+    const int effectiveCost = getEffectiveCost(m_hand[handIndex]);
+    if (!useMana(effectiveCost)) return std::nullopt;
+    if (hadNextCardFree) {
+        m_statuses.remove(StatusType::NextCardFree);
+    }
     Card played = m_hand[handIndex];
     m_hand.erase(m_hand.begin() + handIndex);
     m_deck.discard(played);
@@ -142,6 +162,33 @@ bool Player::canDrawCard() const {
 
 void Player::addCardToDeck(const Card& card) {
     m_ownedCards.push_back(card);
+}
+
+bool Player::removeOwnedCardAt(int index) {
+    if (index < 0 || index >= static_cast<int>(m_ownedCards.size())) {
+        return false;
+    }
+    m_ownedCards.erase(m_ownedCards.begin() + index);
+    return true;
+}
+
+bool Player::replaceOwnedCards(const std::vector<int>& indices, const std::vector<Card>& replacements) {
+    if (indices.empty() || indices.size() != replacements.size()) {
+        return false;
+    }
+
+    std::vector<int> sortedIndices = indices;
+    std::sort(sortedIndices.begin(), sortedIndices.end());
+    for (int index : sortedIndices) {
+        if (index < 0 || index >= static_cast<int>(m_ownedCards.size())) {
+            return false;
+        }
+    }
+
+    for (std::size_t i = 0; i < sortedIndices.size(); ++i) {
+        m_ownedCards[sortedIndices[i]] = replacements[i];
+    }
+    return true;
 }
 
 void Player::rebuildCombatDeck() {

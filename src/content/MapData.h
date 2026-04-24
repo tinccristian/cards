@@ -8,6 +8,7 @@
 
 enum class MapNodeKind {
     Enemy,
+    Event,
     Reward,
     Shop,
     Boss,

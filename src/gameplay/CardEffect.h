@@ -18,6 +18,7 @@ enum class EffectType {
     GainManaNextTurn,
     SkipEnemyTurn,
     DrawCards,
+    NextCardFree,
     ApplyStatus,
     ModifyMaxHealthPercent,
     DamagePerCounter,
