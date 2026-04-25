@@ -43,3 +43,6 @@
 #build
 build/
 /claudegame
+/dist
+*.zip
+*.zip

@@ -91,6 +91,18 @@ target_link_libraries(medical_deckbuilder
     nlohmann_json::nlohmann_json
 )
 
+# On MinGW/GCC, statically bundle all runtime libraries (libgcc, libstdc++,
+# libwinpthread, libmcfgthread, etc.) so the exe needs no extra DLLs.
+# -static only pulls in MinGW runtimes; Windows system DLLs have no static
+# counterparts in MinGW and continue to be linked dynamically as normal.
+if(MINGW)
+    target_link_options(medical_deckbuilder PRIVATE
+        -static-libgcc
+        -static-libstdc++
+        -static
+    )
+endif()
+
 # Always refresh assets after every build, even if no source files changed.
 # add_custom_target(ALL) runs unconditionally on every cmake --build invocation.
 add_custom_target(copy_assets ALL

@@ -16,8 +16,27 @@ A roguelike deckbuilding game where you play as the immune system defending the 
 - **Data**: JSON (cards, enemies, locations)
 - **Code**: Clean architecture, type safety, RAII, smart pointers
 
-## Project Structure
 
+## CRITICAL: Planning Over Coding
+**THIS IS THE MOST IMPORTANT RULE:**
+- **99% of interactions should be planning and alignment - NOT coding**
+- **ALWAYS prioritize planning over implementation**
+- **The user is NOT an engineer - ensure FULL alignment before ANY coding**
+- **If the user and AI are not fully aligned, NEVER attempt to code**
+- **Coding is an insignificant part of the interaction - planning is everything**
+- **Always engage in thorough discussion and planning before implementation**
+- **Repeatedly check for understanding and alignment throughout planning**
+
+## Code Implementation Rules
+**CRITICAL: Always follow these rules before doing ANY work:**
+- **ALWAYS explicitly ask permission before creating any files, scripts, or documentation**
+- **ONLY do exactly what the user asks for - nothing more, nothing less**
+- Never use vague terms like "ready to implement" or "ready to code"
+- Wait for clear permission before creating anything
+- Do not take initiative to create files, plan ahead, or do extra work without explicit request
+- maintain SSOT principles when adding new features.
+- maintain DRY principles by extracting shared logic into utilities
+## files structure
 .
 ├── CMakeLists.txt
 ├── README.md
