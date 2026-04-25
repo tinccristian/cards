@@ -236,6 +236,7 @@ bool MapContentLoader::loadMap(const std::string& nodeTypesPath,
 
     const auto& root = *jsonOpt;
     outMapData.id = root.value("id", "");
+    outMapData.sourcePath = mapDataPath;
     outMapData.texturePath = root.value("texturePath", "");
     outMapData.sourceWidth = root.value("sourceWidth", MapConfig::SourceWidth);
     outMapData.sourceHeight = root.value("sourceHeight", MapConfig::SourceHeight);

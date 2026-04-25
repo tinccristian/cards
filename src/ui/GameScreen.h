@@ -111,6 +111,13 @@ public:
                       const MapRunState& runState,
                       bool allowInteraction = true);
     void resetMapView();
+    Rectangle debugMapTextureRect() const;
+    Vector2 debugMapSourceToScreen(const MapData& mapData, Vector2 sourcePoint) const;
+    Vector2 debugMapScreenToSource(const MapData& mapData, Vector2 screenPoint) const;
+    void drawDebugCardFace(Rectangle rect, const Card& card) const;
+    void drawDebugCardFace(Rectangle rect,
+                           const Card& card,
+                           const CardFaceCache::FaceLayout& layout) const;
 
     // Draw a full-screen overlay listing cards in a pile.
     //   title: heading text ("Draw Pile" / "Discard Pile")
@@ -206,6 +213,8 @@ private:
     std::string  m_loadedEnemySpritePath; // tracks which sheet is currently loaded
     PlayerSprite m_playerSprite;
     bool         m_playerSpriteLoaded = false;
+    mutable Texture2D m_debugCardPreviewTexture = {};
+    mutable std::string m_debugCardPreviewKey;
     int          m_lastPlayerHp       = -1;
     int          m_lastEnemyHp        = -1;
     Texture2D    m_blockIcon          = {};

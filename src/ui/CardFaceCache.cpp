@@ -243,13 +243,32 @@ std::optional<Texture2D> CardFaceCache::getTexture(const Card& card,
                                      emphasized,
                                      visibleCostText,
                                      affordable,
-                                     crispPresentation);
+                                     crispPresentation,
+                                     FaceLayout{});
     if (texture.id == 0) {
         return std::nullopt;
     }
 
     m_faces.emplace(key, texture);
     return texture;
+}
+
+Texture2D CardFaceCache::buildPreviewTexture(const Card& card,
+                                             int targetWidth,
+                                             int targetHeight,
+                                             const std::string& visibleCostText,
+                                             const FaceLayout& layout) {
+    if (targetWidth <= 0 || targetHeight <= 0) {
+        return {};
+    }
+    return buildTexture(card,
+                        targetWidth,
+                        targetHeight,
+                        true,
+                        visibleCostText,
+                        true,
+                        true,
+                        layout);
 }
 
 void CardFaceCache::unloadAll() {
@@ -343,7 +362,8 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
                                       bool emphasized,
                                       const std::string& visibleCostText,
                                       bool affordable,
-                                      bool crispPresentation) {
+                                      bool crispPresentation,
+                                      const FaceLayout& layout) {
     const float renderScale = LayoutConfig::CardFaceRenderScale;
     const int internalWidth = std::max(1, (int)std::lround((float)targetWidth * renderScale));
     const int internalHeight = std::max(1, (int)std::lround((float)targetHeight * renderScale));
@@ -362,14 +382,12 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
         ImageDrawRectangleRec(&canvas, { 0.0f, 0.0f, (float)internalWidth, (float)internalHeight }, bg);
     }
 
-    const float artHeight = (float)LayoutConfig::CardArtHeight * cardScale;
-    const float inset = std::max(1.0f, std::round(renderScale));
-    const Rectangle artRect = {
-        inset,
-        inset,
-        (float)internalWidth - inset * 2.0f,
-        artHeight - inset
-    };
+    const Rectangle artRect = sourceBoxToRect(layout.artLeft,
+                                              layout.artTop,
+                                              layout.artRight,
+                                              layout.artBottom,
+                                              internalWidth,
+                                              internalHeight);
 
     if (const Image* artImage = getArtImage(card.getArtPath())) {
         drawCardArtNearest(&canvas, *artImage, artRect);
@@ -385,22 +403,22 @@ Texture2D CardFaceCache::buildTexture(const Card& card,
     }
 
     const Font font = GetFontDefault();
-    const Rectangle manaBox = sourceBoxToRect(LayoutConfig::CardManaBoxLeft,
-                                              LayoutConfig::CardManaBoxTop,
-                                              LayoutConfig::CardManaBoxRight,
-                                              LayoutConfig::CardManaBoxBottom,
+    const Rectangle manaBox = sourceBoxToRect(layout.manaLeft,
+                                              layout.manaTop,
+                                              layout.manaRight,
+                                              layout.manaBottom,
                                               internalWidth,
                                               internalHeight);
-    const Rectangle nameBox = sourceBoxToRect(LayoutConfig::CardNameBoxLeft,
-                                              LayoutConfig::CardNameBoxTop,
-                                              LayoutConfig::CardNameBoxRight,
-                                              LayoutConfig::CardNameBoxBottom,
+    const Rectangle nameBox = sourceBoxToRect(layout.nameLeft,
+                                              layout.nameTop,
+                                              layout.nameRight,
+                                              layout.nameBottom,
                                               internalWidth,
                                               internalHeight);
-    const Rectangle descBox = sourceBoxToRect(LayoutConfig::CardDescriptionBoxLeft,
-                                              LayoutConfig::CardDescriptionBoxTop,
-                                              LayoutConfig::CardDescriptionBoxRight,
-                                              LayoutConfig::CardDescriptionBoxBottom,
+    const Rectangle descBox = sourceBoxToRect(layout.descriptionLeft,
+                                              layout.descriptionTop,
+                                              layout.descriptionRight,
+                                              layout.descriptionBottom,
                                               internalWidth,
                                               internalHeight);
     const float textBoxInset = (float)outlineThickness(renderScale);

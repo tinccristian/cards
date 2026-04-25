@@ -345,6 +345,86 @@ void GameScreen::resetMapView() {
     m_mapDragStartOffset = 0.0f;
 }
 
+Rectangle GameScreen::debugMapTextureRect() const {
+    return mapTextureRect();
+}
+
+Vector2 GameScreen::debugMapSourceToScreen(const MapData& mapData, Vector2 sourcePoint) const {
+    const Rectangle mapRect = mapTextureRect();
+    if (mapData.sourceWidth <= 0.0f || mapData.sourceHeight <= 0.0f) {
+        return { mapRect.x, mapRect.y };
+    }
+    return {
+        mapRect.x + (sourcePoint.x / mapData.sourceWidth) * mapRect.width,
+        mapRect.y + (sourcePoint.y / mapData.sourceHeight) * mapRect.height
+    };
+}
+
+Vector2 GameScreen::debugMapScreenToSource(const MapData& mapData, Vector2 screenPoint) const {
+    const Rectangle mapRect = mapTextureRect();
+    if (mapRect.width <= 0.0f || mapRect.height <= 0.0f) {
+        return { 0.0f, 0.0f };
+    }
+    return {
+        std::clamp((screenPoint.x - mapRect.x) / mapRect.width, 0.0f, 1.0f) * mapData.sourceWidth,
+        std::clamp((screenPoint.y - mapRect.y) / mapRect.height, 0.0f, 1.0f) * mapData.sourceHeight
+    };
+}
+
+void GameScreen::drawDebugCardFace(Rectangle rect, const Card& card) const {
+    drawCardFace(rect, card, true, 0.0f, -1, -1, true);
+}
+
+void GameScreen::drawDebugCardFace(Rectangle rect,
+                                   const Card& card,
+                                   const CardFaceCache::FaceLayout& layout) const {
+    const int width = std::max(1, (int)std::lround(rect.width));
+    const int height = std::max(1, (int)std::lround(rect.height));
+    const std::string key = card.getId()
+        + "|" + card.getDisplayName()
+        + "|" + card.getDisplayDescription()
+        + "|" + std::to_string(width)
+        + "|" + std::to_string(height)
+        + "|" + std::to_string(layout.manaLeft)
+        + "," + std::to_string(layout.manaTop)
+        + "," + std::to_string(layout.manaRight)
+        + "," + std::to_string(layout.manaBottom)
+        + "|" + std::to_string(layout.artLeft)
+        + "," + std::to_string(layout.artTop)
+        + "," + std::to_string(layout.artRight)
+        + "," + std::to_string(layout.artBottom)
+        + "|" + std::to_string(layout.nameLeft)
+        + "," + std::to_string(layout.nameTop)
+        + "," + std::to_string(layout.nameRight)
+        + "," + std::to_string(layout.nameBottom)
+        + "|" + std::to_string(layout.descriptionLeft)
+        + "," + std::to_string(layout.descriptionTop)
+        + "," + std::to_string(layout.descriptionRight)
+        + "," + std::to_string(layout.descriptionBottom);
+    if (key != m_debugCardPreviewKey) {
+        if (m_debugCardPreviewTexture.id != 0) {
+            UnloadTexture(m_debugCardPreviewTexture);
+            m_debugCardPreviewTexture = {};
+        }
+        m_debugCardPreviewTexture = m_cardFaceCache.buildPreviewTexture(
+            card,
+            width,
+            height,
+            std::to_string(card.getCost()),
+            layout);
+        m_debugCardPreviewKey = key;
+    }
+    if (m_debugCardPreviewTexture.id == 0) {
+        return;
+    }
+    DrawTexturePro(m_debugCardPreviewTexture,
+                   { 0.0f, 0.0f, (float)m_debugCardPreviewTexture.width, (float)m_debugCardPreviewTexture.height },
+                   rect,
+                   { 0.0f, 0.0f },
+                   0.0f,
+                   WHITE);
+}
+
 // ---------------------------------------------------------------------------
 // Arch offset helper
 // ---------------------------------------------------------------------------
@@ -874,6 +954,11 @@ bool GameScreen::isPlayerDeathDissolveComplete() const {
 
 void GameScreen::unloadAssets() {
     m_cardFaceCache.unloadAll();
+    if (m_debugCardPreviewTexture.id != 0) {
+        UnloadTexture(m_debugCardPreviewTexture);
+        m_debugCardPreviewTexture = {};
+        m_debugCardPreviewKey.clear();
+    }
     m_enemySprite.unload();
     m_loadedEnemySpritePath.clear();
     m_playerSprite.unload();

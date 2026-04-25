@@ -1,84 +1,146 @@
 {
-  "id": "leg",
-  "texturePath": "assets/maps/leg/leg.png",
-  "sourceWidth": 2560,
-  "sourceHeight": 1536,
-  "nodes": [
+  "connections": [
     {
-      "id": "toe_left",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1178,
-      "y": 1390,
-      "initiallyUnlocked": true
+      "from": "toe_left",
+      "to": "enemy_1"
     },
     {
-      "id": "toe_right",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1390,
-      "y": 1390,
-      "initiallyUnlocked": true
+      "from": "toe_right",
+      "to": "enemy_2"
     },
     {
-      "id": "shin_left",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1140,
-      "y": 1230,
-      "initiallyUnlocked": false
+      "from": "enemy_2",
+      "to": "noah_event_2"
     },
     {
-      "id": "shin_center",
-      "type": "noah_event",
-      "encounterId": "noah",
-      "x": 1280,
-      "y": 1190,
-      "initiallyUnlocked": false
+      "from": "enemy_1",
+      "to": "noah_event_1"
     },
     {
-      "id": "shin_right",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1435,
-      "y": 1230,
-      "initiallyUnlocked": false
+      "from": "noah_event_1",
+      "to": "knee_left"
     },
     {
-      "id": "knee_left",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1185,
-      "y": 1045,
-      "initiallyUnlocked": false
+      "from": "noah_event_2",
+      "to": "knee_right"
     },
     {
-      "id": "knee_right",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1370,
-      "y": 1015,
-      "initiallyUnlocked": false
+      "from": "knee_left",
+      "to": "enemy_3"
     },
     {
-      "id": "thigh_peak",
-      "type": "enemy",
-      "encounterId": "bacteria",
-      "x": 1285,
-      "y": 835,
-      "initiallyUnlocked": false
+      "from": "knee_right",
+      "to": "enemy_4"
+    },
+    {
+      "from": "enemy_3",
+      "to": "enemy_5"
+    },
+    {
+      "from": "enemy_4",
+      "to": "enemy_6"
     }
   ],
-  "connections": [
-    { "from": "toe_left", "to": "shin_left" },
-    { "from": "toe_left", "to": "shin_center" },
-    { "from": "toe_right", "to": "shin_center" },
-    { "from": "toe_right", "to": "shin_right" },
-    { "from": "shin_left", "to": "knee_left" },
-    { "from": "shin_center", "to": "knee_left" },
-    { "from": "shin_center", "to": "knee_right" },
-    { "from": "shin_right", "to": "knee_right" },
-    { "from": "knee_left", "to": "thigh_peak" },
-    { "from": "knee_right", "to": "thigh_peak" }
-  ]
+  "id": "leg",
+  "nodes": [
+    {
+      "encounterId": "bacteria",
+      "id": "toe_left",
+      "initiallyUnlocked": true,
+      "type": "enemy",
+      "x": 1178,
+      "y": 1390
+    },
+    {
+      "encounterId": "bacteria",
+      "id": "toe_right",
+      "initiallyUnlocked": true,
+      "type": "enemy",
+      "x": 1390,
+      "y": 1390
+    },
+    {
+      "encounterId": "bacteria",
+      "id": "knee_left",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1185,
+      "y": 1045
+    },
+    {
+      "encounterId": "bacteria",
+      "id": "knee_right",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1370,
+      "y": 1015
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_1",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1161,
+      "y": 1259
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_2",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1396,
+      "y": 1268
+    },
+    {
+      "encounterId": "noah",
+      "id": "noah_event_1",
+      "initiallyUnlocked": false,
+      "type": "noah_event",
+      "x": 1167,
+      "y": 1155
+    },
+    {
+      "encounterId": "noah",
+      "id": "noah_event_2",
+      "initiallyUnlocked": false,
+      "type": "noah_event",
+      "x": 1399,
+      "y": 1146
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_3",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1172,
+      "y": 899
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_4",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1387,
+      "y": 875
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_5",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1190,
+      "y": 667
+    },
+    {
+      "encounterId": "random",
+      "id": "enemy_6",
+      "initiallyUnlocked": false,
+      "type": "enemy",
+      "x": 1376,
+      "y": 658
+    }
+  ],
+  "sourceHeight": 1536.0,
+  "sourceWidth": 2560.0,
+  "texturePath": "assets/maps/leg/leg.png"
 }

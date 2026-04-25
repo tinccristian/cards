@@ -39,6 +39,7 @@ struct MapConnectionDefinition {
 
 struct MapData {
     std::string id;
+    std::string sourcePath;
     std::string texturePath;
     float sourceWidth = 0.0f;
     float sourceHeight = 0.0f;

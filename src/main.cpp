@@ -6,6 +6,9 @@
 #include "core/CardDatabase.h"
 #include "core/Deck.h"
 #include "core/GameState.h"
+#if defined(MEDICAL_DEBUG_BUILD)
+#include "dev/DevConsole.h"
+#endif
 #include "gameplay/MapRunState.h"
 #include "ui/Colors.h"
 #include "ui/GameScreen.h"
@@ -81,6 +84,9 @@ int main() {
     ScreenTransition sceneTransition;
     RenderTexture2D sceneFrame = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
     UIState    uiState;
+#if defined(MEDICAL_DEBUG_BUILD)
+    DevConsole devConsole;
+#endif
     bool       showMainMenuOptions = false;
     bool       shouldQuit = false;
     OptionsSection mainMenuOptionsSection = OptionsSection::Display;
@@ -172,11 +178,25 @@ int main() {
 
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
+#if defined(MEDICAL_DEBUG_BUILD)
+        devConsole.beginFrame(activeMap, mapRun);
+        if (devConsole.wantsMapView()) {
+            if (state.getPhase() == GamePhase::COMBAT || state.getPhase() == GamePhase::REWARDS) {
+                uiState.setMode(UIMode::VIEWING_MAP);
+            } else if (state.getPhase() == GamePhase::MAP) {
+                uiState.setMode(UIMode::NORMAL);
+            }
+        }
+#endif
         cardAudio.update(GetFrameTime());
         deathSlowMoTimer = std::max(0.0f, deathSlowMoTimer - GetFrameTime());
         const bool deathSlowMoActive = (state.getPhase() == GamePhase::COMBAT) && deathSlowMoTimer > 0.0f;
         screen.setTimeScale(deathSlowMoActive ? LayoutConfig::DeathSlowMoScale : 1.0f);
-        const bool allowSceneInteraction = !sceneTransition.blocksInteraction();
+        const bool allowSceneInteraction = !sceneTransition.blocksInteraction()
+#if defined(MEDICAL_DEBUG_BUILD)
+            && !devConsole.blocksGameInput()
+#endif
+            ;
 
         BeginTextureMode(sceneFrame);
         ClearBackground(Colors::dark_bg);
@@ -864,6 +884,9 @@ int main() {
         if (sceneTransition.isActive()) {
             sceneTransition.drawOverlay(GetScreenWidth(), GetScreenHeight());
         }
+#if defined(MEDICAL_DEBUG_BUILD)
+        devConsole.draw(screen, state, activeMap, mapRun);
+#endif
 
         EndDrawing();
     }

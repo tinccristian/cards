@@ -1,6 +1,7 @@
 #include "GameState.h"
 
 #include "config/Defines.h"
+#include "content/EnemyCatalog.h"
 #include "content/EnemyFactory.h"
 #include "CardDatabase.h"
 #include "gameplay/CombatResolver.h"
@@ -259,7 +260,16 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
               << m_player.getDeck().getDrawPileSize()    << " in draw pile, "
               << m_player.getDeck().getDiscardPileSize() << " in discard\n";
 
-    m_enemy = EnemyFactory::loadById(enemyId, error);
+    std::string resolvedEnemyId = enemyId;
+    if (resolvedEnemyId == "random") {
+        resolvedEnemyId = EnemyCatalog::pickRandomEnemyId(AssetPaths::ENEMY_DIRECTORY);
+        if (resolvedEnemyId.empty()) {
+            error = "No enemies are available for random encounter selection.";
+            return false;
+        }
+    }
+
+    m_enemy = EnemyFactory::loadById(resolvedEnemyId, error);
     if (!m_enemy) {
         return false;
     }

@@ -206,18 +206,22 @@ inline constexpr float CardFaceRenderScale = 4.0f; // compose full card faces ov
 
 // Mana badge — position in logical card pixels.
 // These boxes are authored against the native 120x180 card border art.
-inline constexpr int CardManaBoxLeft   = 4;
-inline constexpr int CardManaBoxTop    = 4;
-inline constexpr int CardManaBoxRight  = 12;
-inline constexpr int CardManaBoxBottom = 12;
-inline constexpr int CardNameBoxLeft   = 11;
-inline constexpr int CardNameBoxTop    = 82;
-inline constexpr int CardNameBoxRight  = 102;
-inline constexpr int CardNameBoxBottom = 95;
-inline constexpr int CardDescriptionBoxLeft   = 9;
-inline constexpr int CardDescriptionBoxTop    = 101;
-inline constexpr int CardDescriptionBoxRight  = 104;
-inline constexpr int CardDescriptionBoxBottom = 170;
+inline constexpr int CardManaBoxLeft   = 3;
+inline constexpr int CardManaBoxTop    = 3;
+inline constexpr int CardManaBoxRight  = 15;
+inline constexpr int CardManaBoxBottom = 14;
+inline constexpr int CardArtBoxLeft    = 2;
+inline constexpr int CardArtBoxTop     = 2;
+inline constexpr int CardArtBoxRight   = 117;
+inline constexpr int CardArtBoxBottom  = 81;
+inline constexpr int CardNameBoxLeft   = 10;
+inline constexpr int CardNameBoxTop    = 81;
+inline constexpr int CardNameBoxRight  = 109;
+inline constexpr int CardNameBoxBottom = 97;
+inline constexpr int CardDescriptionBoxLeft   = 8;
+inline constexpr int CardDescriptionBoxTop    = 98;
+inline constexpr int CardDescriptionBoxRight  = 112;
+inline constexpr int CardDescriptionBoxBottom = 173;
 inline constexpr int CardDescriptionInnerInset = 4; // extra safety inset so long lines wrap before the frame edge
 
 // -----------------------------------------------------------------------------

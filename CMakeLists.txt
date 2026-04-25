@@ -55,6 +55,7 @@ add_executable(medical_deckbuilder
     src/audio/CardAudio.cpp
 
     src/content/EnemyFactory.cpp
+    src/content/EnemyCatalog.cpp
     src/content/MapData.cpp
 
     src/gameplay/CardEffect.cpp
@@ -68,6 +69,8 @@ add_executable(medical_deckbuilder
     src/core/Enemy.cpp
     src/core/GameState.cpp
     src/core/Player.cpp
+
+    src/dev/DevConsole.cpp
 
     src/ui/CardFaceCache.cpp
     src/ui/DissolveEffect.cpp
@@ -89,6 +92,10 @@ target_include_directories(medical_deckbuilder PRIVATE
 target_link_libraries(medical_deckbuilder
     raylib
     nlohmann_json::nlohmann_json
+)
+
+target_compile_definitions(medical_deckbuilder PRIVATE
+    $<$<CONFIG:Debug>:MEDICAL_DEBUG_BUILD=1>
 )
 
 # On MinGW/GCC, statically bundle all runtime libraries (libgcc, libstdc++,
@@ -118,6 +125,7 @@ add_custom_target(copy_assets ALL
 if(BUILD_TESTING)
     add_executable(medical_deckbuilder_tests
         tests/core_tests.cpp
+        src/content/EnemyCatalog.cpp
         src/content/EnemyFactory.cpp
         src/gameplay/CardEffect.cpp
         src/gameplay/CombatResolver.cpp
