@@ -1,4 +1,10 @@
 {
+  "characterPositions": {
+    "enemyCenterXPercent": 0.8258593678474426,
+    "enemySpriteTop": 208,
+    "playerCenterXPercent": 0.1905468851327896,
+    "playerSpriteTop": 197
+  },
   "connections": [
     {
       "from": "toe_left",

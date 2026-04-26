@@ -175,6 +175,31 @@ bool loadConnections(const nlohmann::json& root, MapData& mapData, std::string& 
     return true;
 }
 
+void loadCharacterPositions(const nlohmann::json& root, MapData& mapData) {
+    mapData.characterPositions = {
+        LayoutConfig::PlayerEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop,
+        LayoutConfig::EnemyEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop,
+        false
+    };
+
+    if (!root.contains("characterPositions") || !root["characterPositions"].is_object()) {
+        return;
+    }
+
+    const auto& positions = root["characterPositions"];
+    mapData.characterPositions.playerCenterXPercent =
+        positions.value("playerCenterXPercent", LayoutConfig::PlayerEntityCenterXPercent);
+    mapData.characterPositions.playerSpriteTop =
+        positions.value("playerSpriteTop", positions.value("spriteTop", LayoutConfig::EntitySpriteTop));
+    mapData.characterPositions.enemyCenterXPercent =
+        positions.value("enemyCenterXPercent", LayoutConfig::EnemyEntityCenterXPercent);
+    mapData.characterPositions.enemySpriteTop =
+        positions.value("enemySpriteTop", positions.value("spriteTop", LayoutConfig::EntitySpriteTop));
+    mapData.characterPositions.hasCustomPositions = true;
+}
+
 } // namespace
 
 int MapData::findNodeIndex(const std::string& nodeId) const {
@@ -240,6 +265,7 @@ bool MapContentLoader::loadMap(const std::string& nodeTypesPath,
     outMapData.texturePath = root.value("texturePath", "");
     outMapData.sourceWidth = root.value("sourceWidth", MapConfig::SourceWidth);
     outMapData.sourceHeight = root.value("sourceHeight", MapConfig::SourceHeight);
+    loadCharacterPositions(root, outMapData);
 
     if (outMapData.id.empty() || outMapData.texturePath.empty()
         || outMapData.sourceWidth <= 0.0f || outMapData.sourceHeight <= 0.0f) {

@@ -29,7 +29,10 @@ public:
          std::string displayName = "",
          std::string displayDescription = "",
          bool obscured = false,
-         bool hideFooterStats = false);
+         bool hideFooterStats = false,
+         std::string cardSoundPath = "",
+         std::string overlayShaderPath = "",
+         float overlayDuration = 0.0f);
 
     const std::string&              getId() const;
     const std::string&              getName() const;
@@ -44,6 +47,9 @@ public:
     const std::string&              getDisplayDescription() const;
     bool                            isObscured() const;
     bool                            shouldHideFooterStats() const;
+    const std::string&              getCardSoundPath() const;
+    const std::string&              getOverlayShaderPath() const;
+    float                           getOverlayDuration() const;
 
     const char* getTypeLabel() const;
 
@@ -69,4 +75,7 @@ private:
     std::string              m_displayDescription;
     bool                     m_obscured = false;
     bool                     m_hideFooterStats = false;
+    std::string              m_cardSoundPath;
+    std::string              m_overlayShaderPath;
+    float                    m_overlayDuration = 0.0f;
 };

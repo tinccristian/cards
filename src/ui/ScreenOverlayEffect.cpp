@@ -4,29 +4,29 @@
 
 #include <algorithm>
 
-bool ScreenOverlayEffect::load(const char* fragmentShaderPath) {
-    m_shader = LoadShader(nullptr, fragmentShaderPath);
-    m_loaded = (m_shader.id != 0);
-    if (m_loaded) {
-        m_locElapsed    = GetShaderLocation(m_shader, "elapsed");
-        m_locFade       = GetShaderLocation(m_shader, "fade");
-        m_locResolution = GetShaderLocation(m_shader, "resolution");
+void ScreenOverlayEffect::preload(const std::string& path) {
+    if (path.empty() || m_cache.count(path)) return;
+    Shader s = LoadShader(nullptr, path.c_str());
+    if (s.id == 0) {
+        TraceLog(LOG_WARNING, "ScreenOverlayEffect: failed to load shader %s", path.c_str());
+        return;
     }
-    return m_loaded;
+    ShaderEntry entry;
+    entry.shader     = s;
+    entry.locElapsed = GetShaderLocation(s, "elapsed");
+    entry.locFade    = GetShaderLocation(s, "fade");
+    m_cache[path]    = entry;
 }
 
-void ScreenOverlayEffect::unload() {
-    if (m_loaded) {
-        UnloadShader(m_shader);
-        m_shader = {};
-        m_loaded = false;
-        m_active = false;
+void ScreenOverlayEffect::trigger(const std::string& path, float durationSecs) {
+    if (path.empty()) return;
+    auto it = m_cache.find(path);
+    if (it == m_cache.end()) {
+        preload(path);
+        it = m_cache.find(path);
+        if (it == m_cache.end()) return;
     }
-}
-
-bool ScreenOverlayEffect::isLoaded() const { return m_loaded; }
-
-void ScreenOverlayEffect::trigger(float durationSecs) {
+    m_current  = &it->second;
     m_duration = durationSecs;
     m_elapsed  = 0.0f;
     m_active   = true;
@@ -36,28 +36,37 @@ void ScreenOverlayEffect::update(float dt) {
     if (!m_active) return;
     m_elapsed += dt;
     if (m_elapsed >= m_duration) {
-        m_active = false;
+        m_active  = false;
+        m_current = nullptr;
     }
 }
 
-bool  ScreenOverlayEffect::isActive()  const { return m_active; }
+bool ScreenOverlayEffect::isActive() const { return m_active; }
 
-float ScreenOverlayEffect::progress() const {
-    if (m_duration <= 0.0f) return 1.0f;
-    return std::min(m_elapsed / m_duration, 1.0f);
+void ScreenOverlayEffect::draw(const Texture2D& sceneTexture) const {
+    const Rectangle srcRect = { 0.0f, 0.0f, (float)sceneTexture.width, -(float)sceneTexture.height };
+    const Rectangle dstRect = { 0.0f, 0.0f, (float)GetScreenWidth(),   (float)GetScreenHeight()    };
+    const Vector2   origin  = { 0.0f, 0.0f };
+
+    if (m_active && m_current) {
+        const float fade = (m_duration > 0.0f)
+            ? std::max(0.0f, 1.0f - m_elapsed / m_duration)
+            : 0.0f;
+        SetShaderValue(m_current->shader, m_current->locElapsed, &m_elapsed, SHADER_UNIFORM_FLOAT);
+        SetShaderValue(m_current->shader, m_current->locFade,    &fade,      SHADER_UNIFORM_FLOAT);
+        BeginShaderMode(m_current->shader);
+        DrawTexturePro(sceneTexture, srcRect, dstRect, origin, 0.0f, WHITE);
+        EndShaderMode();
+    } else {
+        DrawTexturePro(sceneTexture, srcRect, dstRect, origin, 0.0f, WHITE);
+    }
 }
 
-void ScreenOverlayEffect::draw() const {
-    if (!m_loaded || !m_active) return;
-
-    const float fade        = 1.0f - progress();
-    const float res[2]      = { (float)GetScreenWidth(), (float)GetScreenHeight() };
-
-    SetShaderValue(m_shader, m_locElapsed,    &m_elapsed, SHADER_UNIFORM_FLOAT);
-    SetShaderValue(m_shader, m_locFade,       &fade,      SHADER_UNIFORM_FLOAT);
-    SetShaderValue(m_shader, m_locResolution,  res,       SHADER_UNIFORM_VEC2);
-
-    BeginShaderMode(m_shader);
-    DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), WHITE);
-    EndShaderMode();
+void ScreenOverlayEffect::unloadAll() {
+    for (auto& [path, entry] : m_cache) {
+        UnloadShader(entry.shader);
+    }
+    m_cache.clear();
+    m_current = nullptr;
+    m_active  = false;
 }

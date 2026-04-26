@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <unordered_map>
 #include <vector>
 
 namespace {
@@ -21,7 +22,7 @@ constexpr std::array<float, 6> HoverPitchCycle = {
     1.000000f
 };
 
-Sound g_ambulanceSound = {};
+std::unordered_map<std::string, Sound> g_cardEffectSounds;
 Sound g_shuffleSound = {};
 Sound g_cardPickedSound = {};
 Sound g_rewardEnterSound = {};
@@ -125,14 +126,13 @@ bool CardAudio::initialize(std::string& warning) {
     loadOneShot(AudioPaths::GAME_OVER_SOUND, g_gameOverSound, m_gameOverLoaded, "game over");
     loadOneShot(AudioPaths::NEXT_TURN_SOUND, g_nextTurnSound, m_nextTurnLoaded, "next turn");
     loadOneShot(AudioPaths::NOAH_EVENT_SOUND, g_noahEventSound, m_noahEventLoaded, "noah event");
-    loadOneShot(AudioPaths::AMBULANCE_SOUND, g_ambulanceSound, m_ambulanceLoaded, "ambulance");
 
     applyConfiguredVolumes();
     return m_hoverLoaded && m_shuffleLoaded && m_cardPickedLoaded && m_rewardEnterLoaded
         && m_armorLoaded && m_armorHitLoaded && m_damageLoaded
         && m_coinPickedLoaded && m_enemyBuffLoaded && m_enemyHurtLoaded
         && m_enemyDeathLoaded && m_playerDeathLoaded && m_gameOverLoaded
-        && m_nextTurnLoaded && m_noahEventLoaded && m_ambulanceLoaded;
+        && m_nextTurnLoaded && m_noahEventLoaded;
 }
 
 void CardAudio::shutdown() {
@@ -228,15 +228,13 @@ void CardAudio::shutdown() {
         g_noahEventSound = {};
         m_noahEventLoaded = false;
     }
-    if (m_ambulanceLoaded) {
-        StopSound(g_ambulanceSound);
-        UnloadSound(g_ambulanceSound);
-        g_ambulanceSound = {};
-        m_ambulanceLoaded = false;
-    }
 
-    m_ambulanceActive  = false;
-    m_ambulanceElapsed = 0.0f;
+    for (auto& [path, sound] : g_cardEffectSounds) {
+        StopSound(sound);
+        UnloadSound(sound);
+    }
+    g_cardEffectSounds.clear();
+
     m_hoverPitchIndex = 0;
     m_hoverVoiceIndex = 0;
     m_damageVoiceIndex = 0;
@@ -246,22 +244,6 @@ void CardAudio::shutdown() {
 }
 
 void CardAudio::update(float dt) {
-    if (m_ambulanceActive && m_ambulanceLoaded) {
-        m_ambulanceElapsed += dt;
-        if (m_ambulanceElapsed >= 4.0f) {
-            m_ambulanceActive = false;
-        } else {
-            const float t      = m_ambulanceElapsed / 4.0f;
-            const float ts     = t * t * (3.0f - 2.0f * t); // smoothstep for pan
-            const float volume = (0.35f + 0.65f * (1.0f - std::abs(t - 0.5f) * 2.0f))
-                                 * clampPercent(AudioConfig::AmbulanceVolume) / 100.0f;
-            const float pitch  = 1.08f - 0.16f * t;
-            SetSoundPan(g_ambulanceSound, ts);
-            SetSoundVolume(g_ambulanceSound, volume);
-            SetSoundPitch(g_ambulanceSound, pitch);
-        }
-    }
-
     for (ScheduledSound& sound : m_scheduledSounds) {
         sound.delaySecs -= dt;
     }
@@ -300,17 +282,18 @@ void CardAudio::playHover() {
     PlaySound(hoverVoice);
 }
 
-void CardAudio::playAmbulance() {
-    if (!m_ambulanceLoaded) {
-        return;
+void CardAudio::playCardEffect(const std::string& path) {
+    if (path.empty()) return;
+    auto it = g_cardEffectSounds.find(path);
+    if (it == g_cardEffectSounds.end()) {
+        if (!FileExists(path.c_str())) return;
+        Sound s = LoadSound(path.c_str());
+        if (s.frameCount == 0) return;
+        g_cardEffectSounds[path] = s;
+        it = g_cardEffectSounds.find(path);
     }
-    StopSound(g_ambulanceSound);
-    SetSoundPan(g_ambulanceSound, 0.0f);
-    SetSoundVolume(g_ambulanceSound, clampPercent(AudioConfig::AmbulanceVolume) / 100.0f * 0.35f);
-    SetSoundPitch(g_ambulanceSound, 1.08f);
-    PlaySound(g_ambulanceSound);
-    m_ambulanceElapsed = 0.0f;
-    m_ambulanceActive  = true;
+    SetSoundVolume(it->second, 0.35f);
+    PlaySound(it->second);
 }
 
 void CardAudio::playShuffle() {

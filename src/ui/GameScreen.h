@@ -110,6 +110,7 @@ public:
     int drawMapScreen(const MapData& mapData,
                       const MapRunState& runState,
                       bool allowInteraction = true);
+    void setCharacterPositions(const MapCharacterPositions& positions);
     void resetMapView();
     Rectangle debugMapTextureRect() const;
     Vector2 debugMapSourceToScreen(const MapData& mapData, Vector2 sourcePoint) const;
@@ -205,6 +206,13 @@ private:
     float        m_mapDragStartMouseY = 0.0f;
     float        m_mapDragStartOffset = 0.0f;
     Vector2      m_dragGrabOffset   = { 0.0f, 0.0f };
+    MapCharacterPositions m_characterPositions = {
+        LayoutConfig::PlayerEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop,
+        LayoutConfig::EnemyEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop,
+        false
+    };
     CardAudio*   m_cardAudio        = nullptr;
     Texture2D    m_mapTexture       = {};
     bool         m_mapTextureLoaded = false;

@@ -372,6 +372,10 @@ int GameScreen::drawMapScreen(const MapData& mapData,
     return -1;
 }
 
+void GameScreen::setCharacterPositions(const MapCharacterPositions& positions) {
+    m_characterPositions = positions;
+}
+
 void GameScreen::resetMapView() {
     m_mapScrollOffset = 0.0f;
     m_mapDragging = false;
@@ -704,18 +708,34 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const int turnFontSize = scalei(LayoutConfig::CombatTurnFontSize);
     const int combatLogFontSize = scalei(LayoutConfig::CombatLogFontSize);
     const float spriteSize = scalef(LayoutConfig::EntitySpriteSize);
-    const float spriteTop = (float)scalei(LayoutConfig::EntitySpriteTop);
-    const float playerCenterX = m_width * LayoutConfig::PlayerEntityCenterXPercent;
-    const float enemyCenterX = m_width * LayoutConfig::EnemyEntityCenterXPercent;
+    const float defaultSpriteTop = (float)scalei(LayoutConfig::EntitySpriteTop);
+    const float playerSpriteTop = (float)scalei(m_characterPositions.playerSpriteTop);
+    const float enemySpriteTop = (float)scalei(m_characterPositions.enemySpriteTop);
+    const float defaultPlayerCenterX = m_width * LayoutConfig::PlayerEntityCenterXPercent;
+    const float defaultEnemyCenterX = m_width * LayoutConfig::EnemyEntityCenterXPercent;
+    const float playerCenterX = m_width * m_characterPositions.playerCenterXPercent;
+    const float enemyCenterX = m_width * m_characterPositions.enemyCenterXPercent;
     const Rectangle playerSpriteRect = {
         playerCenterX - spriteSize / 2.0f,
-        spriteTop,
+        playerSpriteTop,
         spriteSize,
         spriteSize
     };
     const Rectangle enemySpriteRect = {
         enemyCenterX - spriteSize / 2.0f,
-        spriteTop,
+        enemySpriteTop,
+        spriteSize,
+        spriteSize
+    };
+    const Rectangle playerHudAnchorRect = {
+        defaultPlayerCenterX - spriteSize / 2.0f,
+        defaultSpriteTop,
+        spriteSize,
+        spriteSize
+    };
+    const Rectangle enemyHudAnchorRect = {
+        defaultEnemyCenterX - spriteSize / 2.0f,
+        defaultSpriteTop,
         spriteSize,
         spriteSize
     };
@@ -810,12 +830,12 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         }
     }
 
-    drawEntityHud(playerSpriteRect, "You",
+    drawEntityHud(playerHudAnchorRect, "You",
                   player.getHealth(), player.getMaxHealth(), player.getBlock(),
                   &player.getStatuses());
-    drawEntityHud(enemySpriteRect, enemy.getName(),
+    drawEntityHud(enemyHudAnchorRect, enemy.getName(),
                   enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
-    drawIntentIndicator(enemy, enemySpriteRect);
+    drawIntentIndicator(enemy, enemyHudAnchorRect);
     drawFloatingDamageNumbers(playerSpriteRect, enemySpriteRect);
     drawDeathPresentationOverlay();
 

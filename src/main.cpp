@@ -83,7 +83,7 @@ int main() {
     GameScreen screen(GetScreenWidth(), GetScreenHeight(), &cardAudio);
     MapRunState mapRun;
     ScreenTransition sceneTransition;
-    ScreenOverlayEffect ambulanceOverlay;
+    ScreenOverlayEffect cardEffectOverlay;
     RenderTexture2D sceneFrame = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
     UIState    uiState;
 #if defined(MEDICAL_DEBUG_BUILD)
@@ -104,8 +104,8 @@ int main() {
     if (!sceneTransition.load(AssetPaths::TRANSITION_SHADER)) {
         TraceLog(LOG_WARNING, "Screen transition shader unavailable: %s", AssetPaths::TRANSITION_SHADER);
     }
-    if (!ambulanceOverlay.load(AssetPaths::AMBULANCE_SHADER)) {
-        TraceLog(LOG_WARNING, "Ambulance overlay shader unavailable: %s", AssetPaths::AMBULANCE_SHADER);
+    for (const Card& card : CardDatabase::getAllCards()) {
+        cardEffectOverlay.preload(card.getOverlayShaderPath());
     }
 
     std::function<void()> pendingSceneSwitch = {};
@@ -183,6 +183,7 @@ int main() {
 
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
+        screen.setCharacterPositions(activeMap.characterPositions);
 #if defined(MEDICAL_DEBUG_BUILD)
         devConsole.beginFrame(state, activeMap, mapRun);
         if (devConsole.wantsMapView()) {
@@ -194,7 +195,7 @@ int main() {
         }
 #endif
         cardAudio.update(GetFrameTime());
-        ambulanceOverlay.update(GetFrameTime());
+        cardEffectOverlay.update(GetFrameTime());
         deathSlowMoTimer = std::max(0.0f, deathSlowMoTimer - GetFrameTime());
         const bool deathSlowMoActive = (state.getPhase() == GamePhase::COMBAT) && deathSlowMoTimer > 0.0f;
         screen.setTimeScale(deathSlowMoActive ? LayoutConfig::DeathSlowMoScale : 1.0f);
@@ -552,10 +553,19 @@ int main() {
                 } else if (discardClicked) {
                     uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
                 } else if (cardIdx >= 0 && !state.isGameOver()) {
-                    const std::string playedCardId = state.getPlayer().getHand()[cardIdx].getId();
+                    const Card& playedCard = state.getPlayer().getHand()[cardIdx];
+                    const std::string cardSoundPath   = playedCard.getCardSoundPath();
+                    const std::string overlayShader   = playedCard.getOverlayShaderPath();
+                    const float       overlayDuration = playedCard.getOverlayDuration();
                     const int playerHealthBefore = state.getPlayer().getHealth();
                     const auto playResult = state.playCard(cardIdx);
                     if (playResult.has_value()) {
+                        if (!cardSoundPath.empty()) {
+                            cardAudio.playCardEffect(cardSoundPath);
+                        }
+                        if (!overlayShader.empty() && overlayDuration > 0.0f) {
+                            cardEffectOverlay.trigger(overlayShader, overlayDuration);
+                        }
                         float hitSoundDelay = 0.0f;
                         if (playResult->blockGained > 0) {
                             cardAudio.playArmor();
@@ -602,10 +612,6 @@ int main() {
                                 cardAudio.scheduleDamage(hitSoundDelay);
                                 hitSoundDelay += LayoutConfig::HitEventDelayStep;
                             }
-                        }
-                        if (playedCardId == "ambulance") {
-                            cardAudio.playAmbulance();
-                            ambulanceOverlay.trigger(4.0f);
                         }
                         if (!enemyDeathSoundPlayed && state.getEnemy().isDead()) {
                             cardAudio.playEnemyDeath();
@@ -884,15 +890,7 @@ int main() {
         BeginDrawing();
         ClearBackground(Colors::dark_bg);
 
-        DrawTexturePro(
-            sceneFrame.texture,
-            { 0.0f, 0.0f, (float)sceneFrame.texture.width, -(float)sceneFrame.texture.height },
-            { 0.0f, 0.0f, (float)GetScreenWidth(), (float)GetScreenHeight() },
-            { 0.0f, 0.0f },
-            0.0f,
-            WHITE
-        );
-        ambulanceOverlay.draw();
+        cardEffectOverlay.draw(sceneFrame.texture);
         if (sceneTransition.isActive()) {
             sceneTransition.drawOverlay(GetScreenWidth(), GetScreenHeight());
         }
@@ -904,7 +902,7 @@ int main() {
     }
 
     screen.unloadAssets();
-    ambulanceOverlay.unload();
+    cardEffectOverlay.unloadAll();
     sceneTransition.unload();
     if (sceneFrame.id != 0) {
         UnloadRenderTexture(sceneFrame);

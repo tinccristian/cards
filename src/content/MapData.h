@@ -37,6 +37,14 @@ struct MapConnectionDefinition {
     std::string toId;
 };
 
+struct MapCharacterPositions {
+    float playerCenterXPercent = 0.0f;
+    int playerSpriteTop = 0;
+    float enemyCenterXPercent = 0.0f;
+    int enemySpriteTop = 0;
+    bool hasCustomPositions = false;
+};
+
 struct MapData {
     std::string id;
     std::string sourcePath;
@@ -46,6 +54,7 @@ struct MapData {
     std::vector<MapNodeTypeDefinition> nodeTypes;
     std::vector<MapNodeDefinition> nodes;
     std::vector<MapConnectionDefinition> connections;
+    MapCharacterPositions characterPositions;
     std::unordered_map<std::string, int> nodeIndexById;
     std::unordered_map<std::string, int> nodeTypeIndexById;
 

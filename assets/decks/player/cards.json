@@ -1,14 +1,14 @@
 {
   "cards": [
     {
-      "id": "injection",
-      "name": "Injection",
+      "id": "scalpel",
+      "name": "Scalpel",
       "tier": "common",
       "description": "Deal 6 damage",
       "cost": 1,
       "type": "attack",
       "tags": ["strike"],
-      "artPath": "assets/cards/injection.png",
+      "artPath": "assets/cards/scalpel.png",
       "effects": [
         { "type": "damage", "target": "opponent", "amount": 6 }
       ]
@@ -100,6 +100,9 @@
       "type": "skill",
       "tags": ["medicine", "utility"],
       "artPath": "assets/cards/ambulance.png",
+      "card_sound": "assets/sounds/cards/ambulance.mp3",
+      "overlay_shader": "assets/shaders/ambulance.fs",
+      "effect_duration": 4.0,
       "effects": [
         { "type": "draw_cards", "target": "self", "amount": 3 }
       ]
@@ -113,6 +116,9 @@
       "type": "skill",
       "tags": ["medicine", "utility", "cardio"],
       "artPath": "assets/cards/heart.png",
+      "card_sound": "assets/sounds/cards/heartbeat.mp3",
+      "overlay_shader": "assets/shaders/heartbeat.fs",
+      "effect_duration": 2.5,
       "effects": [
         { "type": "gain_mana", "target": "self", "amount": 2 }
       ]

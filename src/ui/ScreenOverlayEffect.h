@@ -2,30 +2,31 @@
 
 #include "raylib.h"
 
-// Generic timed fullscreen overlay driven by a fragment shader.
-// Pattern mirrors HitEffect / ScreenTransition:
-//   load(path) → trigger(duration) → update(dt) each frame → draw()
+#include <string>
+#include <unordered_map>
+
+// Fullscreen post-process overlay driven by an arbitrary fragment shader.
+// Shaders are cached by path and loaded lazily (or eagerly via preload).
+// draw() always composites the scene texture — with or without a shader active.
 class ScreenOverlayEffect {
 public:
-    bool load(const char* fragmentShaderPath);
-    void unload();
-    bool isLoaded() const;
-
-    void  trigger(float durationSecs);
-    void  update(float dt);
-    bool  isActive() const;
-    float progress() const; // 0.0 at start → 1.0 at end
-
-    void draw() const;
+    void preload(const std::string& path);
+    void trigger(const std::string& path, float durationSecs);
+    void update(float dt);
+    bool isActive() const;
+    void draw(const Texture2D& sceneTexture) const;
+    void unloadAll();
 
 private:
-    Shader m_shader   = {};
-    bool   m_loaded   = false;
-    bool   m_active   = false;
-    float  m_duration = 0.0f;
-    float  m_elapsed  = 0.0f;
+    struct ShaderEntry {
+        Shader shader    = {};
+        int    locElapsed = -1;
+        int    locFade    = -1;
+    };
 
-    int m_locElapsed    = -1;
-    int m_locFade       = -1;
-    int m_locResolution = -1;
+    std::unordered_map<std::string, ShaderEntry> m_cache;
+    const ShaderEntry* m_current  = nullptr;
+    float              m_duration = 0.0f;
+    float              m_elapsed  = 0.0f;
+    bool               m_active   = false;
 };

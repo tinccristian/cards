@@ -82,10 +82,9 @@ void DevConsole::beginFrame(GameState& state, MapData& activeMap, MapRunState& m
     }
 
     if (m_open) {
-        handleConsoleInput(state);
+        handleConsoleInput(state, activeMap);
     }
 
-    (void)activeMap;
     (void)mapRun;
 }
 
@@ -96,6 +95,9 @@ void DevConsole::draw(GameScreen& screen, GameState& state, MapData& activeMap, 
     } else if (m_editorMode == EditorMode::Card) {
         handleCardEditorInput();
         drawCardEditor(screen, state);
+    } else if (m_editorMode == EditorMode::CharacterPositions) {
+        handleCharacterPositionEditorInput(activeMap);
+        drawCharacterPositionEditor(activeMap);
     }
 
     drawStatusBanner();
@@ -141,7 +143,7 @@ bool DevConsole::wantsMapView() const {
     return m_editorMode == EditorMode::Map;
 }
 
-void DevConsole::handleConsoleInput(GameState& state) {
+void DevConsole::handleConsoleInput(GameState& state, MapData& activeMap) {
     int key = GetCharPressed();
     while (key > 0) {
         if (m_skipNextToggleCharacter && (key == '`' || key == '~')) {
@@ -168,7 +170,7 @@ void DevConsole::handleConsoleInput(GameState& state) {
         m_backspaceRepeatAt = now + 0.045f;
     }
     if (IsKeyPressed(KEY_ENTER)) {
-        executeInput(state);
+        executeInput(state, activeMap);
     }
     if (IsKeyPressed(KEY_TAB)) {
         autocomplete();
@@ -204,7 +206,7 @@ void DevConsole::deletePreviousWord() {
     m_autocompleteIndex = -1;
 }
 
-void DevConsole::executeInput(GameState& state) {
+void DevConsole::executeInput(GameState& state, MapData& activeMap) {
     const std::string command = trim(m_input);
     if (command.empty()) {
         return;
@@ -213,10 +215,10 @@ void DevConsole::executeInput(GameState& state) {
     m_historyIndex = -1;
     log("> " + command);
     m_input.clear();
-    executeCommand(command, state);
+    executeCommand(command, state, activeMap);
 }
 
-void DevConsole::executeCommand(const std::string& command, GameState& state) {
+void DevConsole::executeCommand(const std::string& command, GameState& state, MapData& activeMap) {
     const std::string normalized = lowerCopy(command);
     if (normalized == "help") {
         for (const auto& [name, description] : commands()) {
@@ -230,6 +232,10 @@ void DevConsole::executeCommand(const std::string& command, GameState& state) {
     }
     if (normalized == "cardeditor") {
         enterCardEditor();
+        return;
+    }
+    if (normalized == "modifycharacterpositions") {
+        enterCharacterPositionEditor(activeMap);
         return;
     }
     if (normalized == "win") {
@@ -322,6 +328,7 @@ std::vector<std::pair<std::string, std::string>> DevConsole::commands() const {
         { "help", "Show all commands." },
         { "mapEditor", "Open the active map editor." },
         { "cardEditor", "Open the card zone editor." },
+        { "modifyCharacterPositions", "Move player/enemy combat positions for the active map." },
         { "win", "Kill the current enemy and win the fight." },
         { "reroll", "Reroll current 1-of-3 reward card choices." },
         { "give <id> [n]", "Add n copies of a card to your deck by its JSON id (default 1)." },
@@ -346,10 +353,26 @@ void DevConsole::enterCardEditor() {
     log("Card editor opened. Drag boxes to move. Drag the square handle to resize. S saves Defines.h.");
 }
 
+void DevConsole::enterCharacterPositionEditor(MapData& activeMap) {
+    if (!activeMap.characterPositions.hasCustomPositions) {
+        activeMap.characterPositions = {
+            LayoutConfig::PlayerEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop,
+            LayoutConfig::EnemyEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop,
+            true
+        };
+    }
+    m_draggingCharacterIndex = -1;
+    m_editorMode = EditorMode::CharacterPositions;
+    log("Character position editor opened. Drag player/enemy boxes. S saves active map JSON.");
+}
+
 void DevConsole::exitEditor() {
     m_editorMode = EditorMode::None;
     m_draggingCardBox = false;
     m_resizingCardBox = false;
+    m_draggingCharacterIndex = -1;
     log("Editor closed.");
 }
 
@@ -533,6 +556,12 @@ void DevConsole::saveMap(MapData& activeMap) {
     root["texturePath"] = activeMap.texturePath;
     root["sourceWidth"] = activeMap.sourceWidth;
     root["sourceHeight"] = activeMap.sourceHeight;
+    root["characterPositions"] = {
+        { "playerCenterXPercent", activeMap.characterPositions.playerCenterXPercent },
+        { "playerSpriteTop", activeMap.characterPositions.playerSpriteTop },
+        { "enemyCenterXPercent", activeMap.characterPositions.enemyCenterXPercent },
+        { "enemySpriteTop", activeMap.characterPositions.enemySpriteTop }
+    };
     root["nodes"] = nlohmann::json::array();
     for (const auto& node : activeMap.nodes) {
         root["nodes"].push_back({
@@ -623,6 +652,117 @@ void DevConsole::rebuildMapIndexes(MapData& activeMap) const {
     for (int i = 0; i < (int)activeMap.nodes.size(); ++i) {
         activeMap.nodeIndexById[activeMap.nodes[i].id] = i;
     }
+}
+
+Rectangle DevConsole::characterRect(const MapCharacterPositions& positions, int characterIndex) const {
+    const float screenW = (float)GetScreenWidth();
+    const float screenH = (float)GetScreenHeight();
+    const float scale = std::clamp(
+        std::min(screenW / (float)WindowConfig::Width, screenH / (float)WindowConfig::Height),
+        LayoutConfig::UiMinScale,
+        LayoutConfig::UiMaxScale);
+    const float spriteSize = (float)LayoutConfig::EntitySpriteSize * scale;
+    const float centerPercent = characterIndex == 0
+        ? positions.playerCenterXPercent
+        : positions.enemyCenterXPercent;
+    return {
+        screenW * centerPercent - spriteSize * 0.5f,
+        (float)(characterIndex == 0 ? positions.playerSpriteTop : positions.enemySpriteTop) * scale,
+        spriteSize,
+        spriteSize
+    };
+}
+
+void DevConsole::drawCharacterPositionEditor(MapData& activeMap) {
+    const Rectangle panel = { 0.0f, 108.0f, 430.0f, 190.0f };
+    DrawRectangleRec(panel, Color{ 6, 8, 12, 232 });
+    DrawRectangleLinesEx(panel, 2.0f, Colors::draw_pile_accent);
+
+    int y = (int)panel.y + 12;
+    drawReadableText("modifyCharacterPositions [" + activeMap.id + "]", (int)panel.x + 16, y, 22, WHITE);
+    y += 34;
+    drawReadableText("Drag boxes to move player/enemy", (int)panel.x + 16, y, 17, Colors::text_primary);
+    y += 26;
+    drawReadableText("S  Save active map JSON", (int)panel.x + 16, y, 16, Colors::text_secondary);
+    y += 22;
+    drawReadableText("ESC or exit  Close editor", (int)panel.x + 16, y, 16, Colors::text_secondary);
+
+    const Rectangle player = characterRect(activeMap.characterPositions, 0);
+    const Rectangle enemy = characterRect(activeMap.characterPositions, 1);
+    const Rectangle boxes[] = { player, enemy };
+    const char* labels[] = { "Player", "Enemy" };
+    const Color colors[] = { Colors::draw_pile_accent, Colors::damage_color };
+
+    for (int i = 0; i < 2; ++i) {
+        DrawRectangleRec(boxes[i], ColorAlpha(colors[i], m_draggingCharacterIndex == i ? 0.22f : 0.12f));
+        DrawRectangleLinesEx(boxes[i], m_draggingCharacterIndex == i ? 3.0f : 2.0f, colors[i]);
+        drawReadableText(labels[i], (int)boxes[i].x + 8, (int)boxes[i].y + 8, 18, colors[i]);
+    }
+}
+
+void DevConsole::handleCharacterPositionEditorInput(MapData& activeMap) {
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        exitEditor();
+        return;
+    }
+    if (IsKeyPressed(KEY_S)) {
+        saveCharacterPositions(activeMap);
+        return;
+    }
+    if (m_open) {
+        return;
+    }
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        const Vector2 mouse = GetMousePosition();
+        for (int i = 1; i >= 0; --i) {
+            if (CheckCollisionPointRec(mouse, characterRect(activeMap.characterPositions, i))) {
+                m_draggingCharacterIndex = i;
+                m_characterDragStartMouse = mouse;
+                m_characterDragStartPositions = activeMap.characterPositions;
+                break;
+            }
+        }
+    }
+
+    if (m_draggingCharacterIndex >= 0 && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+        const Vector2 mouse = GetMousePosition();
+        const float dxPercent = (mouse.x - m_characterDragStartMouse.x) / std::max(1.0f, (float)GetScreenWidth());
+        const float scale = std::clamp(
+            std::min((float)GetScreenWidth() / (float)WindowConfig::Width,
+                     (float)GetScreenHeight() / (float)WindowConfig::Height),
+            LayoutConfig::UiMinScale,
+            LayoutConfig::UiMaxScale);
+        const int dy = (int)std::lround((mouse.y - m_characterDragStartMouse.y) / scale);
+        const int logicalScreenHeight = (int)std::floor((float)GetScreenHeight() / scale);
+        activeMap.characterPositions.hasCustomPositions = true;
+        if (m_draggingCharacterIndex == 0) {
+            activeMap.characterPositions.playerCenterXPercent =
+                std::clamp(m_characterDragStartPositions.playerCenterXPercent + dxPercent, 0.0f, 1.0f);
+            activeMap.characterPositions.playerSpriteTop =
+                std::clamp(m_characterDragStartPositions.playerSpriteTop + dy,
+                           0,
+                           std::max(0, logicalScreenHeight - LayoutConfig::EntitySpriteSize));
+        } else {
+            activeMap.characterPositions.enemyCenterXPercent =
+                std::clamp(m_characterDragStartPositions.enemyCenterXPercent + dxPercent, 0.0f, 1.0f);
+            activeMap.characterPositions.enemySpriteTop =
+                std::clamp(m_characterDragStartPositions.enemySpriteTop + dy,
+                           0,
+                           std::max(0, logicalScreenHeight - LayoutConfig::EntitySpriteSize));
+        }
+    }
+
+    if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+        m_draggingCharacterIndex = -1;
+    }
+}
+
+void DevConsole::saveCharacterPositions(MapData& activeMap) {
+    activeMap.characterPositions.hasCustomPositions = true;
+    saveMap(activeMap);
+    log("CHARACTER POSITIONS SAVED: " + activeMap.id + ".");
+    showStatus("Character positions saved", Colors::heal_color);
 }
 
 void DevConsole::drawCardEditor(GameScreen& screen, GameState& state) {

@@ -37,7 +37,10 @@ Card::Card(std::string id,
            std::string displayName,
            std::string displayDescription,
            bool obscured,
-           bool hideFooterStats)
+           bool hideFooterStats,
+           std::string cardSoundPath,
+           std::string overlayShaderPath,
+           float overlayDuration)
     : m_id(std::move(id))
     , m_name(std::move(name))
     , m_cost(cost)
@@ -51,6 +54,9 @@ Card::Card(std::string id,
     , m_displayDescription(std::move(displayDescription))
     , m_obscured(obscured)
     , m_hideFooterStats(hideFooterStats)
+    , m_cardSoundPath(std::move(cardSoundPath))
+    , m_overlayShaderPath(std::move(overlayShaderPath))
+    , m_overlayDuration(overlayDuration)
 {}
 
 const std::string& Card::getId() const { return m_id; }
@@ -66,6 +72,9 @@ const std::string& Card::getDisplayName() const { return m_displayName.empty() ?
 const std::string& Card::getDisplayDescription() const { return m_displayDescription.empty() ? m_description : m_displayDescription; }
 bool Card::isObscured() const { return m_obscured; }
 bool Card::shouldHideFooterStats() const { return m_hideFooterStats; }
+const std::string& Card::getCardSoundPath() const { return m_cardSoundPath; }
+const std::string& Card::getOverlayShaderPath() const { return m_overlayShaderPath; }
+float Card::getOverlayDuration() const { return m_overlayDuration; }
 
 const char* Card::getTypeLabel() const {
     return toString(m_type);

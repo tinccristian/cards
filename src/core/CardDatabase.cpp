@@ -103,7 +103,10 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
             entry.value("displayName", ""),
             entry.value("displayDescription", ""),
             entry.value("obscured", false),
-            entry.value("hideFooterStats", false)
+            entry.value("hideFooterStats", false),
+            entry.value("card_sound", ""),
+            entry.value("overlay_shader", ""),
+            entry.value("effect_duration", 0.0f)
         );
     } catch (const nlohmann::json::exception& ex) {
         error = ex.what();

@@ -19,7 +19,8 @@ private:
     enum class EditorMode {
         None,
         Map,
-        Card
+        Card,
+        CharacterPositions
     };
 
     enum class MapTool {
@@ -70,20 +71,24 @@ private:
     CardBox m_cardDragStartBox = {};
     bool m_cardPreviewHasSavedLayout = false;
     CardFaceCache::FaceLayout m_cardPreviewSavedLayout = {};
+    int m_draggingCharacterIndex = -1;
+    Vector2 m_characterDragStartMouse = {};
+    MapCharacterPositions m_characterDragStartPositions = {};
     std::string m_statusMessage;
     Color m_statusColor = WHITE;
     float m_statusUntil = 0.0f;
 
-    void handleConsoleInput(GameState& state);
+    void handleConsoleInput(GameState& state, MapData& activeMap);
     void deletePreviousWord();
-    void executeInput(GameState& state);
-    void executeCommand(const std::string& command, GameState& state);
+    void executeInput(GameState& state, MapData& activeMap);
+    void executeCommand(const std::string& command, GameState& state, MapData& activeMap);
     void autocomplete();
     void log(const std::string& text);
     std::vector<std::pair<std::string, std::string>> commands() const;
 
     void enterMapEditor();
     void enterCardEditor();
+    void enterCharacterPositionEditor(MapData& activeMap);
     void exitEditor();
 
     void refreshEnemyOptions();
@@ -94,6 +99,11 @@ private:
     int mapNodeAtMouse(GameScreen& screen, const MapData& activeMap) const;
     std::string nextNodeId(const MapData& activeMap, const std::string& typeId) const;
     void rebuildMapIndexes(MapData& activeMap) const;
+
+    void drawCharacterPositionEditor(MapData& activeMap);
+    void handleCharacterPositionEditorInput(MapData& activeMap);
+    Rectangle characterRect(const MapCharacterPositions& positions, int characterIndex) const;
+    void saveCharacterPositions(MapData& activeMap);
 
     void drawCardEditor(GameScreen& screen, GameState& state);
     void handleCardEditorInput();
