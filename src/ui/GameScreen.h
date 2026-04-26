@@ -200,6 +200,8 @@ private:
     float        m_mapScrollOffset  = 0.0f;
     bool         m_mapDragging      = false;
     bool         m_mapViewInitialized = false;
+    int          m_mapHoveredNodeIndex = -1;
+    float        m_mapHoverProgress = 0.0f;
     float        m_mapDragStartMouseY = 0.0f;
     float        m_mapDragStartOffset = 0.0f;
     Vector2      m_dragGrabOffset   = { 0.0f, 0.0f };
@@ -207,6 +209,11 @@ private:
     Texture2D    m_mapTexture       = {};
     bool         m_mapTextureLoaded = false;
     std::string  m_loadedMapTexturePath;
+    Texture2D    m_mapBattleMarker = {};
+    Texture2D    m_mapBattleDoneMarker = {};
+    Texture2D    m_mapEventMarker = {};
+    Texture2D    m_mapEventDoneMarker = {};
+    bool         m_mapMarkersLoaded = false;
     Texture2D    m_noahEventTexture = {};
     bool         m_noahEventTextureLoaded = false;
     EnemySprite  m_enemySprite;
@@ -271,6 +278,7 @@ private:
     int scalei(int value) const;
     float scalef(float value) const;
     void ensureMapTextureLoaded(const std::string& texturePath);
+    void ensureMapMarkerTexturesLoaded();
     void ensureNoahEventTextureLoaded();
     float clampedMapOffset(float offset) const;
     Rectangle mapTextureRect() const;

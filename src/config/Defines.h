@@ -7,7 +7,7 @@ namespace AssetPaths {
 inline constexpr const char* PLAYER_CARD_LIBRARY = "assets/decks/player/cards.json";  // full card database
 inline constexpr const char* NOAH_CARD_LIBRARY   = "assets/decks/noah/noah_cards.json";
 inline constexpr const char* PLAYER_STARTER_DECK = "assets/decks/player/deck_config.json"; // which cards to start with
-inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/bacteria.json";
+inline constexpr const char* DEFAULT_ENEMY       = "assets/enemies/fungus.json";
 inline constexpr const char* ENEMY_DIRECTORY     = "assets/enemies";                   // scanned at runtime for enemy JSONs
 inline constexpr const char* MAP_NODE_TYPES      = "assets/maps/nodes.json";
 inline constexpr const char* LEG_MAP_DATA        = "assets/maps/leg/leg.json";
@@ -23,6 +23,11 @@ inline constexpr const char* BUFF_ICON           = "assets/common/buff.png";
 inline constexpr const char* DEBUFF_ICON         = "assets/common/debuff.png";
 inline constexpr const char* POISON_ICON         = "assets/common/poison.png";
 inline constexpr const char* CARD_BORDER         = "assets/common/card_border.png";    // 120×180 border overlay (alpha)
+inline constexpr const char* CARD_FONT           = "assets/fonts/m5x7.ttf";            // m5x7 by Daniel Linssen, CC0
+inline constexpr const char* MAP_BATTLE_MARKER   = "assets/common/battle.png";
+inline constexpr const char* MAP_BATTLE_DONE_MARKER = "assets/common/battle_finished.png";
+inline constexpr const char* MAP_EVENT_MARKER    = "assets/common/event.png";
+inline constexpr const char* MAP_EVENT_DONE_MARKER = "assets/common/event_finished.png";
 } // namespace AssetPaths
 
 // =============================================================================
@@ -185,12 +190,21 @@ inline constexpr float CardIdleWigglePhaseStep = 0.65f;  // phase offset between
 inline constexpr float NeighborCardShift       = 15.0f;  // px neighbors spread apart when a card is hovered
 
 // Card text  (sizes in logical px; drawn with a 1-px black outline)
-inline constexpr int CardNameFontSize      = 14; // normal hand card
-inline constexpr int HoveredCardNameSize   = 17; // enlarged when hovered
-inline constexpr float CardNameLetterSpacing = 0.20f; // slight tracking for the title text
-inline constexpr int CardDescriptionSize   = 12;
-inline constexpr float CardDescriptionLetterSpacing = 0.30f; // subtle tracking for body text
+inline constexpr int CardNameFontSize      = 21; // m5x7 is authored for 16/32/48 px sizes
+inline constexpr int HoveredCardNameSize   = 21; // enlarged by card scale, not raw font size
+inline constexpr int CardStaticFontBonus   = 5;  // pile/reward cards are static and need larger text
+inline constexpr int CardHoveredFontBonus  = 3;  // hovered cards get a smaller bump than static grid cards
+inline constexpr float CardNameLetterSpacing = 0.0f;
+inline constexpr int CardDescriptionSize   = 18;
+inline constexpr float CardDescriptionLetterSpacing = 0.0f;
 inline constexpr int CardDescriptionGap    = 4;  // px between description lines
+inline constexpr float CardAnimatedTextScale = 0.72f; // hand cards are rendered oversized before GPU transforms
+inline constexpr float CardStaticTextScale   = 0.62f; // static preview/reward/deck cards should not scale text as aggressively as art
+inline constexpr float CardAnimatedMinNameTracking = 0.35f; // explicit glyph tracking before hand card downsampling
+inline constexpr float CardAnimatedMinDescriptionTracking = 0.25f; // explicit glyph tracking before hand card downsampling
+inline constexpr float CardStaticLetterSpacingScale = 2.0f; // static cards need more tracking after reduced text scaling
+inline constexpr float CardStaticMinNameTracking = 0.45f; // explicit glyph tracking for large static previews
+inline constexpr float CardStaticMinDescriptionTracking = 0.35f; // explicit glyph tracking for large static previews
 inline constexpr int CardDescriptionLines  = 3;  // max lines shown on the card face
 inline constexpr int CardFooterSize        = 13; // dmg/block stat in the bottom-right corner
 inline constexpr int HoveredCardFooterSize = 15;
@@ -217,12 +231,13 @@ inline constexpr int CardArtBoxBottom  = 81;
 inline constexpr int CardNameBoxLeft   = 10;
 inline constexpr int CardNameBoxTop    = 81;
 inline constexpr int CardNameBoxRight  = 109;
-inline constexpr int CardNameBoxBottom = 97;
-inline constexpr int CardDescriptionBoxLeft   = 8;
-inline constexpr int CardDescriptionBoxTop    = 98;
+inline constexpr int CardNameBoxBottom = 96;
+inline constexpr int CardDescriptionBoxLeft   = 7;
+inline constexpr int CardDescriptionBoxTop    = 100;
 inline constexpr int CardDescriptionBoxRight  = 112;
-inline constexpr int CardDescriptionBoxBottom = 173;
-inline constexpr int CardDescriptionInnerInset = 4; // extra safety inset so long lines wrap before the frame edge
+inline constexpr int CardDescriptionBoxBottom = 174;
+inline constexpr int CardDescriptionInnerInset = 6; // extra safety inset so long lines wrap before the frame edge
+inline constexpr int CardDescriptionTopInset = 3; // keeps body text clear of the name plate frame
 
 // -----------------------------------------------------------------------------
 // Piles  (draw pile / discard pile widgets in the bottom corners)
@@ -465,6 +480,11 @@ inline constexpr int   MapNodeRadius           = 18;     // filled circle radius
 inline constexpr int   MapNodeOutlineRadius    = 24;     // outline circle radius (drawn behind the fill)
 inline constexpr int   MapNodeOutlineThickness = 3;
 inline constexpr float MapConnectionThickness  = 5.0f;   // line width of node connections
+inline constexpr int   MapConnectionPixelStep  = 8;
+inline constexpr int   MapConnectionPixelSize  = 5;
+inline constexpr int   MapMarkerSize           = 44;
+inline constexpr float MapMarkerHoverScale     = 1.18f;
+inline constexpr float MapMarkerHoverBounce    = 4.0f;
 inline constexpr int   MapNodeLabelFontSize    = 14;
 inline constexpr int   MapTitleFontSize        = 26;     // "Choose your path" heading
 inline constexpr int   MapHintFontSize         = 16;     // bottom-corner hint text

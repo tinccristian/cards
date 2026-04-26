@@ -73,8 +73,10 @@ add_executable(medical_deckbuilder
     src/dev/DevConsole.cpp
 
     src/ui/CardFaceCache.cpp
+    src/ui/CardRenderer.cpp
     src/ui/DissolveEffect.cpp
     src/ui/EnemySprite.cpp
+    src/ui/FontUtils.cpp
     src/ui/HitEffect.cpp
     src/ui/GameScreen.cpp
     src/ui/InputHandler.cpp

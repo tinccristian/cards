@@ -71,11 +71,15 @@ int  Player::getGold()    const { return m_gold;        }
 PlayerTurnStartResult Player::startTurn() {
     PlayerTurnStartResult result;
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
+    return result;
+}
+
+DamageBreakdown Player::tickPoison() {
     const int poisonDamage = m_statuses.tick(StatusType::Poison);
     if (poisonDamage > 0) {
-        result.poisonDamage = takeDamageDetailed(poisonDamage);
+        return takeDamageDetailed(poisonDamage);
     }
-    return result;
+    return {};
 }
 
 void Player::gainMana(int amount) {

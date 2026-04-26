@@ -10,7 +10,7 @@
 
 class DevConsole {
 public:
-    void beginFrame(MapData& activeMap, MapRunState& mapRun);
+    void beginFrame(GameState& state, MapData& activeMap, MapRunState& mapRun);
     void draw(GameScreen& screen, GameState& state, MapData& activeMap, MapRunState& mapRun);
     bool blocksGameInput() const;
     bool wantsMapView() const;
@@ -74,10 +74,10 @@ private:
     Color m_statusColor = WHITE;
     float m_statusUntil = 0.0f;
 
-    void handleConsoleInput();
+    void handleConsoleInput(GameState& state);
     void deletePreviousWord();
-    void executeInput();
-    void executeCommand(const std::string& command);
+    void executeInput(GameState& state);
+    void executeCommand(const std::string& command, GameState& state);
     void autocomplete();
     void log(const std::string& text);
     std::vector<std::pair<std::string, std::string>> commands() const;

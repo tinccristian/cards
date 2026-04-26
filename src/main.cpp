@@ -179,7 +179,7 @@ int main() {
     while (!WindowShouldClose() && !shouldQuit) {
         ensureSceneFrameSize();
 #if defined(MEDICAL_DEBUG_BUILD)
-        devConsole.beginFrame(activeMap, mapRun);
+        devConsole.beginFrame(state, activeMap, mapRun);
         if (devConsole.wantsMapView()) {
             if (state.getPhase() == GamePhase::COMBAT || state.getPhase() == GamePhase::REWARDS) {
                 uiState.setMode(UIMode::VIEWING_MAP);

@@ -40,6 +40,7 @@ public:
     int  getMana()    const;
     int  getMaxMana() const;
     PlayerTurnStartResult startTurn();
+    DamageBreakdown tickPoison();
     void gainMana(int amount);
     int  getGold() const;
     void addGold(int amount);

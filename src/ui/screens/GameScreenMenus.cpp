@@ -1,7 +1,11 @@
 #include "ui/GameScreen.h"
+#include "ui/FontUtils.h"
 
 #include <algorithm>
 #include <iterator>
+
+#define DrawText UiFont::drawText
+#define MeasureText UiFont::measureText
 
 GameOverAction GameScreen::drawGameOver(const GameState& state) {
     syncWindowSize();

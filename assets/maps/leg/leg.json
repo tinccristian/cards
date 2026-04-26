@@ -44,7 +44,7 @@
   "id": "leg",
   "nodes": [
     {
-      "encounterId": "bacteria",
+      "encounterId": "fungus",
       "id": "toe_left",
       "initiallyUnlocked": true,
       "type": "enemy",
@@ -52,7 +52,7 @@
       "y": 1390
     },
     {
-      "encounterId": "bacteria",
+      "encounterId": "fungus",
       "id": "toe_right",
       "initiallyUnlocked": true,
       "type": "enemy",
@@ -60,7 +60,7 @@
       "y": 1390
     },
     {
-      "encounterId": "bacteria",
+      "encounterId": "fungus",
       "id": "knee_left",
       "initiallyUnlocked": false,
       "type": "enemy",
@@ -68,7 +68,7 @@
       "y": 1045
     },
     {
-      "encounterId": "bacteria",
+      "encounterId": "fungus",
       "id": "knee_right",
       "initiallyUnlocked": false,
       "type": "enemy",

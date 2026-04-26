@@ -4,6 +4,7 @@
 #include "content/EnemyCatalog.h"
 #include "core/CardDatabase.h"
 #include "ui/Colors.h"
+#include "ui/FontUtils.h"
 
 #include <algorithm>
 #include <cctype>
@@ -13,6 +14,9 @@
 #include <filesystem>
 #include <sstream>
 #include <unordered_set>
+
+#define DrawText UiFont::drawText
+#define MeasureText UiFont::measureText
 
 namespace {
 
@@ -71,14 +75,14 @@ void replaceConstant(std::string& text, const std::string& name, int value) {
 
 } // namespace
 
-void DevConsole::beginFrame(MapData& activeMap, MapRunState& mapRun) {
+void DevConsole::beginFrame(GameState& state, MapData& activeMap, MapRunState& mapRun) {
     if (IsKeyPressed(KEY_GRAVE)) {
         m_open = !m_open;
         m_skipNextToggleCharacter = true;
     }
 
     if (m_open) {
-        handleConsoleInput();
+        handleConsoleInput(state);
     }
 
     (void)activeMap;
@@ -137,7 +141,7 @@ bool DevConsole::wantsMapView() const {
     return m_editorMode == EditorMode::Map;
 }
 
-void DevConsole::handleConsoleInput() {
+void DevConsole::handleConsoleInput(GameState& state) {
     int key = GetCharPressed();
     while (key > 0) {
         if (m_skipNextToggleCharacter && (key == '`' || key == '~')) {
@@ -164,7 +168,7 @@ void DevConsole::handleConsoleInput() {
         m_backspaceRepeatAt = now + 0.045f;
     }
     if (IsKeyPressed(KEY_ENTER)) {
-        executeInput();
+        executeInput(state);
     }
     if (IsKeyPressed(KEY_TAB)) {
         autocomplete();
@@ -200,7 +204,7 @@ void DevConsole::deletePreviousWord() {
     m_autocompleteIndex = -1;
 }
 
-void DevConsole::executeInput() {
+void DevConsole::executeInput(GameState& state) {
     const std::string command = trim(m_input);
     if (command.empty()) {
         return;
@@ -209,10 +213,10 @@ void DevConsole::executeInput() {
     m_historyIndex = -1;
     log("> " + command);
     m_input.clear();
-    executeCommand(command);
+    executeCommand(command, state);
 }
 
-void DevConsole::executeCommand(const std::string& command) {
+void DevConsole::executeCommand(const std::string& command, GameState& state) {
     const std::string normalized = lowerCopy(command);
     if (normalized == "help") {
         for (const auto& [name, description] : commands()) {
@@ -226,6 +230,28 @@ void DevConsole::executeCommand(const std::string& command) {
     }
     if (normalized == "cardeditor") {
         enterCardEditor();
+        return;
+    }
+    if (normalized == "win") {
+        std::string error;
+        if (state.debugWinCombat(error)) {
+            log("Combat won.");
+            showStatus("Combat won", Colors::heal_color);
+        } else {
+            log(error);
+            showStatus(error, Colors::damage_color);
+        }
+        return;
+    }
+    if (normalized == "reroll") {
+        std::string error;
+        if (state.debugRerollCurrentRewardCards(error)) {
+            log("Reward choices rerolled.");
+            showStatus("Rewards rerolled", Colors::heal_color);
+        } else {
+            log(error);
+            showStatus(error, Colors::damage_color);
+        }
         return;
     }
     if (normalized == "exit") {
@@ -272,6 +298,8 @@ std::vector<std::pair<std::string, std::string>> DevConsole::commands() const {
         { "help", "Show all commands." },
         { "mapEditor", "Open the active map editor." },
         { "cardEditor", "Open the card zone editor." },
+        { "win", "Kill the current enemy and win the fight." },
+        { "reroll", "Reroll current 1-of-3 reward card choices." },
         { "exit", "Close the active editor." },
         { "clear", "Clear console output." }
     };

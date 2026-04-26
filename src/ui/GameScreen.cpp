@@ -2,6 +2,7 @@
 
 #include "config/Defines.h"
 #include "content/EnemySpriteConfig.h"
+#include "ui/FontUtils.h"
 #include "rlgl.h"
 
 #include <algorithm>
@@ -10,11 +11,46 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
+#define DrawText UiFont::drawText
+#define MeasureText UiFont::measureText
+
 // ---------------------------------------------------------------------------
 // File-local helpers
 // ---------------------------------------------------------------------------
 
 namespace {
+
+float easeOutBack(float t);
+
+void drawPixelSegment(Vector2 from, Vector2 to, float step, float pixelSize, Color color) {
+    const float dx = to.x - from.x;
+    const float dy = to.y - from.y;
+    const float length = std::sqrt(dx * dx + dy * dy);
+    if (length <= 0.0f) {
+        return;
+    }
+
+    const int count = std::max(1, (int)std::floor(length / std::max(1.0f, step)));
+    for (int i = 0; i <= count; ++i) {
+        const float t = (float)i / (float)count;
+        const int x = (int)std::round(from.x + dx * t - pixelSize * 0.5f);
+        const int y = (int)std::round(from.y + dy * t - pixelSize * 0.5f);
+        DrawRectangle(x, y, (int)pixelSize, (int)pixelSize, color);
+    }
+}
+
+void drawPixelConnection(Vector2 from, Vector2 to, float step, float pixelSize, Color color) {
+    const Vector2 midA = { from.x, std::round((from.y + to.y) * 0.5f) };
+    const Vector2 midB = { to.x, midA.y };
+    const Color shadow = ColorAlpha(BLACK, 0.55f);
+    const float shadowSize = pixelSize + 2.0f;
+    drawPixelSegment({ from.x + 1.0f, from.y + 1.0f }, { midA.x + 1.0f, midA.y + 1.0f }, step, shadowSize, shadow);
+    drawPixelSegment({ midA.x + 1.0f, midA.y + 1.0f }, { midB.x + 1.0f, midB.y + 1.0f }, step, shadowSize, shadow);
+    drawPixelSegment({ midB.x + 1.0f, midB.y + 1.0f }, { to.x + 1.0f, to.y + 1.0f }, step, shadowSize, shadow);
+    drawPixelSegment(from, midA, step, pixelSize, color);
+    drawPixelSegment(midA, midB, step, pixelSize, color);
+    drawPixelSegment(midB, to, step, pixelSize, color);
+}
 
 // Parse an EnemySpriteConfig from a JSON file with a "sprite" section.
 // Returns a default (no-sprite) config on any error.
@@ -181,6 +217,7 @@ int GameScreen::drawMapScreen(const MapData& mapData,
                               bool allowInteraction) {
     syncWindowSize();
     ensureMapTextureLoaded(mapData.texturePath);
+    ensureMapMarkerTexturesLoaded();
 
     if (!m_mapTextureLoaded || m_mapTexture.id == 0) {
         const char* errorText = "Map texture missing";
@@ -240,10 +277,10 @@ int GameScreen::drawMapScreen(const MapData& mapData,
         });
     }
 
-    const float nodeRadius = (float)scalei(LayoutConfig::MapNodeRadius);
-    const float outlineRadius = (float)scalei(LayoutConfig::MapNodeOutlineRadius);
-    const float outlineThickness = scalef(LayoutConfig::MapNodeOutlineThickness);
-    const float connectionThickness = scalef(LayoutConfig::MapConnectionThickness);
+    const float markerSize = (float)scalei(LayoutConfig::MapMarkerSize);
+    const float markerHitSize = markerSize * LayoutConfig::MapMarkerHoverScale;
+    const float connectionStep = scalef(LayoutConfig::MapConnectionPixelStep);
+    const float connectionPixel = scalef(LayoutConfig::MapConnectionPixelSize);
     for (const auto& connection : mapData.connections) {
         const int fromIndex = mapData.findNodeIndex(connection.fromId);
         const int toIndex = mapData.findNodeIndex(connection.toId);
@@ -255,78 +292,76 @@ int GameScreen::drawMapScreen(const MapData& mapData,
         const Color lineColor = pathUnlocked
             ? Colors::text_primary
             : ColorAlpha(Colors::card_border, 0.35f);
-        DrawLineEx(nodePositions[fromIndex], nodePositions[toIndex], connectionThickness, lineColor);
+        drawPixelConnection(nodePositions[fromIndex], nodePositions[toIndex], connectionStep, connectionPixel, lineColor);
     }
 
     int hoveredNodeIndex = -1;
+    const Vector2 mouse = GetMousePosition();
+    for (int index = 0; index < static_cast<int>(mapData.nodes.size()); ++index) {
+        if (!allowInteraction || !runState.canEnterNode(mapData, index)) {
+            continue;
+        }
+        const Rectangle markerHitBounds = {
+            nodePositions[index].x - markerHitSize * 0.5f,
+            nodePositions[index].y - markerHitSize * 0.5f,
+            markerHitSize,
+            markerHitSize
+        };
+        if (CheckCollisionPointRec(mouse, markerHitBounds)) {
+            hoveredNodeIndex = index;
+            break;
+        }
+    }
+
+    const float dt = GetFrameTime();
+    if (hoveredNodeIndex != m_mapHoveredNodeIndex) {
+        m_mapHoveredNodeIndex = hoveredNodeIndex;
+        m_mapHoverProgress = 0.0f;
+    } else if (hoveredNodeIndex >= 0) {
+        m_mapHoverProgress = std::min(1.0f, m_mapHoverProgress + dt * 8.0f);
+    } else {
+        m_mapHoverProgress = 0.0f;
+    }
+
     for (int index = 0; index < static_cast<int>(mapData.nodes.size()); ++index) {
         const auto* nodeType = mapData.findNodeType(mapData.nodes[index].typeId);
         if (nodeType == nullptr) {
             continue;
         }
 
-        const bool unlocked = runState.isUnlocked(index);
         const bool completed = runState.isCompleted(index);
         const bool canEnter = allowInteraction && runState.canEnterNode(mapData, index);
         const bool eventNode = nodeType->kind == MapNodeKind::Event;
-        const Rectangle eventBounds = {
-            nodePositions[index].x - outlineRadius,
-            nodePositions[index].y - outlineRadius,
-            outlineRadius * 2.0f,
-            outlineRadius * 2.0f
-        };
-        const bool hovered = canEnter && (eventNode
-            ? CheckCollisionPointRec(GetMousePosition(), eventBounds)
-            : CheckCollisionPointCircle(GetMousePosition(), nodePositions[index], outlineRadius));
-        if (hovered) {
-            hoveredNodeIndex = index;
-        }
+        const bool hovered = canEnter && hoveredNodeIndex == index;
 
-        Color fillColor = nodeType->fillColor;
-        Color outlineColor = nodeType->outlineColor;
-        if (!unlocked) {
-            fillColor = ColorAlpha(fillColor, 0.20f);
-            outlineColor = ColorAlpha(outlineColor, 0.20f);
-        } else if (completed) {
-            fillColor = ColorAlpha(fillColor, 0.55f);
-            outlineColor = ColorAlpha(outlineColor, 0.55f);
-        } else if (!canEnter) {
-            fillColor = ColorAlpha(fillColor, 0.75f);
-        }
-
-        if (eventNode) {
-            DrawRectangleRec(eventBounds, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
-            DrawRectangleLinesEx(eventBounds, outlineThickness, hovered ? Colors::text_primary : outlineColor);
-            const Rectangle innerRect = {
-                nodePositions[index].x - nodeRadius,
-                nodePositions[index].y - nodeRadius,
-                nodeRadius * 2.0f,
-                nodeRadius * 2.0f
+        const Texture2D& marker = eventNode
+            ? (completed ? m_mapEventDoneMarker : m_mapEventMarker)
+            : (completed ? m_mapBattleDoneMarker : m_mapBattleMarker);
+        if (marker.id == 0) {
+            const Rectangle markerHitBounds = {
+                nodePositions[index].x - markerHitSize * 0.5f,
+                nodePositions[index].y - markerHitSize * 0.5f,
+                markerHitSize,
+                markerHitSize
             };
-            DrawRectangleRec(innerRect, fillColor);
-            if (completed) {
-                const Rectangle completeRect = {
-                    nodePositions[index].x - nodeRadius * 0.45f,
-                    nodePositions[index].y - nodeRadius * 0.45f,
-                    nodeRadius * 0.9f,
-                    nodeRadius * 0.9f
-                };
-                DrawRectangleRec(completeRect, Colors::light_bg);
-            }
+            DrawRectangleRec(markerHitBounds, ColorAlpha(nodeType->fillColor, hovered ? 0.95f : 0.60f));
         } else {
-            DrawCircleV(nodePositions[index], outlineRadius, ColorAlpha(fillColor, hovered ? 0.95f : 0.60f));
-            DrawRing(nodePositions[index],
-                     outlineRadius - outlineThickness,
-                     outlineRadius,
-                     0.0f,
-                     360.0f,
-                     32,
-                     hovered ? Colors::text_primary : outlineColor);
-            DrawCircleV(nodePositions[index], nodeRadius, fillColor);
-
-            if (completed) {
-                DrawCircleV(nodePositions[index], nodeRadius * 0.45f, Colors::light_bg);
-            }
+            const float hoverAmount = hovered ? easeOutBack(m_mapHoverProgress) : 0.0f;
+            const float drawScale = 1.0f + (LayoutConfig::MapMarkerHoverScale - 1.0f) * hoverAmount;
+            const float drawSize = std::round(markerSize * drawScale);
+            const float bounceY = -std::sin(hoverAmount * PI) * scalef(LayoutConfig::MapMarkerHoverBounce);
+            const Rectangle dst = {
+                std::round(nodePositions[index].x - drawSize * 0.5f),
+                std::round(nodePositions[index].y - drawSize * 0.5f + bounceY),
+                drawSize,
+                drawSize
+            };
+            DrawTexturePro(marker,
+                           { 0.0f, 0.0f, (float)marker.width, (float)marker.height },
+                           dst,
+                           { 0.0f, 0.0f },
+                           0.0f,
+                           WHITE);
         }
     }
 
@@ -341,6 +376,8 @@ void GameScreen::resetMapView() {
     m_mapScrollOffset = 0.0f;
     m_mapDragging = false;
     m_mapViewInitialized = false;
+    m_mapHoveredNodeIndex = -1;
+    m_mapHoverProgress = 0.0f;
     m_mapDragStartMouseY = 0.0f;
     m_mapDragStartOffset = 0.0f;
 }
@@ -496,7 +533,7 @@ std::string statusTooltipLine(const StatusInstance& status) {
     case StatusType::Poison:
         return "Poisoned for " + std::to_string(status.duration)
             + " turns. Takes " + std::to_string(status.magnitude)
-            + " damage next turn, then loses 1 poison each turn.";
+            + " damage at the end of your turn, then loses 1 poison each turn.";
     case StatusType::BonusManaNextTurn:
         return "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
     case StatusType::NextCardFree:
@@ -1003,6 +1040,25 @@ void GameScreen::unloadAssets() {
         m_mapTextureLoaded = false;
         m_loadedMapTexturePath.clear();
     }
+    if (m_mapMarkersLoaded) {
+        if (m_mapBattleMarker.id != 0) {
+            UnloadTexture(m_mapBattleMarker);
+            m_mapBattleMarker = {};
+        }
+        if (m_mapBattleDoneMarker.id != 0) {
+            UnloadTexture(m_mapBattleDoneMarker);
+            m_mapBattleDoneMarker = {};
+        }
+        if (m_mapEventMarker.id != 0) {
+            UnloadTexture(m_mapEventMarker);
+            m_mapEventMarker = {};
+        }
+        if (m_mapEventDoneMarker.id != 0) {
+            UnloadTexture(m_mapEventDoneMarker);
+            m_mapEventDoneMarker = {};
+        }
+        m_mapMarkersLoaded = false;
+    }
     if (m_noahEventTextureLoaded && m_noahEventTexture.id != 0) {
         UnloadTexture(m_noahEventTexture);
         m_noahEventTexture = {};
@@ -1161,6 +1217,33 @@ void GameScreen::ensureMapTextureLoaded(const std::string& texturePath) {
         m_mapTextureLoaded = true;
         m_loadedMapTexturePath = texturePath;
     }
+}
+
+void GameScreen::ensureMapMarkerTexturesLoaded() {
+    if (m_mapMarkersLoaded) {
+        return;
+    }
+
+    auto loadMarker = [](const char* path) {
+        Texture2D texture = {};
+        if (!FileExists(path)) {
+            TraceLog(LOG_WARNING, "Map marker texture missing: %s", path);
+            return texture;
+        }
+        texture = LoadTexture(path);
+        if (texture.id != 0) {
+            SetTextureFilter(texture, TEXTURE_FILTER_POINT);
+        } else {
+            TraceLog(LOG_WARNING, "Map marker texture failed to load: %s", path);
+        }
+        return texture;
+    };
+
+    m_mapBattleMarker = loadMarker(AssetPaths::MAP_BATTLE_MARKER);
+    m_mapBattleDoneMarker = loadMarker(AssetPaths::MAP_BATTLE_DONE_MARKER);
+    m_mapEventMarker = loadMarker(AssetPaths::MAP_EVENT_MARKER);
+    m_mapEventDoneMarker = loadMarker(AssetPaths::MAP_EVENT_DONE_MARKER);
+    m_mapMarkersLoaded = true;
 }
 
 float GameScreen::clampedMapOffset(float offset) const {
@@ -1432,7 +1515,7 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             title = "Poison";
             tooltip = "Poisoned for " + std::to_string(status.duration)
                 + " turns. Takes " + std::to_string(status.magnitude)
-                + " damage next turn, then loses 1 poison each turn.";
+                + " damage at the end of your turn, then loses 1 poison each turn.";
             break;
         case StatusType::BonusManaNextTurn:
             icon = m_buffIcon;

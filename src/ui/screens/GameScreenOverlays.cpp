@@ -1,7 +1,11 @@
 #include "ui/GameScreen.h"
+#include "ui/FontUtils.h"
 
 #include <algorithm>
 #include <cmath>
+
+#define DrawText UiFont::drawText
+#define MeasureText UiFont::measureText
 
 // Overlay-style screens that sit on top of combat/map rendering.
 // Kept separate from GameScreen.cpp so the core combat/map flow stays readable.
@@ -125,7 +129,7 @@ int GameScreen::drawPileViewer(const std::string& title,
             hoveredCardIndex = idx;
             hoveredRect = r;
         } else {
-            drawCardFace(r, cards[idx], false, 0.0f);
+            drawCardFace(r, cards[idx], false, 0.0f, -1, -1, true);
         }
     }
 
@@ -146,7 +150,7 @@ int GameScreen::drawPileViewer(const std::string& title,
         scaledRect.y -= (scaledRect.height * hoverScale - scaledRect.height) / 2.0f;
         scaledRect.width *= hoverScale;
         scaledRect.height *= hoverScale;
-        drawCardFace(scaledRect, cards[hoveredCardIndex], true, 0.0f);
+        drawCardFace(scaledRect, cards[hoveredCardIndex], true, 0.0f, -1, -1, true);
     } else {
         m_lastPileViewerHoverToken.clear();
     }
@@ -435,7 +439,7 @@ int GameScreen::drawRewardCardChoice(const RewardState& rewards,
             rect.width = scaledWidth;
             rect.height = scaledHeight;
         }
-        drawCardFace(rect, choices[index], false, 0.0f);
+        drawCardFace(rect, choices[index], false, 0.0f, -1, -1, true);
         if (hovered && allowInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             return index;
         }

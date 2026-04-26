@@ -1,25 +1,25 @@
 {
   "cards": [
     {
-      "id": "bacteria_attack",
-      "name": "Bacteria Attack",
+      "id": "fungus_attack",
+      "name": "Fungus Attack",
       "description": "Deal 4 damage",
       "cost": 0,
       "power": 4,
       "blockAmount": 0,
       "type": "attack",
-      "tags": ["bacteria"],
+      "tags": ["fungus"],
       "artPath": ""
     },
     {
-      "id": "bacteria_defend",
-      "name": "Bacteria Shield",
+      "id": "fungus_defend",
+      "name": "Fungus Shield",
       "description": "Gain 3 block",
       "cost": 0,
       "power": 0,
       "blockAmount": 3,
       "type": "skill",
-      "tags": ["bacteria"],
+      "tags": ["fungus"],
       "artPath": ""
     }
   ]

@@ -44,6 +44,16 @@ public:
     const std::vector<Card>& getCardChoices() const { return m_cardChoices; }
     const std::string& getSelectedCardName() const { return m_selectedCardName; }
 
+    bool replaceCardChoices(std::vector<Card> cardChoices) {
+        if (!m_active || !m_choosingCard || m_cardCollected || cardChoices.empty()) {
+            return false;
+        }
+        m_cardSkipPending = false;
+        m_selectedCardName.clear();
+        m_cardChoices = std::move(cardChoices);
+        return true;
+    }
+
     bool canCollectGold() const { return m_active && !m_goldCollected; }
     bool canOpenCardChoice() const { return m_active && !m_cardCollected && !m_cardChoices.empty(); }
 

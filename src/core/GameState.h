@@ -64,6 +64,8 @@ public:
     bool claimSelectedNoahCards(std::string& error);
     void endNoahEvent();
     bool prepareCombatRewards(std::string& error);
+    bool debugWinCombat(std::string& error);
+    bool debugRerollCurrentRewardCards(std::string& error);
     int  collectRewardGold();
     bool claimRewardCard(int rewardIndex);
     bool skipRewardCard();

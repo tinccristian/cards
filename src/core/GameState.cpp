@@ -188,7 +188,7 @@ bool GameState::startNewGame(std::string& error) {
         return false;
     }
 
-    return startCombatForEnemy("bacteria", error);
+    return startCombatForEnemy("fungus", error);
 }
 
 bool GameState::startNewRun(std::string& error) {
@@ -430,6 +430,45 @@ bool GameState::prepareCombatRewards(std::string& error) {
     return true;
 }
 
+bool GameState::debugWinCombat(std::string& error) {
+    error.clear();
+    if (m_phase != GamePhase::COMBAT || !m_enemy) {
+        error = "win is only available during combat.";
+        return false;
+    }
+
+    if (!prepareCombatRewards(error)) {
+        return false;
+    }
+
+    const int lethalDamage = m_enemy->getEnemyBlock() + m_enemy->getHealth();
+    m_enemy->takeDamage(std::max(1, lethalDamage));
+    m_turnPhase = TurnPhase::PLAYER_TURN;
+    m_phase = GamePhase::REWARDS;
+    m_lastAction = "Debug win forced.";
+    return true;
+}
+
+bool GameState::debugRerollCurrentRewardCards(std::string& error) {
+    error.clear();
+    if (m_phase != GamePhase::REWARDS || !m_rewardState.isChoosingCard()) {
+        error = "reroll is only available while choosing a reward card.";
+        return false;
+    }
+
+    std::vector<Card> rewardCards = generateRewardCards(LuckConfig::RewardCardChoiceCount);
+    if (rewardCards.empty()) {
+        error = "No reward cards available in the card database.";
+        return false;
+    }
+    if (!m_rewardState.replaceCardChoices(std::move(rewardCards))) {
+        error = "Could not replace current reward choices.";
+        return false;
+    }
+    m_lastAction = "Debug reward choices rerolled.";
+    return true;
+}
+
 int GameState::collectRewardGold() {
     const int awardedGold = m_rewardState.collectGold();
     if (awardedGold > 0) {
@@ -489,8 +528,18 @@ void GameState::endPlayerTurn() {
     if (m_enemy) {
         m_enemy->clearBlock();
     }
+    const DamageBreakdown poisonDamage = m_player.tickPoison();
+    if (poisonDamage.blocked > 0 || poisonDamage.health > 0) {
+        m_lastAction = "Poison dealt "
+            + std::to_string(poisonDamage.blocked + poisonDamage.health)
+            + " damage.";
+        if (m_player.isDead()) {
+            m_turnPhase = TurnPhase::GAME_OVER_PHASE;
+            return;
+        }
+    }
     m_turnPhase  = TurnPhase::ENEMY_TURN;
-    m_lastAction = m_enemy->getName() + " – " + m_enemy->getIntentDescription() + "!";
+    m_lastAction = m_enemy->getName() + " - " + m_enemy->getIntentDescription() + "!";
 }
 
 EnemyTurnResult GameState::executeEnemyTurn() {
@@ -512,7 +561,7 @@ EnemyTurnResult GameState::executeEnemyTurn() {
 
     // Discard entire player hand, then begin the next player turn.
     m_player.discardHand();
-    const PlayerTurnStartResult startTurnResult = m_player.startTurn();
+    m_player.startTurn();
 
     // Draw a fresh hand for the next player turn
     for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
@@ -521,11 +570,6 @@ EnemyTurnResult GameState::executeEnemyTurn() {
 
     // Enemy plans next turn
     m_enemy->decideIntent();
-    if (startTurnResult.poisonDamage.blocked > 0 || startTurnResult.poisonDamage.health > 0) {
-        result.turnStartDamage = startTurnResult.poisonDamage;
-        result.turnStartDamageTaken = startTurnResult.poisonDamage.health;
-        m_lastAction += " Poison dealt " + std::to_string(startTurnResult.poisonDamage.blocked + startTurnResult.poisonDamage.health) + " damage.";
-    }
     m_turnNumber++;
     m_turnPhase = TurnPhase::PLAYER_TURN;
     return result;
