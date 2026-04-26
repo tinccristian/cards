@@ -14,6 +14,7 @@ public:
     void playHover();
     void playShuffle();
     void playCardPicked();
+    void playAmbulance();
     void playRewardEnter();
     void playArmor();
     void playArmorHit();
@@ -43,6 +44,10 @@ private:
         ScheduledSoundType type;
         float delaySecs;
     };
+
+    bool  m_ambulanceLoaded  = false;
+    bool  m_ambulanceActive  = false;
+    float m_ambulanceElapsed = 0.0f;
 
     bool m_hoverLoaded   = false;
     bool m_shuffleLoaded = false;

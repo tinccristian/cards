@@ -254,6 +254,30 @@ void DevConsole::executeCommand(const std::string& command, GameState& state) {
         }
         return;
     }
+    if (normalized == "give" || startsWith(normalized, "give ")) {
+        const std::string args = normalized.size() > 5 ? normalized.substr(5) : "";
+        std::istringstream ss(args);
+        std::string cardId;
+        int count = 1;
+        ss >> cardId >> count;
+        if (cardId.empty() || count < 1) {
+            log("Usage: give <card_id> [count]  — id must match the JSON id field.");
+            return;
+        }
+        const auto card = CardDatabase::findCard(cardId);
+        if (!card.has_value()) {
+            log("Unknown card id: '" + cardId + "'. Check assets/decks for valid ids.");
+            showStatus("Unknown card: " + cardId, Colors::damage_color);
+            return;
+        }
+        for (int i = 0; i < count; ++i) {
+            state.getPlayer().drawCard(*card);
+        }
+        const std::string msg = "Gave " + std::to_string(count) + "x " + card->getDisplayName();
+        log(msg);
+        showStatus(msg, Colors::heal_color);
+        return;
+    }
     if (normalized == "exit") {
         exitEditor();
         return;
@@ -300,6 +324,7 @@ std::vector<std::pair<std::string, std::string>> DevConsole::commands() const {
         { "cardEditor", "Open the card zone editor." },
         { "win", "Kill the current enemy and win the fight." },
         { "reroll", "Reroll current 1-of-3 reward card choices." },
+        { "give <id> [n]", "Add n copies of a card to your deck by its JSON id (default 1)." },
         { "exit", "Close the active editor." },
         { "clear", "Clear console output." }
     };

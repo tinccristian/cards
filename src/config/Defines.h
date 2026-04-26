@@ -17,6 +17,7 @@ inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";
 inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";            // color-cycle flash on damage
 inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs";     // hex-tile screen wipe
 inline constexpr const char* INTENT_FLOAT_SHADER = "assets/shaders/intent_float.vs";   // subtle bobbing motion for intent icons
+inline constexpr const char* AMBULANCE_SHADER    = "assets/shaders/ambulance.fs";      // moving red/blue light sweep overlay
 inline constexpr const char* BLOCK_ICON          = "assets/common/block.png";          // 16×16 shield sprite
 inline constexpr const char* ATTACK_ICON         = "assets/common/attack.png";         // 16×16 sword sprite
 inline constexpr const char* BUFF_ICON           = "assets/common/buff.png";
@@ -49,6 +50,7 @@ inline constexpr const char* PLAYER_DEATH_SOUND = "assets/sounds/player/player_d
 inline constexpr const char* GAME_OVER_SOUND    = "assets/sounds/common/game_over.mp3";
 inline constexpr const char* NEXT_TURN_SOUND    = "assets/sounds/common/next_turn.mp3";
 inline constexpr const char* NOAH_EVENT_SOUND   = "assets/sounds/event/noah_event.mp3";
+inline constexpr const char* AMBULANCE_SOUND    = "assets/sounds/cards/ambulance.mp3";
 } // namespace AudioPaths
 
 namespace AudioConfig {
@@ -68,6 +70,7 @@ inline constexpr float PlayerDeathVolume   = 36.0f;
 inline constexpr float GameOverVolume      = 34.0f;
 inline constexpr float NextTurnVolume      = 30.0f;
 inline constexpr float NoahEventVolume     = 34.0f;
+inline constexpr float AmbulanceVolume     = 35.0f;
 inline constexpr int   MasterVolumeStep    = 5;     // how much +/- each options arrow click changes master volume
 inline constexpr int   CardHoverVoiceCount = 6;     // number of concurrent hover voices (prevents clipping)
 } // namespace AudioConfig

@@ -13,6 +13,7 @@
 #include "ui/Colors.h"
 #include "ui/GameScreen.h"
 #include "ui/InputHandler.h"
+#include "ui/ScreenOverlayEffect.h"
 #include "ui/ScreenTransition.h"
 #include "ui/UIState.h"
 
@@ -82,6 +83,7 @@ int main() {
     GameScreen screen(GetScreenWidth(), GetScreenHeight(), &cardAudio);
     MapRunState mapRun;
     ScreenTransition sceneTransition;
+    ScreenOverlayEffect ambulanceOverlay;
     RenderTexture2D sceneFrame = LoadRenderTexture(GetScreenWidth(), GetScreenHeight());
     UIState    uiState;
 #if defined(MEDICAL_DEBUG_BUILD)
@@ -101,6 +103,9 @@ int main() {
 
     if (!sceneTransition.load(AssetPaths::TRANSITION_SHADER)) {
         TraceLog(LOG_WARNING, "Screen transition shader unavailable: %s", AssetPaths::TRANSITION_SHADER);
+    }
+    if (!ambulanceOverlay.load(AssetPaths::AMBULANCE_SHADER)) {
+        TraceLog(LOG_WARNING, "Ambulance overlay shader unavailable: %s", AssetPaths::AMBULANCE_SHADER);
     }
 
     std::function<void()> pendingSceneSwitch = {};
@@ -189,6 +194,7 @@ int main() {
         }
 #endif
         cardAudio.update(GetFrameTime());
+        ambulanceOverlay.update(GetFrameTime());
         deathSlowMoTimer = std::max(0.0f, deathSlowMoTimer - GetFrameTime());
         const bool deathSlowMoActive = (state.getPhase() == GamePhase::COMBAT) && deathSlowMoTimer > 0.0f;
         screen.setTimeScale(deathSlowMoActive ? LayoutConfig::DeathSlowMoScale : 1.0f);
@@ -546,6 +552,7 @@ int main() {
                 } else if (discardClicked) {
                     uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
                 } else if (cardIdx >= 0 && !state.isGameOver()) {
+                    const std::string playedCardId = state.getPlayer().getHand()[cardIdx].getId();
                     const int playerHealthBefore = state.getPlayer().getHealth();
                     const auto playResult = state.playCard(cardIdx);
                     if (playResult.has_value()) {
@@ -595,6 +602,10 @@ int main() {
                                 cardAudio.scheduleDamage(hitSoundDelay);
                                 hitSoundDelay += LayoutConfig::HitEventDelayStep;
                             }
+                        }
+                        if (playedCardId == "ambulance") {
+                            cardAudio.playAmbulance();
+                            ambulanceOverlay.trigger(4.0f);
                         }
                         if (!enemyDeathSoundPlayed && state.getEnemy().isDead()) {
                             cardAudio.playEnemyDeath();
@@ -881,6 +892,7 @@ int main() {
             0.0f,
             WHITE
         );
+        ambulanceOverlay.draw();
         if (sceneTransition.isActive()) {
             sceneTransition.drawOverlay(GetScreenWidth(), GetScreenHeight());
         }
@@ -892,6 +904,7 @@ int main() {
     }
 
     screen.unloadAssets();
+    ambulanceOverlay.unload();
     sceneTransition.unload();
     if (sceneFrame.id != 0) {
         UnloadRenderTexture(sceneFrame);

@@ -81,6 +81,7 @@ add_executable(medical_deckbuilder
     src/ui/GameScreen.cpp
     src/ui/InputHandler.cpp
     src/ui/PlayerSprite.cpp
+    src/ui/ScreenOverlayEffect.cpp
     src/ui/ScreenTransition.cpp
     src/ui/UIState.cpp
     src/ui/screens/GameScreenMenus.cpp
