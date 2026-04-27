@@ -271,6 +271,13 @@ void Enemy::decideIntent() {
             case EffectType::NextCardFree:
             case EffectType::SkipEnemyTurn:
             case EffectType::DrawCards:
+            case EffectType::DamageIfPoisoned:
+            case EffectType::DamagePerHandCard:
+            case EffectType::HealOnTurnStart:
+            case EffectType::BonusDrawOnDraw:
+            case EffectType::DamageOnDraw:
+            case EffectType::DamageOnDrawThisTurn:
+            case EffectType::PeekAndSelect:
             case EffectType::Unknown:
                 break;
             }
@@ -371,6 +378,13 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
             case EffectType::NextCardFree:
             case EffectType::SkipEnemyTurn:
             case EffectType::DrawCards:
+            case EffectType::DamageIfPoisoned:
+            case EffectType::DamagePerHandCard:
+            case EffectType::HealOnTurnStart:
+            case EffectType::BonusDrawOnDraw:
+            case EffectType::DamageOnDraw:
+            case EffectType::DamageOnDrawThisTurn:
+            case EffectType::PeekAndSelect:
             case EffectType::Unknown:
                 break;
             }

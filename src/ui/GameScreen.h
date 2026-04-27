@@ -130,6 +130,14 @@ public:
                        const std::vector<Card>& cards,
                        int scrollOffset,
                        bool& closeClicked);
+
+    // Draw a reward-style card choice overlay. Clicking a card returns its index.
+    int drawCardChoiceOverlay(const std::string& title,
+                              const std::string& hint,
+                              const std::vector<Card>& choices,
+                              float cardScale,
+                              bool showSkip,
+                              bool allowInteraction = true);
     RunHudAction drawRunHud(const Player& player,
                             const std::string& centerLabel,
                             bool allowInteraction = true,

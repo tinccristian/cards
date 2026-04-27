@@ -77,7 +77,15 @@ public:
     // Attempt to play the card at handIndex.
     // Resolves the card's effects and updates the combat log.
     // Returns nullopt if the player has insufficient mana.
+    // If the card has PeekAndSelect, returns an empty summary and hasPeekPending() becomes true.
     std::optional<CardResolutionSummary> playCard(int cardIndex);
+
+    // --- Peek (Second Opinion) ---
+    // True after playing a PeekAndSelect card until the player picks one.
+    bool hasPeekPending() const;
+    const std::vector<Card>& getPeekCards() const;
+    // Add the chosen peeked card to hand for free this turn; return the rest to the draw pile.
+    bool confirmPeekSelection(int index);
 
     // Signal end of player turn: sets phase to ENEMY_TURN.
     void endPlayerTurn();
@@ -101,4 +109,5 @@ private:
     RewardState            m_rewardState;
     NoahEventState         m_noahEventState;
     std::string            m_lastAction;
+    std::vector<Card>      m_peekCards;
 };

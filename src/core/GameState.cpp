@@ -200,6 +200,7 @@ bool GameState::startNewRun(std::string& error) {
     m_enemy.reset();
     m_rewardState.clear();
     m_noahEventState.clear();
+    m_peekCards.clear();
 
     // Load deck config — single source of truth for starter deck composition
     std::vector<std::string> deckConfig =
@@ -245,6 +246,7 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
     m_enemy.reset();
     m_rewardState.clear();
     m_noahEventState.clear();
+    m_peekCards.clear();
 
     m_player.rebuildCombatDeck();
 
@@ -495,6 +497,7 @@ void GameState::endCombat() {
     m_enemy.reset();
     m_rewardState.clear();
     m_noahEventState.clear();
+    m_peekCards.clear();
     m_turnPhase = TurnPhase::PLAYER_TURN;
     m_turnNumber = CombatConfig::StartingTurnNumber;
     m_lastAction.clear();
@@ -509,19 +512,78 @@ std::optional<CardResolutionSummary> GameState::playCard(int cardIndex) {
         return std::nullopt;
     }
 
-    // Player::playCard handles mana check, hand removal, and discard
+    // Check for PeekAndSelect before the card leaves the hand.
+    const std::vector<Card>& hand = m_player.getHand();
+    if (cardIndex < 0 || cardIndex >= static_cast<int>(hand.size())) {
+        return std::nullopt;
+    }
+    bool hasPeek = false;
+    int  peekAmount = 0;
+    for (const CardEffect& eff : hand[cardIndex].getEffects()) {
+        if (eff.type == EffectType::PeekAndSelect) {
+            hasPeek    = true;
+            peekAmount = eff.amount;
+            break;
+        }
+    }
+
+    // Player::playCard handles mana check and hand removal.
+    // Organs activate immediately; non-organs are discarded after effects resolve
+    // so that a draw effect cannot reshuffle the just-played card back into the deck.
     auto optCard = m_player.playCard(cardIndex);
     if (!optCard) {
         m_lastAction = "Not enough mana!";
         return std::nullopt;
     }
 
+    if (hasPeek) {
+        // Peek top N cards without reshuffling; store for UI selection.
+        m_peekCards = m_player.getDeck().peekTop(peekAmount);
+        m_player.getDeck().discard(*optCard);
+        m_lastAction = "Second Opinion: choose a card to add to your hand.";
+        return CardResolutionSummary{};
+    }
+
     const CardResolutionSummary summary =
         CombatResolver::applyPlayerCard(*optCard, m_player, *m_enemy);
+
+    if (optCard->getType() != CardType::Organ) {
+        m_player.getDeck().discard(*optCard);
+    }
 
     m_lastAction = CombatResolver::buildPlayerActionText(*optCard, summary);
 
     return summary;
+}
+
+bool GameState::hasPeekPending() const {
+    return !m_peekCards.empty();
+}
+
+const std::vector<Card>& GameState::getPeekCards() const {
+    return m_peekCards;
+}
+
+bool GameState::confirmPeekSelection(int index) {
+    if (index < 0 || index >= static_cast<int>(m_peekCards.size()) || !m_enemy) {
+        return false;
+    }
+
+    Card chosen = m_peekCards[index];
+
+    // Return unchosen cards to top of draw pile preserving original order.
+    // m_peekCards[0] was the topmost card drawn, so it must end up on top again.
+    // Iterate in reverse so the last putOnTop is m_peekCards[0].
+    Deck& deck = m_player.getDeck();
+    for (int i = static_cast<int>(m_peekCards.size()) - 1; i >= 0; --i) {
+        if (i == index) continue;
+        deck.putOnTop(m_peekCards[i]);
+    }
+    m_peekCards.clear();
+
+    m_player.drawCardFreeThisTurn(chosen);
+    m_lastAction = "Second Opinion: " + chosen.getName() + " added to your hand.";
+    return true;
 }
 
 void GameState::endPlayerTurn() {

@@ -6,6 +6,7 @@
 #include "gameplay/CardEffect.h"
 #include "gameplay/StatusCollection.h"
 
+#include <cstdlib>
 #include <sstream>
 #include <vector>
 
@@ -20,7 +21,31 @@ namespace CombatResolver {
 CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& enemy) {
     CardResolutionSummary summary;
 
+    // Shared helper: fire all DamageOnDraw triggers (organ passive + temporary status).
+    auto fireDamageOnDraw = [&]() {
+        for (const Card& organ : player.getActiveOrgans()) {
+            for (const CardEffect& oe : organ.getEffects()) {
+                if (oe.type == EffectType::DamageOnDraw) {
+                    const DamageBreakdown bd = enemy.takeDamageDetailed(oe.amount);
+                    summary.enemyDamageEvents.push_back(bd);
+                    summary.damageDealt += bd.health;
+                    summary.damageAttempted += oe.amount;
+                }
+            }
+        }
+        const int statusDmg = player.getStatusMagnitude(StatusType::DamageOnDraw);
+        if (statusDmg > 0) {
+            const DamageBreakdown bd = enemy.takeDamageDetailed(statusDmg);
+            summary.enemyDamageEvents.push_back(bd);
+            summary.damageDealt += bd.health;
+            summary.damageAttempted += statusDmg;
+        }
+    };
+
     for (const auto& effect : card.getEffects()) {
+        if (effect.chance < 100 && (std::rand() % 100 + 1) > effect.chance) {
+            continue;
+        }
         switch (effect.type) {
         case EffectType::Damage:
             if (effect.target == EffectTarget::Opponent) {
@@ -80,9 +105,25 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
 
         case EffectType::DrawCards:
             if (effect.target == EffectTarget::Self) {
+                const int drawnBefore = summary.cardsDrawn;
                 for (int count = 0; count < effect.amount; ++count) {
                     if (player.drawCardFromDeck()) {
                         ++summary.cardsDrawn;
+                        fireDamageOnDraw();
+                    }
+                }
+                // Synthetic Lung: 1 bonus card per draw event (not per card drawn).
+                const bool anyDrawn = summary.cardsDrawn > drawnBefore;
+                if (anyDrawn) {
+                    for (const Card& organ : player.getActiveOrgans()) {
+                        for (const CardEffect& oe : organ.getEffects()) {
+                            if (oe.type == EffectType::BonusDrawOnDraw) {
+                                if (player.drawCardFromDeck()) {
+                                    ++summary.cardsDrawn;
+                                    fireDamageOnDraw();
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -93,6 +134,44 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
                 player.addStatus(StatusType::NextCardFree, 1, 1, StatusDisposition::Positive);
                 summary.nextCardFreeGranted = true;
             }
+            break;
+
+        case EffectType::DamageIfPoisoned:
+            if (effect.target == EffectTarget::Opponent) {
+                if (enemy.getStatusMagnitude(StatusType::Poison) > 0) {
+                    summary.damageAttempted += effect.amount;
+                    const DamageBreakdown breakdown = enemy.takeDamageDetailed(effect.amount);
+                    summary.enemyDamageEvents.push_back(breakdown);
+                    summary.damageDealt += breakdown.health;
+                }
+            }
+            break;
+
+        case EffectType::DamagePerHandCard: {
+            const int total = effect.amount * static_cast<int>(player.getHand().size());
+            if (effect.target == EffectTarget::Opponent && total > 0) {
+                summary.damageAttempted += total;
+                const DamageBreakdown breakdown = enemy.takeDamageDetailed(total);
+                summary.enemyDamageEvents.push_back(breakdown);
+                summary.damageDealt += breakdown.health;
+            }
+            break;
+        }
+
+        case EffectType::DamageOnDrawThisTurn:
+            if (effect.target == EffectTarget::Self) {
+                player.addStatus(StatusType::DamageOnDraw, effect.amount, 1, StatusDisposition::Positive);
+            }
+            break;
+
+        case EffectType::HealOnTurnStart:
+        case EffectType::BonusDrawOnDraw:
+        case EffectType::DamageOnDraw:
+            // Organ passives — resolved at draw / turn-start time.
+            break;
+
+        case EffectType::PeekAndSelect:
+            // Handled by GameState before the resolver runs.
             break;
 
         case EffectType::ApplyStatus:

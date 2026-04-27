@@ -383,35 +383,37 @@ RewardPopupAction GameScreen::drawRewardPopup(const RewardState& rewards,
     return RewardPopupAction::None;
 }
 
-int GameScreen::drawRewardCardChoice(const RewardState& rewards,
-                                     bool allowInteraction) {
+int GameScreen::drawCardChoiceOverlay(const std::string& title,
+                                      const std::string& hint,
+                                      const std::vector<Card>& choices,
+                                      float cardScale,
+                                      bool showSkip,
+                                      bool allowInteraction) {
     syncWindowSize();
     drawVignetteOverlay();
 
-    const char* title = "Choose a Card";
     const int titleSize = scalei(LayoutConfig::RewardCardTitleSize);
-    DrawText(title,
-             (m_width - MeasureText(title, titleSize)) / 2,
+    DrawText(title.c_str(),
+             (m_width - MeasureText(title.c_str(), titleSize)) / 2,
              scalei(LayoutConfig::CombatLogTop),
              titleSize,
              Colors::text_primary);
 
-    const char* hint = "Pick one to permanently add it to this run";
     const int hintSize = scalei(LayoutConfig::RewardHintSize);
-    DrawText(hint,
-             (m_width - MeasureText(hint, hintSize)) / 2,
+    DrawText(hint.c_str(),
+             (m_width - MeasureText(hint.c_str(), hintSize)) / 2,
              scalei(LayoutConfig::CombatLogTop) + titleSize + scalei(10),
              hintSize,
              Colors::text_secondary);
 
-    const auto& choices = rewards.getCardChoices();
     if (choices.empty()) {
         return RewardChoiceNone;
     }
 
     const float gap = scalef(LayoutConfig::RewardCardChoiceGap);
-    const float preferredWidth = scalef(LayoutConfig::RewardCardChoiceWidth);
-    const float preferredHeight = scalef(LayoutConfig::RewardCardChoiceHeight);
+    const float clampedCardScale = std::max(0.1f, cardScale);
+    const float preferredWidth = scalef(LayoutConfig::RewardCardChoiceWidth) * clampedCardScale;
+    const float preferredHeight = scalef(LayoutConfig::RewardCardChoiceHeight) * clampedCardScale;
     const float availableWidth = (float)m_width - scalef(80.0f);
     const float totalPreferredWidth = preferredWidth * (float)choices.size() + gap * (float)(choices.size() - 1);
     const float widthScale = std::min(1.0f, availableWidth / std::max(1.0f, totalPreferredWidth));
@@ -445,6 +447,10 @@ int GameScreen::drawRewardCardChoice(const RewardState& rewards,
         }
     }
 
+    if (!showSkip) {
+        return RewardChoiceNone;
+    }
+
     const Rectangle skipRect = {
         ((float)m_width - scalef(LayoutConfig::RewardSkipButtonWidth)) / 2.0f,
         choiceBottom + scalef(LayoutConfig::RewardSkipButtonTopGap),
@@ -458,6 +464,16 @@ int GameScreen::drawRewardCardChoice(const RewardState& rewards,
     }
 
     return RewardChoiceNone;
+}
+
+int GameScreen::drawRewardCardChoice(const RewardState& rewards,
+                                     bool allowInteraction) {
+    return drawCardChoiceOverlay("Choose a Card",
+                                 "Pick one to permanently add it to this run",
+                                 rewards.getCardChoices(),
+                                 1.0f,
+                                 true,
+                                 allowInteraction);
 }
 
 void GameScreen::drawVignetteOverlay() const {

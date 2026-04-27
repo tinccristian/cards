@@ -135,6 +135,155 @@
       "effects": [
         { "type": "skip_enemy_turn", "target": "opponent", "amount": 1, "duration": 1 }
       ]
+    },
+    {
+      "id": "pacemaker",
+      "name": "Pacemaker",
+      "tier": "uncommon",
+      "description": "Organ. Heal 2 HP at the start of each turn.",
+      "cost": 1,
+      "type": "organ",
+      "tags": ["organ", "cardio"],
+      "artPath": "assets/cards/pacemaker.png",
+      "effects": [
+        { "type": "heal_on_turn_start", "target": "self", "amount": 2 }
+      ]
+    },
+    {
+      "id": "synthetic_lung",
+      "name": "Synthetic Lung",
+      "tier": "rare",
+      "description": "Organ. Whenever you draw cards, draw 1 additional card.",
+      "cost": 3,
+      "type": "organ",
+      "tags": ["organ", "utility"],
+      "artPath": "assets/cards/synthetic_lung.png",
+      "effects": [
+        { "type": "bonus_draw_on_draw", "target": "self", "amount": 1 }
+      ]
+    },
+    {
+      "id": "placebo",
+      "name": "Placebo",
+      "tier": "common",
+      "description": "50% chance: Draw 3 cards. 50% chance: nothing.",
+      "cost": 0,
+      "type": "skill",
+      "tags": ["medicine", "gambling"],
+      "artPath": "assets/cards/placebo.png",
+      "effects": [
+        { "type": "draw_cards", "target": "self", "amount": 3, "chance": 50 }
+      ]
+    },
+    {
+      "id": "white_cell",
+      "name": "White Cell",
+      "tier": "common",
+      "description": "Deal 3 damage. If the enemy is Poisoned, deal 6 damage instead.",
+      "cost": 1,
+      "type": "attack",
+      "tags": ["strike", "medicine"],
+      "artPath": "assets/cards/white_cell.png",
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 3 },
+        { "type": "damage_if_poisoned", "target": "opponent", "amount": 3 }
+      ]
+    },
+    {
+      "id": "swab",
+      "name": "Swab",
+      "tier": "common",
+      "description": "Deal damage equal to your hand size x 2.",
+      "cost": 1,
+      "type": "attack",
+      "tags": ["strike"],
+      "artPath": "assets/cards/swab.png",
+      "effects": [
+        { "type": "damage_per_hand_card", "target": "opponent", "amount": 2 }
+      ]
+    },
+    {
+      "id": "iv_drip",
+      "name": "IV Drip",
+      "tier": "uncommon",
+      "description": "Heal 8 HP.",
+      "cost": 2,
+      "type": "skill",
+      "tags": ["medicine", "heal"],
+      "artPath": "assets/cards/iv_drip.png",
+      "effects": [
+        { "type": "heal", "target": "self", "amount": 8 }
+      ]
+    },
+    {
+      "id": "second_opinion",
+      "name": "Second Opinion",
+      "tier": "rare",
+      "description": "Reveal the top 5 cards of your deck. Play 1 for free. Shuffle the rest back.",
+      "cost": 1,
+      "type": "skill",
+      "tags": ["medicine", "utility", "gambling"],
+      "artPath": "assets/cards/second_opinion.png",
+      "effects": [
+        { "type": "peek_and_select", "target": "self", "amount": 5 }
+      ]
+    },
+    {
+      "id": "chemotherapy",
+      "name": "Chemotherapy",
+      "tier": "rare",
+      "description": "Deal 15 damage. Apply Poison 2 to yourself.",
+      "cost": 2,
+      "type": "attack",
+      "tags": ["medicine", "poison"],
+      "artPath": "assets/cards/chemotherapy.png",
+      "overlay_shader": "assets/shaders/chemotherapy.fs",
+      "effect_duration": 2.0,
+      "effects": [
+        { "type": "damage", "target": "opponent", "amount": 15 },
+        { "type": "apply_status", "target": "self", "amount": 2, "duration": 3, "key": "poison" }
+      ]
+    },
+    {
+      "id": "surgery",
+      "name": "Surgery",
+      "tier": "rare",
+      "description": "Heal 20 HP.",
+      "cost": 3,
+      "type": "skill",
+      "tags": ["medicine", "heal"],
+      "artPath": "assets/cards/surgery.png",
+      "overlay_shader": "assets/shaders/surgery.fs",
+      "effect_duration": 2.0,
+      "effects": [
+        { "type": "heal", "target": "self", "amount": 20 }
+      ]
+    },
+    {
+      "id": "histamine",
+      "name": "Histamine",
+      "tier": "uncommon",
+      "description": "Organ. Each time you draw a card, deal 1 damage.",
+      "cost": 2,
+      "type": "organ",
+      "tags": ["organ", "medicine"],
+      "artPath": "assets/cards/histamine.png",
+      "effects": [
+        { "type": "damage_on_draw", "target": "opponent", "amount": 1 }
+      ]
+    },
+    {
+      "id": "fever_response",
+      "name": "Fever Response",
+      "tier": "uncommon",
+      "description": "This turn, each card you draw deals 1 damage.",
+      "cost": 1,
+      "type": "skill",
+      "tags": ["medicine", "buff"],
+      "artPath": "assets/cards/fever_response.png",
+      "effects": [
+        { "type": "damage_on_draw_this_turn", "target": "self", "amount": 1 }
+      ]
     }
   ]
 }

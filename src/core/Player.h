@@ -11,6 +11,7 @@
 // Tracks all player state: health, mana, block, hand, and deck.
 struct PlayerTurnStartResult {
     DamageBreakdown poisonDamage;
+    int             organHealingDone = 0;
 };
 
 class Player {
@@ -59,6 +60,7 @@ public:
 
     // Add a card directly to hand (used when constructing the opening hand).
     void drawCard(const Card& card);
+    void drawCardFreeThisTurn(const Card& card);
 
     // Attempt to play card at handIndex.
     // Deducts mana equal to card cost; removes card from hand and discards it.
@@ -87,7 +89,16 @@ public:
     Deck& getDeck();
     const Deck& getDeck() const;
 
+    // --- Organ system ---
+    // Organs are played like cards but persist in the combat zone; they are not discarded.
+    void activateOrgan(const Card& card);
+    bool hasOrgan(const std::string& id) const;
+    void clearOrgans();
+    const std::vector<Card>& getActiveOrgans() const;
+
 private:
+    bool drawCardRaw(); // draws one card without triggering organ bonuses
+
     int               m_health;
     int               m_maxHealth;
     int               m_block = 0;
@@ -98,4 +109,5 @@ private:
     std::vector<Card> m_ownedCards;
     std::vector<Card> m_hand;
     Deck              m_deck;
+    std::vector<Card> m_activeOrgans;
 };

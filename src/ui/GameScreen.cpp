@@ -542,6 +542,8 @@ std::string statusTooltipLine(const StatusInstance& status) {
         return "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
     case StatusType::NextCardFree:
         return "Your next card costs 0.";
+    case StatusType::DamageOnDraw:
+        return "Deal " + std::to_string(status.magnitude) + " damage each time you draw a card this turn.";
     case StatusType::SkipTurn:
     case StatusType::Infection:
     case StatusType::Weakness:
@@ -1557,6 +1559,12 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
             iconLoaded = icon.id != 0;
             title = status.disposition == StatusDisposition::Positive ? "Buff" : "Debuff";
             tooltip = "Status active for " + std::to_string(status.duration) + " turns.";
+            break;
+        case StatusType::DamageOnDraw:
+            icon = m_buffIcon;
+            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+            title = "Cytotoxic Rush";
+            tooltip = "Each card you draw this turn deals " + std::to_string(status.magnitude) + " damage.";
             break;
         }
 

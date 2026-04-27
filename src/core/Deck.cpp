@@ -64,6 +64,19 @@ void Deck::discard(const Card& card) {
     m_discardPile.push_back(card);
 }
 
+std::vector<Card> Deck::peekTop(int n) {
+    std::vector<Card> result;
+    for (int i = 0; i < n && !m_drawPile.empty(); ++i) {
+        result.push_back(m_drawPile.back());
+        m_drawPile.pop_back();
+    }
+    return result;
+}
+
+void Deck::putOnTop(const Card& card) {
+    m_drawPile.push_back(card);
+}
+
 int                      Deck::getDrawPileSize()     const { return static_cast<int>(m_drawPile.size());    }
 int                      Deck::getDiscardPileSize()  const { return static_cast<int>(m_discardPile.size()); }
 const std::vector<Card>& Deck::getDrawPileCards()    const { return m_drawPile;    }

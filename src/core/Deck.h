@@ -40,6 +40,12 @@ public:
     // Add a card to the discard pile (called after a card is played)
     void discard(const Card& card);
 
+    // Draw up to n cards from the top without reshuffling. Caller owns the result.
+    std::vector<Card> peekTop(int n);
+
+    // Place a card on top of the draw pile (used to return peeked cards).
+    void putOnTop(const Card& card);
+
     // --- Pile inspection ---
     int                      getDrawPileSize()    const;
     int                      getDiscardPileSize() const;

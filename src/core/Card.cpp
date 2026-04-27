@@ -75,6 +75,8 @@ bool Card::shouldHideFooterStats() const { return m_hideFooterStats; }
 const std::string& Card::getCardSoundPath() const { return m_cardSoundPath; }
 const std::string& Card::getOverlayShaderPath() const { return m_overlayShaderPath; }
 float Card::getOverlayDuration() const { return m_overlayDuration; }
+bool Card::isFreeThisTurn() const { return m_freeThisTurn; }
+void Card::setFreeThisTurn(bool freeThisTurn) { m_freeThisTurn = freeThisTurn; }
 
 const char* Card::getTypeLabel() const {
     return toString(m_type);

@@ -6,6 +6,7 @@ enum class UIMode {
     VIEWING_DISCARD_PILE,
     VIEWING_RUN_DECK,
     VIEWING_MAP,
+    PEEK_SELECT,   // Second Opinion: pick 1 of top-N cards to add to hand for free this turn
     PAUSED,
     OPTIONS
 };

@@ -486,6 +486,30 @@ int main() {
                 break;
             }
 
+            // Handle peek-select overlay (Second Opinion)
+            if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::PEEK_SELECT) {
+                bool unused1 = false, unused2 = false, unused3 = false;
+                screen.drawCombat(state, unused1, unused2, unused3, false);
+                screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false);
+
+                const int selIdx = screen.drawCardChoiceOverlay(
+                    "Second Opinion",
+                    "choose a card to add to your hand. play it for free this turn.",
+                    state.getPeekCards(),
+                    0.8f,
+                    false,
+                    allowSceneInteraction);
+
+                if (selIdx >= 0) {
+                    if (state.confirmPeekSelection(selIdx)) {
+                        cardAudio.playCardPicked();
+                    }
+                    uiState.setMode(UIMode::NORMAL);
+                    uiState.resetScroll();
+                }
+                break;
+            }
+
             // Handle pile-viewer overlay (drawn on top of combat screen)
             if (allowSceneInteraction && (uiState.getCurrentMode() == UIMode::VIEWING_DRAW_PILE
                 || uiState.getCurrentMode() == UIMode::VIEWING_DISCARD_PILE
@@ -559,6 +583,10 @@ int main() {
                     const float       overlayDuration = playedCard.getOverlayDuration();
                     const int playerHealthBefore = state.getPlayer().getHealth();
                     const auto playResult = state.playCard(cardIdx);
+                    if (state.hasPeekPending()) {
+                        uiState.setMode(UIMode::PEEK_SELECT);
+                        uiState.resetScroll();
+                    }
                     if (playResult.has_value()) {
                         if (!cardSoundPath.empty()) {
                             cardAudio.playCardEffect(cardSoundPath);

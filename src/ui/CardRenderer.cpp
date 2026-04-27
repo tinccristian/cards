@@ -276,6 +276,11 @@ Texture2D CardRenderer::buildTexture(const Card& card,
                                               internalWidth, internalHeight);
     if (const Image* artImage = getArtImage(card.getArtPath())) {
         drawImageNearest(&canvas, *artImage, artRect);
+    } else if (!card.getArtPath().empty()) {
+        // Art path specified but file not found: dark blue placeholder.
+        constexpr Color darkBlue = { 15, 30, 60, 255 };
+        ImageDrawRectangleRec(&canvas, artRect, darkBlue);
+        ImageDrawRectangleLines(&canvas, artRect, scaledInt(LayoutConfig::ThinBorderThickness, renderScale), Colors::light_bg);
     } else {
         ImageDrawRectangleRec(&canvas, artRect, Colors::placeholder_art_bg);
         ImageDrawRectangleLines(&canvas, artRect, scaledInt(LayoutConfig::ThinBorderThickness, renderScale), Colors::light_bg);

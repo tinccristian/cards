@@ -1,5 +1,6 @@
 #include "Player.h"
 
+#include "gameplay/CardEffect.h"
 #include <algorithm>
 
 Player::Player(int maxHealth, int maxMana)
@@ -71,6 +72,14 @@ int  Player::getGold()    const { return m_gold;        }
 PlayerTurnStartResult Player::startTurn() {
     PlayerTurnStartResult result;
     m_currentMana = m_maxMana + m_statuses.consume(StatusType::BonusManaNextTurn);
+    m_statuses.remove(StatusType::DamageOnDraw);
+    for (const Card& organ : m_activeOrgans) {
+        for (const CardEffect& effect : organ.getEffects()) {
+            if (effect.type == EffectType::HealOnTurnStart) {
+                result.organHealingDone += heal(effect.amount);
+            }
+        }
+    }
     return result;
 }
 
@@ -111,6 +120,9 @@ bool Player::useMana(int amount) {
 }
 
 int Player::getEffectiveCost(const Card& card) const {
+    if (card.isFreeThisTurn()) {
+        return 0;
+    }
     if (m_statuses.has(StatusType::NextCardFree)) {
         return 0;
     }
@@ -122,7 +134,7 @@ int Player::getEffectiveCost(const Card& card) const {
 std::vector<Card>&       Player::getHand()       { return m_hand; }
 const std::vector<Card>& Player::getHand() const  { return m_hand; }
 
-bool Player::drawCardFromDeck() {
+bool Player::drawCardRaw() {
     if (m_deck.isEmpty()) {
         if (m_deck.getDiscard().empty()) return false;
         m_deck.reshuffleDiscard();
@@ -135,28 +147,46 @@ bool Player::drawCardFromDeck() {
     return false;
 }
 
+bool Player::drawCardFromDeck() {
+    return drawCardRaw();
+}
+
 void Player::drawCard(const Card& card) {
     m_hand.push_back(card);
+}
+
+void Player::drawCardFreeThisTurn(const Card& card) {
+    Card freeCard = card;
+    freeCard.setFreeThisTurn(true);
+    m_hand.push_back(freeCard);
 }
 
 std::optional<Card> Player::playCard(int handIndex) {
     if (handIndex < 0 || handIndex >= static_cast<int>(m_hand.size()))
         return std::nullopt;
-    const bool hadNextCardFree = m_statuses.has(StatusType::NextCardFree);
+    const bool cardIsFreeThisTurn = m_hand[handIndex].isFreeThisTurn();
+    const bool hadNextCardFree = !cardIsFreeThisTurn && m_statuses.has(StatusType::NextCardFree);
     const int effectiveCost = getEffectiveCost(m_hand[handIndex]);
     if (!useMana(effectiveCost)) return std::nullopt;
     if (hadNextCardFree) {
         m_statuses.remove(StatusType::NextCardFree);
     }
     Card played = m_hand[handIndex];
+    played.setFreeThisTurn(false);
     m_hand.erase(m_hand.begin() + handIndex);
-    m_deck.discard(played);
+    if (played.getType() == CardType::Organ) {
+        m_activeOrgans.push_back(played);
+    }
+    // Non-organ cards are discarded by the caller AFTER effects resolve,
+    // so that a card which draws cannot reshuffle itself back into the deck.
     return played;
 }
 
 void Player::discardHand() {
-    for (const auto& card : m_hand)
+    for (auto card : m_hand) {
+        card.setFreeThisTurn(false);
         m_deck.discard(card);
+    }
     m_hand.clear();
 }
 
@@ -201,6 +231,7 @@ void Player::rebuildCombatDeck() {
     m_statuses = StatusCollection{};
     m_hand.clear();
     m_deck = Deck{};
+    m_activeOrgans.clear();
 
     for (const auto& card : m_ownedCards) {
         m_deck.addCard(card);
@@ -247,3 +278,24 @@ const StatusCollection& Player::getStatuses() const {
 
 Deck&       Player::getDeck()       { return m_deck; }
 const Deck& Player::getDeck() const { return m_deck; }
+
+// --- Organ system ---
+
+void Player::activateOrgan(const Card& card) {
+    m_activeOrgans.push_back(card);
+}
+
+bool Player::hasOrgan(const std::string& id) const {
+    for (const Card& organ : m_activeOrgans) {
+        if (organ.getId() == id) return true;
+    }
+    return false;
+}
+
+void Player::clearOrgans() {
+    m_activeOrgans.clear();
+}
+
+const std::vector<Card>& Player::getActiveOrgans() const {
+    return m_activeOrgans;
+}

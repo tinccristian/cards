@@ -76,7 +76,8 @@ static std::optional<Card> parseEntry(const nlohmann::json& entry, std::string& 
                     *effectTarget,
                     effectEntry.value("amount", 0),
                     effectEntry.value("duration", CombatConfig::DefaultEffectDuration),
-                    effectEntry.value("key", "")
+                    effectEntry.value("key", ""),
+                    effectEntry.value("chance", 100)
                 });
             }
         } else {

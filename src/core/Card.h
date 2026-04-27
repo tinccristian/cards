@@ -50,6 +50,8 @@ public:
     const std::string&              getCardSoundPath() const;
     const std::string&              getOverlayShaderPath() const;
     float                           getOverlayDuration() const;
+    bool                            isFreeThisTurn() const;
+    void                            setFreeThisTurn(bool freeThisTurn);
 
     const char* getTypeLabel() const;
 
@@ -78,4 +80,5 @@ private:
     std::string              m_cardSoundPath;
     std::string              m_overlayShaderPath;
     float                    m_overlayDuration = 0.0f;
+    bool                     m_freeThisTurn = false;
 };

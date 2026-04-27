@@ -9,7 +9,8 @@ enum class StatusType {
     Poison,
     Infection,
     Weakness,
-    Vulnerable
+    Vulnerable,
+    DamageOnDraw  // temporary: deal magnitude damage per draw; cleared at next turn start
 };
 
 enum class StatusDisposition {
