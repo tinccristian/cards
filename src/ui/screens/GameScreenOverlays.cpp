@@ -16,6 +16,7 @@ int GameScreen::drawPileViewer(const std::string& title,
                                bool& closeClicked) {
     syncWindowSize();
     closeClicked = false;
+    const float dt = GetFrameTime() * m_timeScale;
     const int contentTop = scalei(LayoutConfig::TopHudBarHeight);
     const int contentHeight = std::max(1, m_height - contentTop);
     DrawRectangle(0, contentTop, m_width, contentHeight, Colors::overlay_bg);
@@ -114,6 +115,7 @@ int GameScreen::drawPileViewer(const std::string& title,
 
     int hoveredCardIndex = -1;
     Rectangle hoveredRect = {};
+    float hoveredProgress = 0.0f;
     for (int idx = 0; idx < total; ++idx) {
         const int col = idx % cols;
         const int row = idx / cols;
@@ -125,11 +127,20 @@ int GameScreen::drawPileViewer(const std::string& title,
         }
 
         Rectangle r = { cx, cy, drawWidth, drawHeight };
-        if (mouseOver(r)) {
+        const bool hovered = mouseOver(r);
+        const float progress = cardHoverProgress("pile:" + title + ":" + std::to_string(idx), hovered, dt);
+        if (hovered) {
             hoveredCardIndex = idx;
             hoveredRect = r;
+            hoveredProgress = progress;
         } else {
-            drawCardFace(r, cards[idx], false, 0.0f, -1, -1, true);
+            drawCardFace(applyCardHoverMotion(r, progress, LayoutConfig::PileViewerHoverScale),
+                         cards[idx],
+                         progress > 0.0f,
+                         0.0f,
+                         -1,
+                         -1,
+                         true);
         }
     }
 
@@ -144,13 +155,13 @@ int GameScreen::drawPileViewer(const std::string& title,
         }
         m_lastPileViewerHoverToken = hoverToken;
 
-        const float hoverScale = LayoutConfig::PileViewerHoverScale;
-        Rectangle scaledRect = hoveredRect;
-        scaledRect.x -= (scaledRect.width * hoverScale - scaledRect.width) / 2.0f;
-        scaledRect.y -= (scaledRect.height * hoverScale - scaledRect.height) / 2.0f;
-        scaledRect.width *= hoverScale;
-        scaledRect.height *= hoverScale;
-        drawCardFace(scaledRect, cards[hoveredCardIndex], true, 0.0f, -1, -1, true);
+        drawCardFace(applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::PileViewerHoverScale),
+                     cards[hoveredCardIndex],
+                     true,
+                     0.0f,
+                     -1,
+                     -1,
+                     true);
     } else {
         m_lastPileViewerHoverToken.clear();
     }
@@ -391,6 +402,7 @@ int GameScreen::drawCardChoiceOverlay(const std::string& title,
                                       bool allowInteraction) {
     syncWindowSize();
     drawVignetteOverlay();
+    const float dt = GetFrameTime() * m_timeScale;
 
     const int titleSize = scalei(LayoutConfig::RewardCardTitleSize);
     DrawText(title.c_str(),
@@ -424,6 +436,9 @@ int GameScreen::drawCardChoiceOverlay(const std::string& title,
     const float y = scalef(LayoutConfig::RewardCardChoiceTop);
     const float choiceBottom = y + cardHeight;
 
+    int hoveredCardIndex = -1;
+    Rectangle hoveredRect = {};
+    float hoveredProgress = 0.0f;
     for (int index = 0; index < static_cast<int>(choices.size()); ++index) {
         Rectangle rect = {
             startX + index * (cardWidth + gap),
@@ -432,19 +447,41 @@ int GameScreen::drawCardChoiceOverlay(const std::string& title,
             cardHeight
         };
         const bool hovered = allowInteraction && mouseOver(rect);
+        const std::string hoverKey = (showSkip ? "reward:" : "choice:") + title + ":" + std::to_string(index);
+        const float progress = cardHoverProgress(hoverKey, hovered, dt);
         if (hovered) {
-            const float hoverScale = LayoutConfig::RewardCardHoverScale;
-            const float scaledWidth = rect.width * hoverScale;
-            const float scaledHeight = rect.height * hoverScale;
-            rect.x -= (scaledWidth - rect.width) / 2.0f;
-            rect.y -= (scaledHeight - rect.height) / 2.0f;
-            rect.width = scaledWidth;
-            rect.height = scaledHeight;
+            hoveredCardIndex = index;
+            hoveredRect = rect;
+            hoveredProgress = progress;
+        } else {
+            drawCardFace(applyCardHoverMotion(rect, progress, LayoutConfig::RewardCardHoverScale),
+                         choices[index],
+                         progress > 0.0f,
+                         0.0f,
+                         -1,
+                         -1,
+                         true);
         }
-        drawCardFace(rect, choices[index], false, 0.0f, -1, -1, true);
         if (hovered && allowInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             return index;
         }
+    }
+
+    if (hoveredCardIndex >= 0) {
+        const std::string hoverToken = title + ":" + std::to_string(hoveredCardIndex);
+        if (m_cardAudio && hoverToken != m_lastPileViewerHoverToken) {
+            m_cardAudio->playHover();
+        }
+        m_lastPileViewerHoverToken = hoverToken;
+        drawCardFace(applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::RewardCardHoverScale),
+                     choices[hoveredCardIndex],
+                     true,
+                     0.0f,
+                     -1,
+                     -1,
+                     true);
+    } else {
+        m_lastPileViewerHoverToken.clear();
     }
 
     if (!showSkip) {
@@ -602,6 +639,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
     }
 
     if (eventState.getStage() == NoahEventStage::SelectNoahCards) {
+        const float dt = GetFrameTime() * m_timeScale;
         const auto& cards = eventState.getOfferedCards();
         const auto& selected = eventState.getSelectedOfferIndices();
         const float preferredWidth = scalef(LayoutConfig::NoahChoiceCardWidth);
@@ -611,6 +649,10 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
         const float startX = ((float)m_width - totalWidth) / 2.0f;
         const float y = scalef(LayoutConfig::NoahChoiceTop);
 
+        int hoveredCardIndex = -1;
+        Rectangle hoveredRect = {};
+        float hoveredProgress = 0.0f;
+        bool hoveredPicked = false;
         for (int index = 0; index < static_cast<int>(cards.size()); ++index) {
             Rectangle rect = {
                 startX + index * (preferredWidth + gap),
@@ -620,21 +662,29 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
             };
             const bool picked = std::find(selected.begin(), selected.end(), index) != selected.end();
             const bool hovered = allowInteraction && mouseOver(rect);
+            const float progress = cardHoverProgress("noah-offer:" + std::to_string(index), hovered, dt);
             if (hovered) {
-                const float hoverScale = LayoutConfig::NoahChoiceHoverScale;
-                const float scaledWidth = rect.width * hoverScale;
-                const float scaledHeight = rect.height * hoverScale;
-                rect.x -= (scaledWidth - rect.width) / 2.0f;
-                rect.y -= (scaledHeight - rect.height) / 2.0f;
-                rect.width = scaledWidth;
-                rect.height = scaledHeight;
-            }
-            drawCardFace(rect, cards[index], false, 0.0f, -1, -1, true);
-            if (picked) {
-                DrawRectangleLinesEx(rect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+                hoveredCardIndex = index;
+                hoveredRect = rect;
+                hoveredProgress = progress;
+                hoveredPicked = picked;
+            } else {
+                const Rectangle drawRect = applyCardHoverMotion(rect, progress, LayoutConfig::NoahChoiceHoverScale);
+                drawCardFace(drawRect, cards[index], progress > 0.0f, 0.0f, -1, -1, true);
+                if (picked) {
+                    DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+                }
             }
             if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 return { NoahEventUiActionType::ToggleOfferCard, index };
+            }
+        }
+
+        if (hoveredCardIndex >= 0) {
+            const Rectangle drawRect = applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::NoahChoiceHoverScale);
+            drawCardFace(drawRect, cards[hoveredCardIndex], true, 0.0f, -1, -1, true);
+            if (hoveredPicked) {
+                DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
             }
         }
 
@@ -663,6 +713,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
     }
 
     if (eventState.getStage() == NoahEventStage::SelectTransformCards) {
+        const float dt = GetFrameTime() * m_timeScale;
         const float panelWidth = scalef(LayoutConfig::NoahDeckPanelWidth);
         const float panelHeight = scalef(LayoutConfig::NoahDeckPanelHeight);
         const Rectangle panel = {
@@ -698,6 +749,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
 
         int hoveredCardIndex = -1;
         Rectangle hoveredRect = {};
+        float hoveredProgress = 0.0f;
         for (int index = 0; index < static_cast<int>(player.getOwnedCards().size()); ++index) {
             const int col = index % cols;
             const int row = index / cols;
@@ -712,27 +764,25 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
             }
 
             const bool hovered = allowInteraction && mouseOver(rect);
+            const float progress = cardHoverProgress("noah-deck:" + std::to_string(index), hovered, dt);
             if (hovered) {
                 hoveredCardIndex = index;
                 hoveredRect = rect;
+                hoveredProgress = progress;
             } else {
-                drawCardFace(rect, player.getOwnedCards()[index], false, 0.0f, -1, -1, true);
+                const Rectangle drawRect = applyCardHoverMotion(rect, progress, LayoutConfig::NoahDeckHoverScale);
+                drawCardFace(drawRect, player.getOwnedCards()[index], progress > 0.0f, 0.0f, -1, -1, true);
                 if (std::find(eventState.getSelectedDeckIndices().begin(),
                               eventState.getSelectedDeckIndices().end(),
                               index) != eventState.getSelectedDeckIndices().end()) {
-                    DrawRectangleLinesEx(rect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
+                    DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
                 }
             }
         }
         EndScissorMode();
 
         if (hoveredCardIndex >= 0) {
-            Rectangle drawRect = hoveredRect;
-            const float hoverScale = LayoutConfig::NoahDeckHoverScale;
-            drawRect.x -= (drawRect.width * hoverScale - drawRect.width) / 2.0f;
-            drawRect.y -= (drawRect.height * hoverScale - drawRect.height) / 2.0f;
-            drawRect.width *= hoverScale;
-            drawRect.height *= hoverScale;
+            Rectangle drawRect = applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::NoahDeckHoverScale);
             drawCardFace(drawRect, player.getOwnedCards()[hoveredCardIndex], true, 0.0f, -1, -1, true);
             if (std::find(eventState.getSelectedDeckIndices().begin(),
                           eventState.getSelectedDeckIndices().end(),

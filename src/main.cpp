@@ -93,6 +93,7 @@ int main() {
     bool       shouldQuit = false;
     OptionsSection mainMenuOptionsSection = OptionsSection::Display;
     OptionsSection pauseOptionsSection = OptionsSection::Display;
+    bool       returnToPeekAfterPile = false;
 
     float       enemyTurnElapsed    = 0.0f;
     const float enemyTurnDuration   = CombatConfig::EnemyTurnDelaySecs;
@@ -436,8 +437,6 @@ int main() {
                     uiState.setMode(UIMode::NORMAL);
                 } else if (uiState.getCurrentMode() == UIMode::OPTIONS) {
                     uiState.setMode(UIMode::PAUSED);
-                } else {
-                    uiState.setMode(UIMode::NORMAL);
                 }
             }
 
@@ -490,7 +489,33 @@ int main() {
             if (allowSceneInteraction && uiState.getCurrentMode() == UIMode::PEEK_SELECT) {
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
-                screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false);
+                const RunHudAction peekHudAction = screen.drawRunHud(state.getPlayer(),
+                                                                      currentTurnLabel(),
+                                                                      allowSceneInteraction,
+                                                                      false,
+                                                                      false,
+                                                                      true);
+                if (peekHudAction == RunHudAction::ViewDeck) {
+                    returnToPeekAfterPile = true;
+                    uiState.setMode(UIMode::VIEWING_RUN_DECK);
+                    uiState.resetScroll();
+                    break;
+                }
+
+                if (CheckCollisionPointRec(GetMousePosition(), screen.drawPileRect())
+                    && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    returnToPeekAfterPile = true;
+                    uiState.setMode(UIMode::VIEWING_DRAW_PILE);
+                    uiState.resetScroll();
+                    break;
+                }
+                if (CheckCollisionPointRec(GetMousePosition(), screen.discardPileRect())
+                    && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                    returnToPeekAfterPile = true;
+                    uiState.setMode(UIMode::VIEWING_DISCARD_PILE);
+                    uiState.resetScroll();
+                    break;
+                }
 
                 const int selIdx = screen.drawCardChoiceOverlay(
                     "Second Opinion",
@@ -505,6 +530,7 @@ int main() {
                         cardAudio.playCardPicked();
                     }
                     uiState.setMode(UIMode::NORMAL);
+                    returnToPeekAfterPile = false;
                     uiState.resetScroll();
                 }
                 break;
@@ -517,7 +543,11 @@ int main() {
                 // Still draw the combat screen beneath the overlay
                 bool unused1 = false, unused2 = false, unused3 = false;
                 screen.drawCombat(state, unused1, unused2, unused3, false);
-                handleRunHudAction(screen.drawRunHud(state.getPlayer(), currentTurnLabel(), allowSceneInteraction));
+                if (returnToPeekAfterPile) {
+                    screen.drawRunHud(state.getPlayer(), currentTurnLabel(), false, false, false, true);
+                } else {
+                    handleRunHudAction(screen.drawRunHud(state.getPlayer(), currentTurnLabel(), allowSceneInteraction));
+                }
 
                 // Determine which pile to show
                 const Deck& deck = state.getPlayer().getDeck();
@@ -546,7 +576,8 @@ int main() {
 
                 // Close overlay via X button or ESC (never exits the game)
                 if (closeClicked || InputHandler::getEscapePressed()) {
-                    uiState.setMode(UIMode::NORMAL);
+                    uiState.setMode(returnToPeekAfterPile ? UIMode::PEEK_SELECT : UIMode::NORMAL);
+                    returnToPeekAfterPile = false;
                 }
                 break; // skip normal combat input while overlay is open
             }

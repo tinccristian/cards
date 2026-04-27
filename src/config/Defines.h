@@ -180,7 +180,7 @@ inline constexpr float HandBottomOverflowPercent = 0.30f; // fraction of card he
 // Card hover & animation
 inline constexpr float HoveredCardScale        = 2.0f;   // scale multiplier when a card is hovered
 inline constexpr float HoveredCardLift         = 250.0f; // px the hovered card rises above the hand baseline
-inline constexpr float HoverAnimSpeed          = 15.0f;  // lerp speed for the hover grow/shrink animation
+inline constexpr float HoverAnimSpeed          = 24.0f;  // lerp speed for the hand hover lift/push animation
 inline constexpr float HandArchHeight          = 50.0f;  // peak height of the hand arc (center card vs edges)
 inline constexpr float HandMaxTiltDegrees      = 14.0f;  // max rotation applied to cards at the hand edges
 inline constexpr float HoveredTiltFactor       = 0.5f;   // reduces tilt on the hovered card (0 = flat, 1 = full)
@@ -188,6 +188,13 @@ inline constexpr float CardIdleWiggleDegrees   = 1.0f;   // smaller idle rotatio
 inline constexpr float CardIdleWiggleFrequency = 1.8f;   // Hz of the idle wiggle sine wave
 inline constexpr float CardIdleWigglePhaseStep = 0.65f;  // phase offset between adjacent cards so they don't sync
 inline constexpr float NeighborCardShift       = 15.0f;  // px neighbors spread apart when a card is hovered
+inline constexpr float CardHoverBouncePixels   = 12.0f;  // px upward bounce while hover scale settles
+inline constexpr float CardUiHoverAnimSpeed    = 18.0f;  // hover progress speed for non-hand card UIs
+inline constexpr float CardHoverOvershoot      = 1.45f;  // multiplier applied to the back-ease overshoot
+inline constexpr float CardHoverSquash         = 0.0f;   // temporary width/height squash while the hover bounce moves
+inline constexpr float HandRelayoutDuration    = 0.09f;  // seconds for cards to settle after play/reorder
+inline constexpr float HandDragCancelDuration  = 0.08f;  // seconds for right-click cancel to return to hand
+inline constexpr float NeighborCardShiftSecond = 8.0f;   // px second-neighbor ripple when a hand card is hovered
 
 // Card text  (sizes in logical px; drawn with a 1-px black outline)
 inline constexpr int CardNameFontSize      = 21; // m5x7 is authored for 16/32/48 px sizes

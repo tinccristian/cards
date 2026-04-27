@@ -16,6 +16,7 @@
 #include "gameplay/NoahEventState.h"
 #include "raylib.h"
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Handles all rendering and input detection for every game screen.
@@ -195,6 +196,12 @@ private:
         bool      scaled   = false;
     };
 
+    struct AnimatedCardState {
+        Rectangle bounds = {};
+        float     rotation = 0.0f;
+        bool      initialized = false;
+    };
+
     int          m_width;
     int          m_height;
     float        m_timeScale = 1.0f;
@@ -254,6 +261,12 @@ private:
     bool         m_deckHudHoveredLast = false;
     bool         m_backHudHoveredLast = false;
     std::string  m_lastPileViewerHoverToken;
+    std::unordered_map<std::string, float> m_cardHoverProgress;
+    std::unordered_map<std::string, AnimatedCardState> m_handCardMotion;
+    std::unordered_map<std::string, std::string> m_handCardMotionIds;
+    std::vector<std::string> m_handVisualOrder;
+    int          m_nextHandVisualId = 1;
+    float        m_handMotionDuration = LayoutConfig::HandRelayoutDuration;
     Shader       m_intentFloatShader  = {};
     bool         m_intentFloatShaderLoaded = false;
     int          m_intentFloatTimeLoc = -1;
@@ -332,6 +345,14 @@ private:
     Rectangle drawPileButtonRect() const;
     Rectangle endTurnButtonRect() const;
     std::vector<HandLayoutCard> buildHandLayout(int cardCount, int draggedCardIndex) const;
+    std::vector<std::string> syncHandVisualKeys(const std::vector<Card>& hand,
+                                                const std::vector<HandLayoutCard>& targetLayout);
+    std::vector<HandLayoutCard> animateHandLayout(const std::vector<Card>& hand,
+                                                  const std::vector<HandLayoutCard>& targetLayout,
+                                                  float dt);
+    float cardHoverProgress(const std::string& key, bool hovered, float dt);
+    Rectangle applyCardHoverMotion(Rectangle rect, float progress, float finalScale) const;
+    Rectangle currentDraggedCardRect(const HandLayoutCard& layout) const;
     HandLayoutCard selectedCardLayout(const HandLayoutCard& baseLayout) const;
     HandLayoutCard blendLayout(const HandLayoutCard& from, const HandLayoutCard& to, float blend) const;
     int handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const;
