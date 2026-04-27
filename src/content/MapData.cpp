@@ -181,6 +181,10 @@ void loadCharacterPositions(const nlohmann::json& root, MapData& mapData) {
         LayoutConfig::EntitySpriteTop,
         LayoutConfig::EnemyEntityCenterXPercent,
         LayoutConfig::EntitySpriteTop,
+        LayoutConfig::PlayerEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
+        LayoutConfig::EnemyEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
         false
     };
 
@@ -197,6 +201,16 @@ void loadCharacterPositions(const nlohmann::json& root, MapData& mapData) {
         positions.value("enemyCenterXPercent", LayoutConfig::EnemyEntityCenterXPercent);
     mapData.characterPositions.enemySpriteTop =
         positions.value("enemySpriteTop", positions.value("spriteTop", LayoutConfig::EntitySpriteTop));
+    mapData.characterPositions.playerHudCenterXPercent =
+        positions.value("playerHudCenterXPercent", mapData.characterPositions.playerCenterXPercent);
+    mapData.characterPositions.playerHudTop =
+        positions.value("playerHudTop",
+                        mapData.characterPositions.playerSpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap);
+    mapData.characterPositions.enemyHudCenterXPercent =
+        positions.value("enemyHudCenterXPercent", mapData.characterPositions.enemyCenterXPercent);
+    mapData.characterPositions.enemyHudTop =
+        positions.value("enemyHudTop",
+                        mapData.characterPositions.enemySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap);
     mapData.characterPositions.hasCustomPositions = true;
 }
 

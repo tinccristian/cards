@@ -98,6 +98,9 @@ void DevConsole::draw(GameScreen& screen, GameState& state, MapData& activeMap, 
     } else if (m_editorMode == EditorMode::CharacterPositions) {
         handleCharacterPositionEditorInput(activeMap);
         drawCharacterPositionEditor(activeMap);
+    } else if (m_editorMode == EditorMode::HudPositions) {
+        handleHudPositionEditorInput(activeMap);
+        drawHudPositionEditor(activeMap);
     }
 
     drawStatusBanner();
@@ -131,7 +134,12 @@ void DevConsole::draw(GameScreen& screen, GameState& state, MapData& activeMap, 
     };
     DrawRectangleRec(inputRect, Colors::light_bg);
     DrawRectangleLinesEx(inputRect, 2.0f, Colors::draw_pile_accent);
-    const std::string prompt = "> " + m_input + (((int)(GetTime() * 2.0) % 2 == 0) ? "_" : "");
+    const int cursor = std::clamp(m_cursorIndex, 0, (int)m_input.size());
+    const std::string cursorGlyph = (((int)(GetTime() * 2.0) % 2 == 0) ? "_" : " ");
+    const std::string prompt = "> "
+        + m_input.substr(0, cursor)
+        + cursorGlyph
+        + m_input.substr(cursor);
     drawReadableText(prompt, (int)inputRect.x + 10, (int)inputRect.y + 6, 20, WHITE);
 }
 
@@ -149,8 +157,10 @@ void DevConsole::handleConsoleInput(GameState& state, MapData& activeMap) {
         if (m_skipNextToggleCharacter && (key == '`' || key == '~')) {
             m_skipNextToggleCharacter = false;
         } else if (key >= 32 && key <= 126) {
-            m_input.push_back((char)key);
-            m_autocompleteIndex = -1;
+            m_cursorIndex = std::clamp(m_cursorIndex, 0, (int)m_input.size());
+            m_input.insert(m_input.begin() + m_cursorIndex, (char)key);
+            ++m_cursorIndex;
+            resetAutocomplete();
         }
         key = GetCharPressed();
     }
@@ -160,14 +170,30 @@ void DevConsole::handleConsoleInput(GameState& state, MapData& activeMap) {
     if (ctrlDown && IsKeyPressed(KEY_BACKSPACE)) {
         deletePreviousWord();
         m_backspaceRepeatAt = now + 0.38f;
-    } else if (IsKeyPressed(KEY_BACKSPACE) && !m_input.empty()) {
-        m_input.pop_back();
-        m_autocompleteIndex = -1;
+    } else if (IsKeyPressed(KEY_BACKSPACE) && m_cursorIndex > 0) {
+        m_input.erase(m_input.begin() + m_cursorIndex - 1);
+        --m_cursorIndex;
+        resetAutocomplete();
         m_backspaceRepeatAt = now + 0.38f;
-    } else if (!ctrlDown && IsKeyDown(KEY_BACKSPACE) && !m_input.empty() && now >= m_backspaceRepeatAt) {
-        m_input.pop_back();
-        m_autocompleteIndex = -1;
+    } else if (!ctrlDown && IsKeyDown(KEY_BACKSPACE) && m_cursorIndex > 0 && now >= m_backspaceRepeatAt) {
+        m_input.erase(m_input.begin() + m_cursorIndex - 1);
+        --m_cursorIndex;
+        resetAutocomplete();
         m_backspaceRepeatAt = now + 0.045f;
+    }
+    if (ctrlDown && IsKeyPressed(KEY_LEFT)) {
+        moveCursorByWord(-1);
+        resetAutocomplete();
+    } else if (IsKeyPressed(KEY_LEFT)) {
+        m_cursorIndex = std::max(0, m_cursorIndex - 1);
+        resetAutocomplete();
+    }
+    if (ctrlDown && IsKeyPressed(KEY_RIGHT)) {
+        moveCursorByWord(1);
+        resetAutocomplete();
+    } else if (IsKeyPressed(KEY_RIGHT)) {
+        m_cursorIndex = std::min((int)m_input.size(), m_cursorIndex + 1);
+        resetAutocomplete();
     }
     if (IsKeyPressed(KEY_ENTER)) {
         executeInput(state, activeMap);
@@ -182,6 +208,8 @@ void DevConsole::handleConsoleInput(GameState& state, MapData& activeMap) {
             m_historyIndex = std::max(0, m_historyIndex - 1);
         }
         m_input = m_history[m_historyIndex];
+        m_cursorIndex = (int)m_input.size();
+        resetAutocomplete();
     }
     if (IsKeyPressed(KEY_DOWN) && !m_history.empty()) {
         if (m_historyIndex >= 0) {
@@ -189,21 +217,52 @@ void DevConsole::handleConsoleInput(GameState& state, MapData& activeMap) {
             if (m_historyIndex >= (int)m_history.size()) {
                 m_historyIndex = -1;
                 m_input.clear();
+                m_cursorIndex = 0;
             } else {
                 m_input = m_history[m_historyIndex];
+                m_cursorIndex = (int)m_input.size();
             }
+            resetAutocomplete();
         }
     }
 }
 
 void DevConsole::deletePreviousWord() {
-    while (!m_input.empty() && std::isspace((unsigned char)m_input.back())) {
-        m_input.pop_back();
+    m_cursorIndex = std::clamp(m_cursorIndex, 0, (int)m_input.size());
+    int eraseStart = m_cursorIndex;
+    while (eraseStart > 0 && std::isspace((unsigned char)m_input[eraseStart - 1])) {
+        --eraseStart;
     }
-    while (!m_input.empty() && !std::isspace((unsigned char)m_input.back())) {
-        m_input.pop_back();
+    while (eraseStart > 0 && !std::isspace((unsigned char)m_input[eraseStart - 1])) {
+        --eraseStart;
     }
+    m_input.erase(eraseStart, m_cursorIndex - eraseStart);
+    m_cursorIndex = eraseStart;
+    resetAutocomplete();
+}
+
+void DevConsole::moveCursorByWord(int direction) {
+    m_cursorIndex = std::clamp(m_cursorIndex, 0, (int)m_input.size());
+    if (direction < 0) {
+        while (m_cursorIndex > 0 && std::isspace((unsigned char)m_input[m_cursorIndex - 1])) {
+            --m_cursorIndex;
+        }
+        while (m_cursorIndex > 0 && !std::isspace((unsigned char)m_input[m_cursorIndex - 1])) {
+            --m_cursorIndex;
+        }
+    } else if (direction > 0) {
+        while (m_cursorIndex < (int)m_input.size() && !std::isspace((unsigned char)m_input[m_cursorIndex])) {
+            ++m_cursorIndex;
+        }
+        while (m_cursorIndex < (int)m_input.size() && std::isspace((unsigned char)m_input[m_cursorIndex])) {
+            ++m_cursorIndex;
+        }
+    }
+}
+
+void DevConsole::resetAutocomplete() {
     m_autocompleteIndex = -1;
+    m_autocompleteSeed.clear();
 }
 
 void DevConsole::executeInput(GameState& state, MapData& activeMap) {
@@ -215,6 +274,8 @@ void DevConsole::executeInput(GameState& state, MapData& activeMap) {
     m_historyIndex = -1;
     log("> " + command);
     m_input.clear();
+    m_cursorIndex = 0;
+    resetAutocomplete();
     executeCommand(command, state, activeMap);
 }
 
@@ -236,6 +297,10 @@ void DevConsole::executeCommand(const std::string& command, GameState& state, Ma
     }
     if (normalized == "modifycharacterpositions") {
         enterCharacterPositionEditor(activeMap);
+        return;
+    }
+    if (normalized == "modifyhudpositions") {
+        enterHudPositionEditor(activeMap);
         return;
     }
     if (normalized == "win") {
@@ -312,13 +377,37 @@ void DevConsole::executeCommand(const std::string& command, GameState& state, Ma
 
 void DevConsole::autocomplete() {
     std::vector<std::string> matches;
-    const std::string seed = lowerCopy(m_input);
-    for (const auto& [name, description] : commands()) {
-        (void)description;
-        if (startsWith(lowerCopy(name), seed)) {
-            matches.push_back(name);
+    const int cursor = std::clamp(m_cursorIndex, 0, (int)m_input.size());
+    const std::string currentPrefix = m_input.substr(0, cursor);
+    const std::string seed = m_autocompleteIndex >= 0
+        ? m_autocompleteSeed
+        : lowerCopy(currentPrefix);
+
+    if (startsWith(seed, "give ")) {
+        const std::string cardSeed = trim(seed.substr(5));
+        if (startsWith("all", cardSeed)) {
+            matches.push_back("give all");
+        }
+        for (const Card& card : CardDatabase::getAllCards()) {
+            if (startsWith(lowerCopy(card.getId()), cardSeed)) {
+                matches.push_back("give " + card.getId());
+            }
+        }
+    } else {
+        std::unordered_set<std::string> seen;
+        for (const auto& [name, description] : commands()) {
+            (void)description;
+            std::string commandName = name;
+            const size_t space = commandName.find(' ');
+            if (space != std::string::npos) {
+                commandName = commandName.substr(0, space);
+            }
+            if (seen.insert(commandName).second && startsWith(lowerCopy(commandName), seed)) {
+                matches.push_back(commandName);
+            }
         }
     }
+
     if (matches.empty()) {
         return;
     }
@@ -328,7 +417,8 @@ void DevConsole::autocomplete() {
     } else {
         m_autocompleteIndex = (m_autocompleteIndex + 1) % (int)matches.size();
     }
-    m_input = matches[m_autocompleteIndex];
+    m_input = matches[m_autocompleteIndex] + m_input.substr(cursor);
+    m_cursorIndex = (int)matches[m_autocompleteIndex].size();
 }
 
 void DevConsole::log(const std::string& text) {
@@ -344,6 +434,7 @@ std::vector<std::pair<std::string, std::string>> DevConsole::commands() const {
         { "mapEditor", "Open the active map editor." },
         { "cardEditor", "Open the card zone editor." },
         { "modifyCharacterPositions", "Move player/enemy combat positions for the active map." },
+        { "modifyHudPositions", "Move player/enemy HP and status HUDs for the active map." },
         { "win", "Kill the current enemy and win the fight." },
         { "reroll", "Reroll current 1-of-3 reward card choices." },
         { "give <id> [n]", "Add n copies of a card to your hand by its JSON id (default 1)." },
@@ -376,12 +467,35 @@ void DevConsole::enterCharacterPositionEditor(MapData& activeMap) {
             LayoutConfig::EntitySpriteTop,
             LayoutConfig::EnemyEntityCenterXPercent,
             LayoutConfig::EntitySpriteTop,
+            LayoutConfig::PlayerEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
+            LayoutConfig::EnemyEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
             true
         };
     }
     m_draggingCharacterIndex = -1;
     m_editorMode = EditorMode::CharacterPositions;
     log("Character position editor opened. Drag player/enemy boxes. S saves active map JSON.");
+}
+
+void DevConsole::enterHudPositionEditor(MapData& activeMap) {
+    if (!activeMap.characterPositions.hasCustomPositions) {
+        activeMap.characterPositions = {
+            LayoutConfig::PlayerEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop,
+            LayoutConfig::EnemyEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop,
+            LayoutConfig::PlayerEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
+            LayoutConfig::EnemyEntityCenterXPercent,
+            LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
+            true
+        };
+    }
+    m_draggingCharacterIndex = -1;
+    m_editorMode = EditorMode::HudPositions;
+    log("HUD position editor opened. Drag player/enemy HP+status widgets. S saves active map JSON.");
 }
 
 void DevConsole::exitEditor() {
@@ -576,7 +690,11 @@ void DevConsole::saveMap(MapData& activeMap) {
         { "playerCenterXPercent", activeMap.characterPositions.playerCenterXPercent },
         { "playerSpriteTop", activeMap.characterPositions.playerSpriteTop },
         { "enemyCenterXPercent", activeMap.characterPositions.enemyCenterXPercent },
-        { "enemySpriteTop", activeMap.characterPositions.enemySpriteTop }
+        { "enemySpriteTop", activeMap.characterPositions.enemySpriteTop },
+        { "playerHudCenterXPercent", activeMap.characterPositions.playerHudCenterXPercent },
+        { "playerHudTop", activeMap.characterPositions.playerHudTop },
+        { "enemyHudCenterXPercent", activeMap.characterPositions.enemyHudCenterXPercent },
+        { "enemyHudTop", activeMap.characterPositions.enemyHudTop }
     };
     root["nodes"] = nlohmann::json::array();
     for (const auto& node : activeMap.nodes) {
@@ -779,6 +897,115 @@ void DevConsole::saveCharacterPositions(MapData& activeMap) {
     saveMap(activeMap);
     log("CHARACTER POSITIONS SAVED: " + activeMap.id + ".");
     showStatus("Character positions saved", Colors::heal_color);
+}
+
+Rectangle DevConsole::hudRect(const MapCharacterPositions& positions, int hudIndex) const {
+    const float screenW = (float)GetScreenWidth();
+    const float screenH = (float)GetScreenHeight();
+    const float scale = std::clamp(
+        std::min(screenW / (float)WindowConfig::Width, screenH / (float)WindowConfig::Height),
+        LayoutConfig::UiMinScale,
+        LayoutConfig::UiMaxScale);
+    const float hudWidth = (float)LayoutConfig::EntityHudWidth * scale;
+    const float barHeight = (float)LayoutConfig::HealthBarHeight * scale;
+    const float slotSize = barHeight * 1.5f;
+    const float statusSize = std::max((float)LayoutConfig::EntityStatusIconSize * scale, slotSize);
+    const float top = (float)(hudIndex == 0 ? positions.playerHudTop : positions.enemyHudTop) * scale;
+    const float centerPercent = hudIndex == 0
+        ? positions.playerHudCenterXPercent
+        : positions.enemyHudCenterXPercent;
+    const float x = screenW * centerPercent - hudWidth * 0.5f;
+    const float y = top - (slotSize - barHeight) * 0.5f;
+    const float height = (top + barHeight + (float)LayoutConfig::EntityStatusGap * scale + statusSize) - y;
+    return { x, y, hudWidth, height };
+}
+
+void DevConsole::drawHudPositionEditor(MapData& activeMap) {
+    const Rectangle panel = { 0.0f, 108.0f, 470.0f, 190.0f };
+    DrawRectangleRec(panel, Color{ 6, 8, 12, 232 });
+    DrawRectangleLinesEx(panel, 2.0f, Colors::draw_pile_accent);
+
+    int y = (int)panel.y + 12;
+    drawReadableText("modifyHudPositions [" + activeMap.id + "]", (int)panel.x + 16, y, 22, WHITE);
+    y += 34;
+    drawReadableText("Drag HP/status widgets only", (int)panel.x + 16, y, 17, Colors::text_primary);
+    y += 26;
+    drawReadableText("S  Save active map JSON", (int)panel.x + 16, y, 16, Colors::text_secondary);
+    y += 22;
+    drawReadableText("ESC or exit  Close editor", (int)panel.x + 16, y, 16, Colors::text_secondary);
+
+    const Rectangle player = hudRect(activeMap.characterPositions, 0);
+    const Rectangle enemy = hudRect(activeMap.characterPositions, 1);
+    const Rectangle boxes[] = { player, enemy };
+    const char* labels[] = { "Player HUD", "Enemy HUD" };
+    const Color colors[] = { Colors::draw_pile_accent, Colors::damage_color };
+
+    for (int i = 0; i < 2; ++i) {
+        DrawRectangleRec(boxes[i], ColorAlpha(colors[i], m_draggingCharacterIndex == i ? 0.22f : 0.12f));
+        DrawRectangleLinesEx(boxes[i], m_draggingCharacterIndex == i ? 3.0f : 2.0f, colors[i]);
+        drawReadableText(labels[i], (int)boxes[i].x + 8, (int)boxes[i].y + 8, 18, colors[i]);
+    }
+}
+
+void DevConsole::handleHudPositionEditorInput(MapData& activeMap) {
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        exitEditor();
+        return;
+    }
+    if (IsKeyPressed(KEY_S)) {
+        saveHudPositions(activeMap);
+        return;
+    }
+    if (m_open) {
+        return;
+    }
+
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        const Vector2 mouse = GetMousePosition();
+        for (int i = 1; i >= 0; --i) {
+            if (CheckCollisionPointRec(mouse, hudRect(activeMap.characterPositions, i))) {
+                m_draggingCharacterIndex = i;
+                m_characterDragStartMouse = mouse;
+                m_characterDragStartPositions = activeMap.characterPositions;
+                break;
+            }
+        }
+    }
+
+    if (m_draggingCharacterIndex >= 0 && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
+        const Vector2 mouse = GetMousePosition();
+        const float dxPercent = (mouse.x - m_characterDragStartMouse.x) / std::max(1.0f, (float)GetScreenWidth());
+        const float scale = std::clamp(
+            std::min((float)GetScreenWidth() / (float)WindowConfig::Width,
+                     (float)GetScreenHeight() / (float)WindowConfig::Height),
+            LayoutConfig::UiMinScale,
+            LayoutConfig::UiMaxScale);
+        const int dy = (int)std::lround((mouse.y - m_characterDragStartMouse.y) / scale);
+        const int logicalScreenHeight = (int)std::floor((float)GetScreenHeight() / scale);
+        activeMap.characterPositions.hasCustomPositions = true;
+        if (m_draggingCharacterIndex == 0) {
+            activeMap.characterPositions.playerHudCenterXPercent =
+                std::clamp(m_characterDragStartPositions.playerHudCenterXPercent + dxPercent, 0.0f, 1.0f);
+            activeMap.characterPositions.playerHudTop =
+                std::clamp(m_characterDragStartPositions.playerHudTop + dy, 0, logicalScreenHeight);
+        } else {
+            activeMap.characterPositions.enemyHudCenterXPercent =
+                std::clamp(m_characterDragStartPositions.enemyHudCenterXPercent + dxPercent, 0.0f, 1.0f);
+            activeMap.characterPositions.enemyHudTop =
+                std::clamp(m_characterDragStartPositions.enemyHudTop + dy, 0, logicalScreenHeight);
+        }
+    }
+
+    if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+        m_draggingCharacterIndex = -1;
+    }
+}
+
+void DevConsole::saveHudPositions(MapData& activeMap) {
+    activeMap.characterPositions.hasCustomPositions = true;
+    saveMap(activeMap);
+    log("HUD POSITIONS SAVED: " + activeMap.id + ".");
+    showStatus("HUD positions saved", Colors::heal_color);
 }
 
 void DevConsole::drawCardEditor(GameScreen& screen, GameState& state) {

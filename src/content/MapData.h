@@ -42,6 +42,10 @@ struct MapCharacterPositions {
     int playerSpriteTop = 0;
     float enemyCenterXPercent = 0.0f;
     int enemySpriteTop = 0;
+    float playerHudCenterXPercent = 0.0f;
+    int playerHudTop = 0;
+    float enemyHudCenterXPercent = 0.0f;
+    int enemyHudTop = 0;
     bool hasCustomPositions = false;
 };
 

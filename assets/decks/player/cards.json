@@ -34,7 +34,7 @@
       "cost": 2,
       "type": "skill",
       "tags": ["medicine"],
-      "artPath": "assets/cards/pill.png",
+      "artPath": "assets/cards/cleanse.png",
       "effects": [
         { "type": "cleanse_debuffs", "target": "self", "amount": 1 }
       ]
@@ -47,7 +47,7 @@
       "cost": 2,
       "type": "attack",
       "tags": ["medicine", "antibiotic"],
-      "artPath": "assets/cards/pill.png",
+      "artPath": "assets/cards/antibiotic.png",
       "effects": [
         { "type": "damage", "target": "opponent", "amount": 8 }
       ]

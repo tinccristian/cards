@@ -20,7 +20,8 @@ private:
         None,
         Map,
         Card,
-        CharacterPositions
+        CharacterPositions,
+        HudPositions
     };
 
     enum class MapTool {
@@ -49,6 +50,7 @@ private:
     EditorMode m_editorMode = EditorMode::None;
     MapTool m_mapTool = MapTool::AddNode;
     std::string m_input;
+    int m_cursorIndex = 0;
     std::vector<std::string> m_log;
     std::vector<std::string> m_history;
     int m_historyIndex = -1;
@@ -80,6 +82,8 @@ private:
 
     void handleConsoleInput(GameState& state, MapData& activeMap);
     void deletePreviousWord();
+    void moveCursorByWord(int direction);
+    void resetAutocomplete();
     void executeInput(GameState& state, MapData& activeMap);
     void executeCommand(const std::string& command, GameState& state, MapData& activeMap);
     void autocomplete();
@@ -89,6 +93,7 @@ private:
     void enterMapEditor();
     void enterCardEditor();
     void enterCharacterPositionEditor(MapData& activeMap);
+    void enterHudPositionEditor(MapData& activeMap);
     void exitEditor();
 
     void refreshEnemyOptions();
@@ -104,6 +109,11 @@ private:
     void handleCharacterPositionEditorInput(MapData& activeMap);
     Rectangle characterRect(const MapCharacterPositions& positions, int characterIndex) const;
     void saveCharacterPositions(MapData& activeMap);
+
+    void drawHudPositionEditor(MapData& activeMap);
+    void handleHudPositionEditorInput(MapData& activeMap);
+    Rectangle hudRect(const MapCharacterPositions& positions, int hudIndex) const;
+    void saveHudPositions(MapData& activeMap);
 
     void drawCardEditor(GameScreen& screen, GameState& state);
     void handleCardEditorInput();

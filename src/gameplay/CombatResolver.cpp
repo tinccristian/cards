@@ -7,6 +7,7 @@
 #include "gameplay/StatusCollection.h"
 
 #include <cstdlib>
+#include <optional>
 #include <sstream>
 #include <vector>
 
@@ -15,6 +16,24 @@ bool CardResolutionSummary::hasGameplayEffect() const {
         || manaGained > 0 || bonusManaGranted > 0 || debuffsCleared > 0
         || nextCardFreeGranted || enemyTurnSkipped;
 }
+
+namespace {
+
+std::optional<StatusType> statusTypeFromKey(const std::string& key) {
+    if (key == "poison") {
+        return StatusType::Poison;
+    }
+    return std::nullopt;
+}
+
+StatusDisposition statusDispositionFor(StatusType type, EffectTarget target) {
+    if (type == StatusType::Poison) {
+        return StatusDisposition::Negative;
+    }
+    return target == EffectTarget::Self ? StatusDisposition::Positive : StatusDisposition::Negative;
+}
+
+} // namespace
 
 namespace CombatResolver {
 
@@ -175,6 +194,16 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
             break;
 
         case EffectType::ApplyStatus:
+            if (const auto statusType = statusTypeFromKey(effect.key); statusType.has_value()) {
+                const StatusDisposition disposition = statusDispositionFor(*statusType, effect.target);
+                if (effect.target == EffectTarget::Self) {
+                    player.addStatus(*statusType, effect.amount, effect.duration, disposition);
+                } else {
+                    enemy.addStatus(*statusType, effect.amount, effect.duration, disposition);
+                }
+            }
+            break;
+
         case EffectType::ModifyMaxHealthPercent:
         case EffectType::DamagePerCounter:
         case EffectType::Unknown:

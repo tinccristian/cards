@@ -249,6 +249,10 @@ private:
         LayoutConfig::EntitySpriteTop,
         LayoutConfig::EnemyEntityCenterXPercent,
         LayoutConfig::EntitySpriteTop,
+        LayoutConfig::PlayerEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
+        LayoutConfig::EnemyEntityCenterXPercent,
+        LayoutConfig::EntitySpriteTop + LayoutConfig::EntitySpriteSize + LayoutConfig::EntityHudGap,
         false
     };
     CardAudio*   m_cardAudio        = nullptr;
@@ -282,6 +286,7 @@ private:
     bool         m_debuffIconLoaded   = false;
     Texture2D    m_poisonIcon         = {};
     bool         m_poisonIconLoaded   = false;
+    std::unordered_map<std::string, Texture2D> m_organStatusIcons;
     bool         m_mapHudHoveredLast  = false;
     bool         m_deckHudHoveredLast = false;
     bool         m_backHudHoveredLast = false;
@@ -353,7 +358,8 @@ private:
     void drawHealthBar(Rectangle bar, float ratio, bool hasBlock = false) const;
     void drawEntityHud(Rectangle spriteRect, const std::string& name,
                        int health, int maxHealth, int block,
-                       const StatusCollection* statuses = nullptr) const;
+                       const StatusCollection* statuses = nullptr,
+                       const std::vector<Card>* activeOrgans = nullptr) const;
     void drawManaHud(const Player& player) const;
     // playerMana: current mana (used to colour cost red when unaffordable). -1 = neutral.
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,

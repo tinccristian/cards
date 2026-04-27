@@ -1,9 +1,13 @@
 {
   "characterPositions": {
-    "enemyCenterXPercent": 0.8258593678474426,
-    "enemySpriteTop": 208,
-    "playerCenterXPercent": 0.1905468851327896,
-    "playerSpriteTop": 197
+    "enemyCenterXPercent": 0.8331510424613953,
+    "enemyHudCenterXPercent": 0.8289843797683716,
+    "enemyHudTop": 483,
+    "enemySpriteTop": 287,
+    "playerCenterXPercent": 0.2025260478258133,
+    "playerHudCenterXPercent": 0.19367188215255737,
+    "playerHudTop": 471,
+    "playerSpriteTop": 266
   },
   "connections": [
     {

@@ -752,6 +752,35 @@ std::string statusTooltipLine(const StatusInstance& status) {
     return "";
 }
 
+const char* organStatusIconPath(const std::string& organId) {
+    if (organId == "pacemaker") {
+        return AssetPaths::PACEMAKER_STATUS_ICON;
+    }
+    if (organId == "synthetic_lung") {
+        return AssetPaths::SYNTHETIC_LUNG_STATUS_ICON;
+    }
+    if (organId == "histamine") {
+        return AssetPaths::HISTAMINE_STATUS_ICON;
+    }
+    return nullptr;
+}
+
+std::string organStatusDescription(const Card& organ) {
+    std::string description = organ.getDisplayDescription();
+    const std::string prefix = "Organ. ";
+    if (description.rfind(prefix, 0) == 0) {
+        description.erase(0, prefix.size());
+    }
+    if (description.empty()) {
+        description = organ.getDescription();
+    }
+    return description;
+}
+
+std::string organStatusTooltipLine(const Card& organ) {
+    return organ.getDisplayName() + ": " + organStatusDescription(organ);
+}
+
 std::vector<std::string> wrapTooltipText(const std::string& body, int fontSize, int maxContentW) {
     std::vector<std::string> wrappedLines;
     std::string paragraph;
@@ -947,13 +976,14 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const int turnFontSize = scalei(LayoutConfig::CombatTurnFontSize);
     const int combatLogFontSize = scalei(LayoutConfig::CombatLogFontSize);
     const float spriteSize = scalef(LayoutConfig::EntitySpriteSize);
-    const float defaultSpriteTop = (float)scalei(LayoutConfig::EntitySpriteTop);
     const float playerSpriteTop = (float)scalei(m_characterPositions.playerSpriteTop);
     const float enemySpriteTop = (float)scalei(m_characterPositions.enemySpriteTop);
-    const float defaultPlayerCenterX = m_width * LayoutConfig::PlayerEntityCenterXPercent;
-    const float defaultEnemyCenterX = m_width * LayoutConfig::EnemyEntityCenterXPercent;
     const float playerCenterX = m_width * m_characterPositions.playerCenterXPercent;
     const float enemyCenterX = m_width * m_characterPositions.enemyCenterXPercent;
+    const float playerHudCenterX = m_width * m_characterPositions.playerHudCenterXPercent;
+    const float enemyHudCenterX = m_width * m_characterPositions.enemyHudCenterXPercent;
+    const float playerHudTop = (float)scalei(m_characterPositions.playerHudTop);
+    const float enemyHudTop = (float)scalei(m_characterPositions.enemyHudTop);
     const Rectangle playerSpriteRect = {
         playerCenterX - spriteSize / 2.0f,
         playerSpriteTop,
@@ -967,14 +997,14 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         spriteSize
     };
     const Rectangle playerHudAnchorRect = {
-        defaultPlayerCenterX - spriteSize / 2.0f,
-        defaultSpriteTop,
+        playerHudCenterX - spriteSize / 2.0f,
+        playerHudTop - spriteSize - scalef(LayoutConfig::EntityHudGap),
         spriteSize,
         spriteSize
     };
     const Rectangle enemyHudAnchorRect = {
-        defaultEnemyCenterX - spriteSize / 2.0f,
-        defaultSpriteTop,
+        enemyHudCenterX - spriteSize / 2.0f,
+        enemyHudTop - spriteSize - scalef(LayoutConfig::EntityHudGap),
         spriteSize,
         spriteSize
     };
@@ -1089,7 +1119,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
 
     drawEntityHud(playerHudAnchorRect, "You",
                   player.getHealth(), player.getMaxHealth(), player.getBlock(),
-                  &player.getStatuses());
+                  &player.getStatuses(),
+                  &player.getActiveOrgans());
     drawEntityHud(enemyHudAnchorRect, enemy.getName(),
                   enemy.getHealth(), enemy.getMaxHealth(), enemy.getEnemyBlock());
     drawIntentIndicator(enemy, enemyHudAnchorRect);
@@ -1404,6 +1435,13 @@ void GameScreen::unloadAssets() {
         m_poisonIcon = {};
         m_poisonIconLoaded = false;
     }
+    for (auto& [id, texture] : m_organStatusIcons) {
+        (void)id;
+        if (texture.id != 0) {
+            UnloadTexture(texture);
+        }
+    }
+    m_organStatusIcons.clear();
     if (m_mapTextureLoaded && m_mapTexture.id != 0) {
         UnloadTexture(m_mapTexture);
         m_mapTexture = {};
@@ -2076,7 +2114,8 @@ void GameScreen::drawHealthBar(Rectangle bar, float ratio, bool hasBlock) const 
 
 void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
                                int health, int maxHealth, int block,
-                               const StatusCollection* statuses) const {
+                               const StatusCollection* statuses,
+                               const std::vector<Card>* activeOrgans) const {
     // Lazy-load block icon (const_cast: texture loading is logically const).
     if (!m_blockIconLoaded) {
         auto* self = const_cast<GameScreen*>(this);
@@ -2108,6 +2147,19 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
         if (FileExists(AssetPaths::POISON_ICON)) {
             self->m_poisonIcon = LoadTexture(AssetPaths::POISON_ICON);
             SetTextureFilter(self->m_poisonIcon, TEXTURE_FILTER_POINT);
+        }
+    }
+    if (!m_intentFloatShaderLoaded) {
+        auto* self = const_cast<GameScreen*>(this);
+        self->m_intentFloatShaderLoaded = true;
+        if (FileExists(AssetPaths::INTENT_FLOAT_SHADER)) {
+            self->m_intentFloatShader = LoadShader(AssetPaths::INTENT_FLOAT_SHADER, nullptr);
+            if (self->m_intentFloatShader.id != 0) {
+                self->m_intentFloatTimeLoc = GetShaderLocation(self->m_intentFloatShader, "time");
+                self->m_intentFloatAmpLoc = GetShaderLocation(self->m_intentFloatShader, "amplitude");
+                self->m_intentFloatSpeedLoc = GetShaderLocation(self->m_intentFloatShader, "speed");
+                self->m_intentFloatPhaseLoc = GetShaderLocation(self->m_intentFloatShader, "phase");
+            }
         }
     }
 
@@ -2166,101 +2218,192 @@ void GameScreen::drawEntityHud(Rectangle spriteRect, const std::string& name,
                          slot);
     }
 
-    if (!statuses || statuses->getAll().empty()) {
+    const bool hasStatuses = statuses && !statuses->getAll().empty();
+    const bool hasOrgans = activeOrgans && !activeOrgans->empty();
+    if (!hasStatuses && !hasOrgans) {
         return;
     }
 
     const float statusY = barY + barHeight + scalef(LayoutConfig::EntityStatusGap);
     float statusX = bar.x;
-    const float statusSize = scalef(LayoutConfig::EntityStatusIconSize);
-    const float statusGap = scalef(LayoutConfig::EntityStatusIconGap);
+    const float statusSize = scalei(LayoutConfig::HealthBarHeight) * 2.25f;
+    const float statusGap = scalef(LayoutConfig::IntentIconGap * 0.5f);
     const int statusValueSize = scalei(LayoutConfig::EntityStatusValueSize);
+    const float bobAmplitude = scalef(LayoutConfig::IntentFloatAmplitude * 0.55f);
+    const float bobSpeed = LayoutConfig::IntentFloatSpeed * 0.72f;
+    const float timeValue = (float)GetTime();
+    const float textBobOffset = std::sin(timeValue * bobSpeed) * bobAmplitude;
+    bool hoveredStatusIcon = false;
 
-    for (const auto& status : statuses->getAll()) {
-        Texture2D icon = {};
-        bool iconLoaded = false;
-        std::string title;
-        std::string tooltip;
-
-        switch (status.type) {
-        case StatusType::Poison:
-            icon = m_poisonIcon;
-            iconLoaded = m_poisonIconLoaded && m_poisonIcon.id != 0;
-            title = "Poison";
-            tooltip = "Poisoned for " + std::to_string(status.duration)
-                + " turns. Takes " + std::to_string(status.magnitude)
-                + " damage at the end of your turn, then loses 1 poison each turn.";
-            break;
-        case StatusType::BonusManaNextTurn:
-            icon = m_buffIcon;
-            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
-            title = "Bonus Mana";
-            tooltip = "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
-            break;
-        case StatusType::NextCardFree:
-            icon = m_buffIcon;
-            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
-            title = "Quick Thought";
-            tooltip = "Your next card costs 0.";
-            break;
-        case StatusType::SkipTurn:
-        case StatusType::Infection:
-        case StatusType::Weakness:
-        case StatusType::Vulnerable:
-            icon = status.disposition == StatusDisposition::Positive ? m_buffIcon : m_debuffIcon;
-            iconLoaded = icon.id != 0;
-            title = status.disposition == StatusDisposition::Positive ? "Buff" : "Debuff";
-            tooltip = "Status active for " + std::to_string(status.duration) + " turns.";
-            break;
-        case StatusType::DamageOnDraw:
-            icon = m_buffIcon;
-            iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
-            title = "Cytotoxic Rush";
-            tooltip = "Each card you draw this turn deals " + std::to_string(status.magnitude) + " damage.";
-            break;
+    const auto beginStatusFloatShader = [&]() {
+        if (m_intentFloatShader.id == 0) {
+            return false;
         }
-
-        const Rectangle statusRect = { statusX, statusY, statusSize, statusSize };
-        if (iconLoaded) {
-            const Rectangle src = { 0, 0, (float)icon.width, (float)icon.height };
-            DrawTexturePro(icon, src, statusRect, { 0, 0 }, 0.0f, WHITE);
-        } else {
-            DrawRectangleRec(statusRect,
-                status.disposition == StatusDisposition::Positive ? Colors::heal_color : Colors::damage_color);
+        if (m_intentFloatTimeLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatTimeLoc, &timeValue, SHADER_UNIFORM_FLOAT);
         }
-
-        const std::string valueText = std::to_string(status.magnitude);
-        const int valueWidth = MeasureText(valueText.c_str(), statusValueSize);
-        DrawTextOutlined(valueText.c_str(),
-                         (int)std::round(statusRect.x + (statusRect.width - valueWidth) / 2.0f),
-                         (int)std::round(statusRect.y + statusRect.height - statusValueSize),
-                         statusValueSize,
-                         WHITE);
-
-        if (mouseOver(statusRect)) {
-            queueTooltip(title, tooltip, statusRect);
+        if (m_intentFloatAmpLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatAmpLoc, &bobAmplitude, SHADER_UNIFORM_FLOAT);
         }
+        if (m_intentFloatSpeedLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatSpeedLoc, &bobSpeed, SHADER_UNIFORM_FLOAT);
+        }
+        const float phase = 0.0f;
+        if (m_intentFloatPhaseLoc >= 0) {
+            SetShaderValue(m_intentFloatShader, m_intentFloatPhaseLoc, &phase, SHADER_UNIFORM_FLOAT);
+        }
+        BeginShaderMode(m_intentFloatShader);
+        return true;
+    };
 
-        statusX += statusSize + statusGap;
+    if (hasStatuses) {
+        for (const auto& status : statuses->getAll()) {
+            Texture2D icon = {};
+            bool iconLoaded = false;
+            std::string title;
+            std::string tooltip;
+
+            switch (status.type) {
+            case StatusType::Poison:
+                icon = m_poisonIcon;
+                iconLoaded = m_poisonIconLoaded && m_poisonIcon.id != 0;
+                title = "Poison";
+                tooltip = "Poisoned for " + std::to_string(status.duration)
+                    + " turns. Takes " + std::to_string(status.magnitude)
+                    + " damage at the end of your turn, then loses 1 poison each turn.";
+                break;
+            case StatusType::BonusManaNextTurn:
+                icon = m_buffIcon;
+                iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+                title = "Bonus Mana";
+                tooltip = "Gain +" + std::to_string(status.magnitude) + " mana next turn.";
+                break;
+            case StatusType::NextCardFree:
+                icon = m_buffIcon;
+                iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+                title = "Quick Thought";
+                tooltip = "Your next card costs 0.";
+                break;
+            case StatusType::SkipTurn:
+            case StatusType::Infection:
+            case StatusType::Weakness:
+            case StatusType::Vulnerable:
+                icon = status.disposition == StatusDisposition::Positive ? m_buffIcon : m_debuffIcon;
+                iconLoaded = icon.id != 0;
+                title = status.disposition == StatusDisposition::Positive ? "Buff" : "Debuff";
+                tooltip = "Status active for " + std::to_string(status.duration) + " turns.";
+                break;
+            case StatusType::DamageOnDraw:
+                icon = m_buffIcon;
+                iconLoaded = m_buffIconLoaded && m_buffIcon.id != 0;
+                title = "Cytotoxic Rush";
+                tooltip = "Each card you draw this turn deals " + std::to_string(status.magnitude) + " damage.";
+                break;
+            }
+
+            const Rectangle statusRect = { statusX, statusY, statusSize, statusSize };
+            const bool shaderActive = beginStatusFloatShader();
+            if (iconLoaded) {
+                const Rectangle src = { 0, 0, (float)icon.width, (float)icon.height };
+                DrawTexturePro(icon, src, statusRect, { 0, 0 }, 0.0f, WHITE);
+            } else {
+                DrawRectangleRec(statusRect,
+                    status.disposition == StatusDisposition::Positive ? Colors::heal_color : Colors::damage_color);
+            }
+            if (shaderActive) {
+                EndShaderMode();
+            }
+
+            const std::string valueText = std::to_string(status.magnitude);
+            const int valueWidth = MeasureText(valueText.c_str(), statusValueSize);
+            DrawTextOutlined(valueText.c_str(),
+                             (int)std::round(statusRect.x + (statusRect.width - valueWidth) / 2.0f),
+                             (int)std::round(statusRect.y + textBobOffset + statusRect.height - statusValueSize),
+                             statusValueSize,
+                             WHITE);
+
+            if (mouseOver(statusRect)) {
+                queueTooltip(title, tooltip, statusRect);
+                hoveredStatusIcon = true;
+            }
+
+            statusX += statusSize + statusGap;
+        }
     }
 
+    if (hasOrgans) {
+        for (const Card& organ : *activeOrgans) {
+            Texture2D icon = {};
+            const char* iconPath = organStatusIconPath(organ.getId());
+            if (iconPath != nullptr) {
+                auto* self = const_cast<GameScreen*>(this);
+                auto iconIt = self->m_organStatusIcons.find(organ.getId());
+                if (iconIt == self->m_organStatusIcons.end()) {
+                    Texture2D loaded = {};
+                    if (FileExists(iconPath)) {
+                        loaded = LoadTexture(iconPath);
+                        if (loaded.id != 0) {
+                            SetTextureFilter(loaded, TEXTURE_FILTER_POINT);
+                        }
+                    }
+                    iconIt = self->m_organStatusIcons.emplace(organ.getId(), loaded).first;
+                }
+                icon = iconIt->second;
+            }
+
+            const Rectangle statusRect = { statusX, statusY, statusSize, statusSize };
+            const bool shaderActive = beginStatusFloatShader();
+            if (icon.id != 0) {
+                const Rectangle src = { 0, 0, (float)icon.width, (float)icon.height };
+                DrawTexturePro(icon, src, statusRect, { 0, 0 }, 0.0f, WHITE);
+            } else {
+                DrawRectangleRec(statusRect, Colors::heal_color);
+            }
+            if (shaderActive) {
+                EndShaderMode();
+            }
+
+            if (mouseOver(statusRect)) {
+                queueTooltip(organ.getDisplayName(), organStatusDescription(organ), statusRect);
+                hoveredStatusIcon = true;
+            }
+
+            statusX += statusSize + statusGap;
+        }
+    }
+
+    const float rowBottom = statusY + statusSize + std::abs(textBobOffset);
     const Rectangle hoverRect = {
         std::min(spriteRect.x, hudX),
         spriteRect.y,
         std::max(spriteRect.x + spriteRect.width, hudX + hudWidth) - std::min(spriteRect.x, hudX),
-        (statusY + statusSize) - spriteRect.y
+        rowBottom - spriteRect.y
     };
-    if (mouseOver(hoverRect)) {
+    if (mouseOver(hoverRect) && !hoveredStatusIcon) {
         std::string body;
-        for (const auto& status : statuses->getAll()) {
-            const std::string line = statusTooltipLine(status);
-            if (line.empty()) {
-                continue;
+        if (hasStatuses) {
+            for (const auto& status : statuses->getAll()) {
+                const std::string line = statusTooltipLine(status);
+                if (line.empty()) {
+                    continue;
+                }
+                if (!body.empty()) {
+                    body += "\n";
+                }
+                body += line;
             }
-            if (!body.empty()) {
-                body += "\n";
+        }
+        if (hasOrgans) {
+            for (const Card& organ : *activeOrgans) {
+                const std::string line = organStatusTooltipLine(organ);
+                if (line.empty()) {
+                    continue;
+                }
+                if (!body.empty()) {
+                    body += "\n";
+                }
+                body += line;
             }
-            body += line;
         }
         if (!body.empty()) {
             queueTooltip(name, body, hoverRect);
