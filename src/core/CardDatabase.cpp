@@ -4,7 +4,6 @@
 #include "gameplay/CardEffect.h"
 
 #include <fstream>
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <utility>
@@ -175,8 +174,6 @@ bool CardDatabase::appendCardsFromJSON(const std::string& filePath, std::string&
         return false;
     }
 
-    std::cout << "[CardDatabase] Loaded " << s_cards.size()
-              << " card definitions from " << filePath << "\n";
     return true;
 }
 
@@ -201,8 +198,6 @@ std::vector<std::string> CardDatabase::loadDeckConfigFromJSON(const std::string&
         ids.push_back(entry.get<std::string>());
     }
 
-    std::cout << "[CardDatabase] Loaded deck config with " << ids.size()
-              << " cards from " << filePath << "\n";
     return ids;
 }
 

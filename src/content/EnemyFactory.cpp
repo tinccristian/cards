@@ -131,9 +131,10 @@ std::unique_ptr<Enemy> EnemyFactory::loadFromJSON(const std::string& filePath, s
     EnemySpriteConfig spriteConfig;
     if (root.contains("sprite") && root["sprite"].is_object()) {
         const auto& s = root["sprite"];
-        spriteConfig.sheetPath   = s.value("sheet",       "");
-        spriteConfig.frameWidth  = s.value("frameWidth",  80);
-        spriteConfig.frameHeight = s.value("frameHeight", 80);
+        spriteConfig.sheetPath       = s.value("sheet",       "");
+        spriteConfig.backgroundPath  = s.value("background",  "");
+        spriteConfig.frameWidth      = s.value("frameWidth",  80);
+        spriteConfig.frameHeight     = s.value("frameHeight", 80);
 
         auto parseClip = [&s](const char* key, AnimClip& clip) {
             if (!s.contains(key) || !s[key].is_object()) return;

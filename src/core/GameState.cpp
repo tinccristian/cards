@@ -8,10 +8,8 @@
 
 #include <algorithm>
 #include <cassert>
-#include <iostream>
 #include <random>
 #include <unordered_set>
-#include <unordered_map>
 
 namespace {
 
@@ -213,18 +211,6 @@ bool GameState::startNewRun(std::string& error) {
     }
 
     // Tally for the summary line
-    std::unordered_map<std::string, int> tally;
-    for (const auto& id : deckConfig) tally[id]++;
-
-    std::cout << "[GameState] Starter deck config: " << deckConfig.size() << " cards total (";
-    bool first = true;
-    for (const auto& [id, cnt] : tally) {
-        if (!first) std::cout << ", ";
-        std::cout << cnt << "x " << id;
-        first = false;
-    }
-    std::cout << ")\n";
-
     // Build deck — exact copy per entry, no deduplication
     for (const auto& id : deckConfig) {
         auto card = CardDatabase::findCard(id);
@@ -250,17 +236,9 @@ bool GameState::startCombatForEnemy(const std::string& enemyId, std::string& err
 
     m_player.rebuildCombatDeck();
 
-    std::cout << "[GameState] Draw pile before drawing hand: "
-              << m_player.getDeck().getDrawPileSize() << " cards\n";
-
     for (int i = 0; i < CombatConfig::OpeningHandSize; ++i) {
         m_player.drawCardFromDeck();
     }
-
-    std::cout << "[GameState] After drawing hand: "
-              << m_player.getHand().size()               << " in hand, "
-              << m_player.getDeck().getDrawPileSize()    << " in draw pile, "
-              << m_player.getDeck().getDiscardPileSize() << " in discard\n";
 
     std::string resolvedEnemyId = enemyId;
     if (resolvedEnemyId == "random") {
@@ -298,7 +276,7 @@ bool GameState::chooseNoahGainCards(std::string& error) {
     }
 
     m_player.addGold(50);
-    m_noahEventState.startGainCards(offers, 50, static_cast<int>(offers.size()));
+    m_noahEventState.startGainCards(offers, 50);
     m_lastAction = "You took Noah's bargain and gained 50 gold.";
     return true;
 }
@@ -384,27 +362,23 @@ bool GameState::chooseNoahRemoveRandom(std::string& error) {
 
 bool GameState::claimSelectedNoahCards(std::string& error) {
     error.clear();
-    if (m_noahEventState.getStage() != NoahEventStage::SelectNoahCards
-        || !m_noahEventState.hasRequiredOfferSelections()) {
-        error = "Select Noah's cards first.";
+    if (m_noahEventState.getStage() != NoahEventStage::SelectNoahCards) {
+        error = "Noah's cards are not ready to claim.";
         return false;
     }
 
-    std::vector<Card> selectedCards;
-    for (int index : m_noahEventState.getSelectedOfferIndices()) {
-        if (index < 0 || index >= static_cast<int>(m_noahEventState.getOfferedCards().size())) {
-            error = "Selected Noah card index is invalid.";
-            return false;
-        }
-        selectedCards.push_back(m_noahEventState.getOfferedCards()[index]);
+    const std::vector<Card>& offeredCards = m_noahEventState.getOfferedCards();
+    if (offeredCards.empty()) {
+        error = "Noah has no cards to claim.";
+        return false;
     }
 
-    for (const Card& card : selectedCards) {
+    for (const Card& card : offeredCards) {
         m_player.addCardToDeck(card);
     }
 
     m_noahEventState.showResult(NoahEventChoice::AddCardsGainGold,
-                                selectedCards,
+                                offeredCards,
                                 50);
     m_lastAction = "You took Noah's cards.";
     return true;

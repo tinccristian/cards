@@ -14,6 +14,7 @@ struct AnimClip {
 // an enemy JSON file.  Pure data — no raylib types so core/ can safely include it.
 struct EnemySpriteConfig {
     std::string sheetPath;          // path to the horizontal sprite sheet
+    std::string backgroundPath;     // optional combat background used for this enemy
     int         frameWidth  = 80;
     int         frameHeight = 80;
     AnimClip    idle;                        // frames played while waiting

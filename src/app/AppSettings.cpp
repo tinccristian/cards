@@ -194,6 +194,7 @@ void SettingsManager::applyDisplaySettings(const AppSettings& rawSettings) {
     } else {
         ClearWindowState(FLAG_VSYNC_HINT);
     }
+    SetTargetFPS(0);
 
     if (settings.windowMode != WindowMode::Borderless) {
         ClearWindowState(FLAG_WINDOW_UNDECORATED);

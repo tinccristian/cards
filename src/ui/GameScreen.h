@@ -56,7 +56,6 @@ enum class RewardPopupAction {
 enum class NoahEventUiActionType {
     None,
     SelectOption,
-    ToggleOfferCard,
     ConfirmOfferCards,
     ToggleDeckCard,
     ConfirmTransform,
@@ -197,6 +196,7 @@ private:
         Rectangle bounds;
         float     rotation = 0.0f;
         bool      scaled   = false;
+        bool      visible  = true;
     };
 
     struct AnimatedCardState {
@@ -264,6 +264,8 @@ private:
     bool         m_noahEventTextureLoaded = false;
     EnemySprite  m_enemySprite;
     std::string  m_loadedEnemySpritePath; // tracks which sheet is currently loaded
+    Texture2D    m_enemyBackgroundTexture = {};
+    std::string  m_loadedEnemyBackgroundPath;
     PlayerSprite m_playerSprite;
     bool         m_playerSpriteLoaded = false;
     mutable Texture2D m_debugCardPreviewTexture = {};
@@ -290,6 +292,7 @@ private:
     std::unordered_map<std::string, Card> m_handCardMotionCards;
     std::unordered_map<std::string, CardExitTarget> m_pendingHandExitTargets;
     std::unordered_map<std::string, float> m_pendingHandExitDelays;
+    std::unordered_map<std::string, float> m_handEnterHideTimers;
     std::vector<std::string> m_handVisualOrder;
     std::vector<CardMotionGhost> m_cardMotionGhosts;
     std::vector<Card> m_lastObservedDiscardPile;
@@ -356,7 +359,8 @@ private:
     void drawCardFace(Rectangle rect, const Card& card, bool scaled, float rotationDegrees,
                       int playerMana = -1,
                       int effectiveCostOverride = -1,
-                      bool crispPresentation = false) const;
+                      bool crispPresentation = false,
+                      float perspectiveProgress = 0.0f) const;
     void drawCardTooltip(const Card& card, float x, float y, int effectiveCostOverride = -1) const;
     void drawIntentIndicator(const Enemy& enemy, Rectangle enemySpriteRect) const;
 
@@ -397,6 +401,7 @@ private:
                             bool crispPresentation,
                             float delay = 0.0f);
     void updateAndDrawCardMotionGhosts(float dt);
+    void clearHandMotionState();
     HandLayoutCard selectedCardLayout(const HandLayoutCard& baseLayout) const;
     HandLayoutCard blendLayout(const HandLayoutCard& from, const HandLayoutCard& to, float blend) const;
     int handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const;

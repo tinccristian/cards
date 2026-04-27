@@ -6,6 +6,8 @@
 
 void ScreenOverlayEffect::preload(const std::string& path) {
     if (path.empty() || m_cache.count(path)) return;
+    if (!FileExists(path.c_str())) return;
+
     Shader s = LoadShader(nullptr, path.c_str());
     if (s.id == 0) {
         TraceLog(LOG_WARNING, "ScreenOverlayEffect: failed to load shader %s", path.c_str());

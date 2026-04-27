@@ -17,7 +17,6 @@ inline constexpr const char* DISSOLVE_SHADER     = "assets/shaders/dissolve.fs";
 inline constexpr const char* HIT_SHADER          = "assets/shaders/hit.fs";            // color-cycle flash on damage
 inline constexpr const char* TRANSITION_SHADER   = "assets/shaders/transition.fs";     // hex-tile screen wipe
 inline constexpr const char* INTENT_FLOAT_SHADER = "assets/shaders/intent_float.vs";   // subtle bobbing motion for intent icons
-inline constexpr const char* CARD_PERSPECTIVE_SHADER = "assets/shaders/card_perspective.gdshader"; // reference 3D card perspective shader
 inline constexpr const char* BLOCK_ICON          = "assets/common/block.png";          // 16×16 shield sprite
 inline constexpr const char* ATTACK_ICON         = "assets/common/attack.png";         // 16×16 sword sprite
 inline constexpr const char* BUFF_ICON           = "assets/common/buff.png";
@@ -87,7 +86,6 @@ inline constexpr const char* SettingsFileName = "settings.json";
 namespace WindowConfig {
 inline constexpr int Width     = 1280;
 inline constexpr int Height    = 720;
-inline constexpr int TargetFps = 60;
 } // namespace WindowConfig
 
 // =============================================================================

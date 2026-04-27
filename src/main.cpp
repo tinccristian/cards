@@ -18,11 +18,41 @@
 #include "ui/UIState.h"
 
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include <functional>
 #include <string>
 #include <vector>
 
+namespace {
+
+bool isNoisyRaylibShaderReflectionWarning(const std::string& message) {
+    return message.find("SHADER: [ID ") != std::string::npos
+        && (message.find("Failed to find shader attribute:") != std::string::npos
+            || message.find("Failed to find shader uniform:") != std::string::npos);
+}
+
+void filteredRaylibTraceLog(int logLevel, const char* text, va_list args) {
+    char message[2048] = {};
+    std::vsnprintf(message, sizeof(message), text, args);
+
+    if (logLevel == LOG_WARNING && isNoisyRaylibShaderReflectionWarning(message)) {
+        return;
+    }
+
+    static const char* labels[] = {
+        "ALL", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL", "NONE"
+    };
+    const int labelIndex = std::clamp(logLevel, 0, 7);
+    std::fprintf(stderr, "%s: %s\n", labels[labelIndex], message);
+}
+
+} // namespace
+
 int main() {
+    SetTraceLogCallback(filteredRaylibTraceLog);
+    SetTraceLogLevel(LOG_WARNING);
+
     std::string settingsWarning;
     AppSettings appSettings = SettingsManager::loadOrCreate(settingsWarning);
     if (!settingsWarning.empty()) {
@@ -38,7 +68,6 @@ int main() {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | (appSettings.vsyncEnabled ? FLAG_VSYNC_HINT : 0));
     InitWindow(screenWidth, screenHeight, "Medical Deckbuilder");
     InitAudioDevice();
-    SetTargetFPS(WindowConfig::TargetFps);
     SetExitKey(KEY_NULL); // Disable ESC-closes-window; handled manually per context
 
     CardAudio cardAudio;
@@ -372,9 +401,6 @@ int main() {
                     }
                 }
                 break;
-            case NoahEventUiActionType::ToggleOfferCard:
-                state.getNoahEventState().toggleOfferSelection(action.index);
-                break;
             case NoahEventUiActionType::ConfirmOfferCards:
                 if (!state.claimSelectedNoahCards(eventError)) {
                     TraceLog(LOG_ERROR, "%s", eventError.c_str());
@@ -382,6 +408,12 @@ int main() {
                     cardAudio.playCardPicked();
                     cardAudio.playCardPicked();
                     uiState.resetScroll();
+                    beginSceneTransition([&]() {
+                        mapRun.completeActiveNode(activeMap);
+                        state.endNoahEvent();
+                        uiState.setMode(UIMode::NORMAL);
+                        state.setPhase(GamePhase::MAP);
+                    });
                 }
                 break;
             case NoahEventUiActionType::ToggleDeckCard:

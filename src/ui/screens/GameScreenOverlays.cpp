@@ -140,7 +140,8 @@ int GameScreen::drawPileViewer(const std::string& title,
                          0.0f,
                          -1,
                          -1,
-                         true);
+                         true,
+                         progress);
         }
     }
 
@@ -161,7 +162,8 @@ int GameScreen::drawPileViewer(const std::string& title,
                      0.0f,
                      -1,
                      -1,
-                     true);
+                     true,
+                     hoveredProgress);
     } else {
         m_lastPileViewerHoverToken.clear();
     }
@@ -460,7 +462,8 @@ int GameScreen::drawCardChoiceOverlay(const std::string& title,
                          0.0f,
                          -1,
                          -1,
-                         true);
+                         true,
+                         progress);
         }
         if (hovered && allowInteraction && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
             return index;
@@ -479,7 +482,8 @@ int GameScreen::drawCardChoiceOverlay(const std::string& title,
                      0.0f,
                      -1,
                      -1,
-                     true);
+                     true,
+                     hoveredProgress);
     } else {
         m_lastPileViewerHoverToken.clear();
     }
@@ -567,7 +571,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
         subtitle = "Pick one bargain.";
         break;
     case NoahEventStage::SelectNoahCards:
-        subtitle = "Select both Noah cards to keep.";
+        subtitle = "Claim both Noah cards.";
         break;
     case NoahEventStage::SelectTransformCards:
         subtitle = "Select 2 of your cards to transform.";
@@ -641,7 +645,6 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
     if (eventState.getStage() == NoahEventStage::SelectNoahCards) {
         const float dt = GetFrameTime() * m_timeScale;
         const auto& cards = eventState.getOfferedCards();
-        const auto& selected = eventState.getSelectedOfferIndices();
         const float preferredWidth = scalef(LayoutConfig::NoahChoiceCardWidth);
         const float preferredHeight = scalef(LayoutConfig::NoahChoiceCardHeight);
         const float gap = scalef(LayoutConfig::NoahChoiceCardGap);
@@ -652,7 +655,6 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
         int hoveredCardIndex = -1;
         Rectangle hoveredRect = {};
         float hoveredProgress = 0.0f;
-        bool hoveredPicked = false;
         for (int index = 0; index < static_cast<int>(cards.size()); ++index) {
             Rectangle rect = {
                 startX + index * (preferredWidth + gap),
@@ -660,32 +662,23 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
                 preferredWidth,
                 preferredHeight
             };
-            const bool picked = std::find(selected.begin(), selected.end(), index) != selected.end();
             const bool hovered = allowInteraction && mouseOver(rect);
             const float progress = cardHoverProgress("noah-offer:" + std::to_string(index), hovered, dt);
             if (hovered) {
                 hoveredCardIndex = index;
                 hoveredRect = rect;
                 hoveredProgress = progress;
-                hoveredPicked = picked;
             } else {
                 const Rectangle drawRect = applyCardHoverMotion(rect, progress, LayoutConfig::NoahChoiceHoverScale);
-                drawCardFace(drawRect, cards[index], progress > 0.0f, 0.0f, -1, -1, true);
-                if (picked) {
-                    DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
-                }
-            }
-            if (hovered && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                return { NoahEventUiActionType::ToggleOfferCard, index };
+                drawCardFace(drawRect, cards[index], progress > 0.0f, 0.0f, -1, -1, true, progress);
+                DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
             }
         }
 
         if (hoveredCardIndex >= 0) {
             const Rectangle drawRect = applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::NoahChoiceHoverScale);
-            drawCardFace(drawRect, cards[hoveredCardIndex], true, 0.0f, -1, -1, true);
-            if (hoveredPicked) {
-                DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
-            }
+            drawCardFace(drawRect, cards[hoveredCardIndex], true, 0.0f, -1, -1, true, hoveredProgress);
+            DrawRectangleLinesEx(drawRect, scalef(LayoutConfig::NoahDeckSelectionThickness), Colors::gold_color);
         }
 
         const Rectangle confirmRect = {
@@ -694,14 +687,14 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
             scalef(LayoutConfig::NoahConfirmButtonWidth),
             scalef(LayoutConfig::NoahConfirmButtonHeight)
         };
-        const bool ready = eventState.hasRequiredOfferSelections();
+        const bool ready = !cards.empty();
         const bool hovered = allowInteraction && ready && mouseOver(confirmRect);
         DrawRectangleRec(confirmRect, hovered ? Colors::button_hover : Colors::button_bg);
         DrawRectangleLinesEx(confirmRect,
                              scalef(LayoutConfig::ThinBorderThickness),
                              ready ? Colors::gold_color : Colors::text_secondary);
-        DrawText("Claim Both",
-                 (int)std::round(confirmRect.x + (confirmRect.width - MeasureText("Claim Both", scalei(LayoutConfig::DefaultButtonFontSize))) / 2.0f),
+        DrawText("Claim",
+                 (int)std::round(confirmRect.x + (confirmRect.width - MeasureText("Claim", scalei(LayoutConfig::DefaultButtonFontSize))) / 2.0f),
                  (int)std::round(confirmRect.y + (confirmRect.height - scalei(LayoutConfig::DefaultButtonFontSize)) / 2.0f),
                  scalei(LayoutConfig::DefaultButtonFontSize),
                  ready ? Colors::text_primary : Colors::text_secondary);
@@ -771,7 +764,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
                 hoveredProgress = progress;
             } else {
                 const Rectangle drawRect = applyCardHoverMotion(rect, progress, LayoutConfig::NoahDeckHoverScale);
-                drawCardFace(drawRect, player.getOwnedCards()[index], progress > 0.0f, 0.0f, -1, -1, true);
+                drawCardFace(drawRect, player.getOwnedCards()[index], progress > 0.0f, 0.0f, -1, -1, true, progress);
                 if (std::find(eventState.getSelectedDeckIndices().begin(),
                               eventState.getSelectedDeckIndices().end(),
                               index) != eventState.getSelectedDeckIndices().end()) {
@@ -783,7 +776,7 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
 
         if (hoveredCardIndex >= 0) {
             Rectangle drawRect = applyCardHoverMotion(hoveredRect, hoveredProgress, LayoutConfig::NoahDeckHoverScale);
-            drawCardFace(drawRect, player.getOwnedCards()[hoveredCardIndex], true, 0.0f, -1, -1, true);
+            drawCardFace(drawRect, player.getOwnedCards()[hoveredCardIndex], true, 0.0f, -1, -1, true, hoveredProgress);
             if (std::find(eventState.getSelectedDeckIndices().begin(),
                           eventState.getSelectedDeckIndices().end(),
                           hoveredCardIndex) != eventState.getSelectedDeckIndices().end()) {
@@ -854,6 +847,10 @@ NoahEventUiAction GameScreen::drawNoahEvent(const NoahEventState& eventState,
                 };
                 drawCardFace(rect, cards[index], false, 0.0f, -1, -1, true);
             }
+        }
+
+        if (eventState.getChoice() == NoahEventChoice::AddCardsGainGold) {
+            return {};
         }
 
         const Rectangle continueRect = {

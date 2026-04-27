@@ -267,7 +267,22 @@ void DevConsole::executeCommand(const std::string& command, GameState& state, Ma
         int count = 1;
         ss >> cardId >> count;
         if (cardId.empty() || count < 1) {
-            log("Usage: give <card_id> [count]  — id must match the JSON id field.");
+            log("Usage: give <card_id> [count] or give all.");
+            return;
+        }
+        if (cardId == "all") {
+            const auto& cards = CardDatabase::getAllCards();
+            if (cards.empty()) {
+                log("No cards are loaded.");
+                showStatus("No cards loaded", Colors::damage_color);
+                return;
+            }
+            for (const Card& card : cards) {
+                state.getPlayer().drawCard(card);
+            }
+            const std::string msg = "Gave 1x each card (" + std::to_string(cards.size()) + " total).";
+            log(msg);
+            showStatus(msg, Colors::heal_color);
             return;
         }
         const auto card = CardDatabase::findCard(cardId);
@@ -331,7 +346,8 @@ std::vector<std::pair<std::string, std::string>> DevConsole::commands() const {
         { "modifyCharacterPositions", "Move player/enemy combat positions for the active map." },
         { "win", "Kill the current enemy and win the fight." },
         { "reroll", "Reroll current 1-of-3 reward card choices." },
-        { "give <id> [n]", "Add n copies of a card to your deck by its JSON id (default 1)." },
+        { "give <id> [n]", "Add n copies of a card to your hand by its JSON id (default 1)." },
+        { "give all", "Add one copy of every loaded card to your hand." },
         { "exit", "Close the active editor." },
         { "clear", "Clear console output." }
     };
