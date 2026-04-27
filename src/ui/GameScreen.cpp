@@ -23,6 +23,30 @@ namespace {
 
 float easeOutBack(float t);
 
+std::vector<Card> cardsRemovedFromDiscard(const std::vector<Card>& previous,
+                                          const std::vector<Card>& current) {
+    std::vector<Card> removed;
+    std::vector<bool> used(current.size(), false);
+
+    for (const Card& oldCard : previous) {
+        int matchIndex = -1;
+        for (int index = 0; index < static_cast<int>(current.size()); ++index) {
+            if (!used[index] && current[index].getId() == oldCard.getId()) {
+                matchIndex = index;
+                break;
+            }
+        }
+
+        if (matchIndex >= 0) {
+            used[matchIndex] = true;
+        } else {
+            removed.push_back(oldCard);
+        }
+    }
+
+    return removed;
+}
+
 void drawPixelSegment(Vector2 from, Vector2 to, float step, float pixelSize, Color color) {
     const float dx = to.x - from.x;
     const float dy = to.y - from.y;
@@ -144,6 +168,68 @@ void GameScreen::addDamageNumbers(DamageNumberTarget target,
     }
 }
 
+void GameScreen::notifyCardPlayRejected(int handIndex) {
+    m_rejectedHandIndex = handIndex;
+    m_rejectedHandTimer = LayoutConfig::InvalidCardShakeDuration;
+    if (handIndex >= 0 && handIndex < static_cast<int>(m_handVisualOrder.size())) {
+        m_pendingHandExitTargets.erase(m_handVisualOrder[handIndex]);
+        m_pendingHandExitDelays.erase(m_handVisualOrder[handIndex]);
+    }
+}
+
+void GameScreen::animateHandToDiscardPile() {
+    m_visuallyDiscardedHandCards.clear();
+    const Rectangle target = discardPileRect();
+    for (int index = 0; index < static_cast<int>(m_handVisualOrder.size()); ++index) {
+        const std::string& key = m_handVisualOrder[index];
+        auto stateIt = m_handCardMotion.find(key);
+        auto cardIt = m_handCardMotionCards.find(key);
+        if (stateIt == m_handCardMotion.end() || !stateIt->second.initialized
+            || cardIt == m_handCardMotionCards.end()) {
+            continue;
+        }
+
+        const Rectangle start = {
+            stateIt->second.bounds.x + (stateIt->second.bounds.width - target.width) * 0.5f,
+            stateIt->second.bounds.y + (stateIt->second.bounds.height - target.height) * 0.5f,
+            target.width,
+            target.height
+        };
+        addCardMotionGhost(cardIt->second,
+                           start,
+                           target,
+                           stateIt->second.rotation,
+                           0.0f,
+                           LayoutConfig::ShuffleCardMoveDuration,
+                           false,
+                           static_cast<float>(index) * LayoutConfig::HandDiscardStagger);
+        m_visuallyDiscardedHandCards.push_back(cardIt->second);
+    }
+
+    m_handCardMotion.clear();
+    m_handCardMotionIds.clear();
+    m_handCardMotionCards.clear();
+    m_pendingHandExitTargets.clear();
+    m_pendingHandExitDelays.clear();
+    m_handVisualOrder.clear();
+}
+
+void GameScreen::animateDiscardToDrawPile(const std::vector<Card>& cards, float baseDelaySecs) {
+    const Rectangle from = discardPileRect();
+    const Rectangle to = drawPileRect();
+    for (int index = 0; index < static_cast<int>(cards.size()); ++index) {
+        addCardMotionGhost(cards[index],
+                           from,
+                           to,
+                           0.0f,
+                           0.0f,
+                           LayoutConfig::ShuffleCardMoveDuration,
+                           false,
+                           baseDelaySecs + static_cast<float>(index) * LayoutConfig::HandDiscardStagger);
+    }
+    m_lastObservedDiscardPile.clear();
+}
+
 void GameScreen::resetCombatEffects() {
     m_turnVignetteTimer = 0.0f;
     m_enemyDeathPresentationTimer = 0.0f;
@@ -158,8 +244,20 @@ void GameScreen::resetCombatEffects() {
     m_cardHoverProgress.clear();
     m_handCardMotion.clear();
     m_handCardMotionIds.clear();
+    m_handCardMotionCards.clear();
+    m_pendingHandExitTargets.clear();
+    m_pendingHandExitDelays.clear();
     m_handVisualOrder.clear();
+    m_cardMotionGhosts.clear();
+    m_lastObservedDiscardPile.clear();
+    m_visuallyDiscardedHandCards.clear();
     m_handMotionDuration = LayoutConfig::HandRelayoutDuration;
+    m_lastObservedTurnNumber = -1;
+    m_rejectedHandIndex = -1;
+    m_rejectedHandTimer = 0.0f;
+    m_dragVelocityTilt = 0.0f;
+    m_dragTiltVelocity = 0.0f;
+    m_lastDragMouse = { 0.0f, 0.0f };
 }
 
 // Screen-specific overlays and menu/pause/options implementations live in
@@ -512,6 +610,15 @@ float easeOutCubic(float t) {
     return 1.0f - inv * inv * inv;
 }
 
+float easeInOutCubic(float t) {
+    t = std::clamp(t, 0.0f, 1.0f);
+    if (t < 0.5f) {
+        return 4.0f * t * t * t;
+    }
+    const float u = -2.0f * t + 2.0f;
+    return 1.0f - (u * u * u) * 0.5f;
+}
+
 float easeOutBack(float t) {
     t = std::clamp(t, 0.0f, 1.0f);
     constexpr float c1 = 1.70158f;
@@ -717,6 +824,49 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const float dt = GetFrameTime() * m_timeScale;
     m_wiggleTime += dt;
     updateTransientEffects(dt);
+    const bool turnNumberChanged = m_lastObservedTurnNumber >= 0
+        && m_lastObservedTurnNumber != state.getTurnNumber();
+    std::vector<Card> shuffledCards = cardsRemovedFromDiscard(m_lastObservedDiscardPile,
+                                                              deck.getDiscardPileCards());
+    if (turnNumberChanged
+        && deck.getDiscardPileCards().empty()
+        && deck.getDrawPileSize() > 0) {
+        shuffledCards.insert(shuffledCards.end(),
+                             m_visuallyDiscardedHandCards.begin(),
+                             m_visuallyDiscardedHandCards.end());
+    }
+    if (!shuffledCards.empty() && deck.getDrawPileSize() > 0) {
+        animateDiscardToDrawPile(shuffledCards);
+    }
+    m_lastObservedDiscardPile = deck.getDiscardPileCards();
+    if (turnNumberChanged) {
+        m_visuallyDiscardedHandCards.clear();
+        for (const std::string& key : m_handVisualOrder) {
+            auto stateIt = m_handCardMotion.find(key);
+            auto cardIt = m_handCardMotionCards.find(key);
+            if (stateIt != m_handCardMotion.end() && stateIt->second.initialized
+                && cardIt != m_handCardMotionCards.end()) {
+                addCardMotionGhost(cardIt->second,
+                                   stateIt->second.bounds,
+                                   discardPileRect(),
+                                   stateIt->second.rotation,
+                                   0.0f,
+                                   LayoutConfig::HandCardExitDuration,
+                                   false);
+            }
+        }
+        m_handCardMotion.clear();
+        m_handCardMotionIds.clear();
+        m_handCardMotionCards.clear();
+        m_pendingHandExitTargets.clear();
+        m_pendingHandExitDelays.clear();
+        m_handVisualOrder.clear();
+    }
+    m_lastObservedTurnNumber = state.getTurnNumber();
+    m_rejectedHandTimer = std::max(0.0f, m_rejectedHandTimer - dt);
+    if (m_rejectedHandTimer <= 0.0f) {
+        m_rejectedHandIndex = -1;
+    }
     {
         const bool isHovering = (m_hoveredCardIndex >= 0 && m_draggedCardIndex < 0);
         if (isHovering) {
@@ -895,6 +1045,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         int msgW = MeasureText(msg, actingFontSize);
         DrawText(msg, (m_width - msgW) / 2, m_height / 2 - scalei(LayoutConfig::TooltipTextSize),
                  actingFontSize, Colors::damage_color);
+        updateAndDrawCardMotionGhosts(dt);
         return -1;
     }
 
@@ -910,7 +1061,12 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     const auto& hand = player.getHand();
     const int   n    = (int)hand.size();
 
-    if (n == 0) return -1;
+    if (n == 0) {
+        const std::vector<HandLayoutCard> emptyLayout;
+        syncHandVisualKeys(hand, emptyLayout);
+        updateAndDrawCardMotionGhosts(dt);
+        return -1;
+    }
 
     std::vector<HandLayoutCard> targetLayout = buildHandLayout(n, m_draggedCardIndex);
     if (allowInteraction && m_draggedCardIndex >= 0) {
@@ -960,6 +1116,9 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
             GetMouseX() - layout[m_draggedCardIndex].bounds.x,
             GetMouseY() - layout[m_draggedCardIndex].bounds.y
         };
+        m_lastDragMouse = GetMousePosition();
+        m_dragVelocityTilt = 0.0f;
+        m_dragTiltVelocity = 0.0f;
         targetLayout = buildHandLayout(n, m_draggedCardIndex);
         layout = animateHandLayout(hand, targetLayout, dt);
     }
@@ -981,6 +1140,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         }
         m_draggedCardIndex = -1;
         m_hoveredCardIndex = -1;
+        m_dragVelocityTilt = 0.0f;
+        m_dragTiltVelocity = 0.0f;
         targetLayout = buildHandLayout(n, -1);
         m_handMotionDuration = LayoutConfig::HandDragCancelDuration;
         layout = animateHandLayout(hand, targetLayout, dt);
@@ -994,6 +1155,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         pendingPlayRect = currentDraggedCardRect(layout[draggedIndex]);
         pendingPlayRotation = normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor;
         m_draggedCardIndex = -1;
+        m_dragVelocityTilt = 0.0f;
+        m_dragTiltVelocity = 0.0f;
 
         if (releasedInHand) {
             const std::vector<HandLayoutCard> slotLayout = buildHandLayout(n, -1);
@@ -1002,6 +1165,8 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         } else {
             pendingPlayIndex = draggedIndex;
             if (draggedIndex >= 0 && draggedIndex < static_cast<int>(m_handVisualOrder.size())) {
+                m_pendingHandExitTargets[m_handVisualOrder[draggedIndex]] = CardExitTarget::DiscardPile;
+                m_pendingHandExitDelays[m_handVisualOrder[draggedIndex]] = LayoutConfig::PlayedCardDiscardDelay;
                 AnimatedCardState& state = m_handCardMotion[m_handVisualOrder[draggedIndex]];
                 state.bounds = pendingPlayRect;
                 state.rotation = pendingPlayRotation;
@@ -1048,10 +1213,22 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
         const float t = handTValue(dragIndex, n);
         const float normalizedOffset = (t - 0.5f) * 2.0f;
         Rectangle draggedRect = currentDraggedCardRect(layout[dragIndex]);
+        const Vector2 mouse = GetMousePosition();
+        const float frameDt = std::max(dt, 0.001f);
+        const float velocityX = (mouse.x - m_lastDragMouse.x) / frameDt;
+        const float targetTilt = std::clamp(velocityX * 0.018f,
+                                            -LayoutConfig::DragVelocityTiltDegrees,
+                                            LayoutConfig::DragVelocityTiltDegrees);
+        const float acceleration = (targetTilt - m_dragVelocityTilt) * LayoutConfig::DragTiltSpring
+            - m_dragTiltVelocity * LayoutConfig::DragTiltDamping;
+        m_dragTiltVelocity += acceleration * frameDt;
+        m_dragVelocityTilt += m_dragTiltVelocity * frameDt;
+        m_lastDragMouse = mouse;
         drawCardFace(draggedRect,
                      hand[dragIndex],
                      false,
-                     normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor,
+                     normalizedOffset * LayoutConfig::HandMaxTiltDegrees * LayoutConfig::HoveredTiltFactor
+                        + m_dragVelocityTilt,
                      curMana,
                      player.getEffectiveCost(hand[dragIndex]));
     }
@@ -1066,6 +1243,7 @@ int GameScreen::drawCombat(GameState& state, bool& endTurnClicked,
     }
 
     drawTurnVignetteOverlay();
+    updateAndDrawCardMotionGhosts(dt);
 
     // Flush deferred tooltips last so they render above every other element.
     flushTooltip();
@@ -1230,8 +1408,9 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCoun
         float rotation = restRotation;
 
         if (index == activeHoverIndex && m_hoverProgress > 0.0f) {
-            const float easedBack = easeOutBack(m_hoverProgress);
-            const float hp = m_hoverProgress + (easedBack - m_hoverProgress) * LayoutConfig::CardHoverOvershoot;
+            const float baseEased = easeInOutCubic(m_hoverProgress);
+            const float easedBack = easeOutBack(baseEased);
+            const float hp = baseEased + (easedBack - baseEased) * LayoutConfig::CardHoverOvershoot;
             const float restCy = cy_base;
             const float snappedCardHeight = std::round(cardHeight);
             const float hoverCy = std::round((float)m_height - snappedCardHeight);
@@ -1252,11 +1431,17 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::buildHandLayout(int cardCoun
 
         if (m_hoveredCardIndex >= 0 && draggedCardIndex < 0) {
             const int diff = index - m_hoveredCardIndex;
-            const float pushProgress = easeOutCubic(m_hoverProgress);
+            const float pushProgress = easeInOutCubic(m_hoverProgress);
             if (diff == -1) cx -= scalef(LayoutConfig::NeighborCardShift) * pushProgress;
             else if (diff == 1) cx += scalef(LayoutConfig::NeighborCardShift) * pushProgress;
             else if (diff == -2) cx -= scalef(LayoutConfig::NeighborCardShiftSecond) * pushProgress;
             else if (diff == 2) cx += scalef(LayoutConfig::NeighborCardShiftSecond) * pushProgress;
+        }
+
+        if (index == m_rejectedHandIndex && m_rejectedHandTimer > 0.0f) {
+            const float tReject = 1.0f - (m_rejectedHandTimer / LayoutConfig::InvalidCardShakeDuration);
+            const float fade = 1.0f - tReject;
+            cx += std::sin(tReject * PI * 8.0f) * scalef(LayoutConfig::InvalidCardShakePixels) * fade;
         }
 
         layout[index] = { snapRect({ cx, cy, cardWidth, cardHeight }), rotation, false };
@@ -1281,6 +1466,9 @@ std::vector<std::string> GameScreen::syncHandVisualKeys(const std::vector<Card>&
                 continue;
             }
             const std::string& previousKey = m_handVisualOrder[previousIndex];
+            if (m_pendingHandExitTargets.find(previousKey) != m_pendingHandExitTargets.end()) {
+                continue;
+            }
             auto idIt = m_handCardMotionIds.find(previousKey);
             if (idIt == m_handCardMotionIds.end() || idIt->second != cardId) {
                 continue;
@@ -1307,11 +1495,37 @@ std::vector<std::string> GameScreen::syncHandVisualKeys(const std::vector<Card>&
             keys[index] = "hand:" + cardId + ":" + std::to_string(m_nextHandVisualId++);
         }
         m_handCardMotionIds[keys[index]] = cardId;
+        m_handCardMotionCards.insert_or_assign(keys[index], hand[index]);
     }
 
     for (auto stateIt = m_handCardMotion.begin(); stateIt != m_handCardMotion.end();) {
         if (std::find(keys.begin(), keys.end(), stateIt->first) == keys.end()) {
+            auto cardIt = m_handCardMotionCards.find(stateIt->first);
+            if (cardIt != m_handCardMotionCards.end() && stateIt->second.initialized) {
+                const auto exitIt = m_pendingHandExitTargets.find(stateIt->first);
+                const CardExitTarget exitTarget = exitIt != m_pendingHandExitTargets.end()
+                    ? exitIt->second
+                    : CardExitTarget::DiscardPile;
+                const auto delayIt = m_pendingHandExitDelays.find(stateIt->first);
+                const float delay = delayIt != m_pendingHandExitDelays.end()
+                    ? delayIt->second
+                    : 0.0f;
+                const Rectangle pileRect = exitTarget == CardExitTarget::DrawPile
+                    ? drawPileRect()
+                    : discardPileRect();
+                addCardMotionGhost(cardIt->second,
+                                   stateIt->second.bounds,
+                                   pileRect,
+                                   stateIt->second.rotation,
+                                   0.0f,
+                                   LayoutConfig::HandCardExitDuration,
+                                   false,
+                                   delay);
+            }
             m_handCardMotionIds.erase(stateIt->first);
+            m_handCardMotionCards.erase(stateIt->first);
+            m_pendingHandExitTargets.erase(stateIt->first);
+            m_pendingHandExitDelays.erase(stateIt->first);
             stateIt = m_handCardMotion.erase(stateIt);
         } else {
             ++stateIt;
@@ -1330,12 +1544,25 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::animateHandLayout(const std:
         m_handVisualOrder.clear();
         m_handCardMotion.clear();
         m_handCardMotionIds.clear();
+        m_handCardMotionCards.clear();
+        m_pendingHandExitTargets.clear();
+        m_pendingHandExitDelays.clear();
         m_handMotionDuration = LayoutConfig::HandRelayoutDuration;
         return visualLayout;
     }
 
     const std::vector<std::string> keys = syncHandVisualKeys(hand, targetLayout);
-    const float duration = std::max(0.01f, m_handMotionDuration);
+    bool hasNewCard = false;
+    for (const std::string& key : keys) {
+        auto stateIt = m_handCardMotion.find(key);
+        if (stateIt == m_handCardMotion.end() || !stateIt->second.initialized) {
+            hasNewCard = true;
+            break;
+        }
+    }
+    const float duration = std::max(0.01f, hasNewCard
+        ? std::max(m_handMotionDuration, LayoutConfig::HandCardEnterDuration)
+        : m_handMotionDuration);
     m_handMotionDuration = LayoutConfig::HandRelayoutDuration;
     const float alpha = std::clamp(dt / duration, 0.0f, 1.0f);
 
@@ -1343,7 +1570,13 @@ std::vector<GameScreen::HandLayoutCard> GameScreen::animateHandLayout(const std:
         AnimatedCardState& state = m_handCardMotion[keys[index]];
         const HandLayoutCard& target = targetLayout[index];
         if (!state.initialized) {
-            state.bounds = target.bounds;
+            const Rectangle pileRect = drawPileRect();
+            state.bounds = {
+                pileRect.x + (pileRect.width - target.bounds.width) * 0.5f,
+                pileRect.y + (pileRect.height - target.bounds.height) * 0.5f,
+                target.bounds.width,
+                target.bounds.height
+            };
             state.rotation = target.rotation;
             state.initialized = true;
         } else {
@@ -1375,8 +1608,9 @@ Rectangle GameScreen::applyCardHoverMotion(Rectangle rect, float progress, float
     }
 
     const float clamped = std::clamp(progress, 0.0f, 1.0f);
-    const float easedBack = easeOutBack(clamped);
-    const float eased = clamped + (easedBack - clamped) * LayoutConfig::CardHoverOvershoot;
+    const float baseEased = easeInOutCubic(clamped);
+    const float easedBack = easeOutBack(baseEased);
+    const float eased = baseEased + (easedBack - baseEased) * LayoutConfig::CardHoverOvershoot;
     const float scale = 1.0f + (finalScale - 1.0f) * eased;
     const float squash = std::sin(clamped * PI) * LayoutConfig::CardHoverSquash;
     const float scaledWidth = rect.width * scale * (1.0f + squash);
@@ -1398,6 +1632,67 @@ Rectangle GameScreen::currentDraggedCardRect(const HandLayoutCard& layout) const
         layout.bounds.width,
         layout.bounds.height
     });
+}
+
+void GameScreen::addCardMotionGhost(const Card& card,
+                                    Rectangle startBounds,
+                                    Rectangle targetBounds,
+                                    float startRotation,
+                                    float targetRotation,
+                                    float duration,
+                                    bool crispPresentation,
+                                    float delay) {
+    m_cardMotionGhosts.push_back(CardMotionGhost{
+        card,
+        snapRect(startBounds),
+        snapRect(targetBounds),
+        startRotation,
+        targetRotation,
+        0.0f,
+        std::max(0.01f, duration),
+        std::max(0.0f, delay),
+        { startBounds.x + startBounds.width * 0.5f, startBounds.y + startBounds.height * 0.5f },
+        0.0f,
+        0.0f,
+        crispPresentation
+    });
+}
+
+void GameScreen::updateAndDrawCardMotionGhosts(float dt) {
+    for (auto it = m_cardMotionGhosts.begin(); it != m_cardMotionGhosts.end();) {
+        it->age += dt;
+        const float activeAge = it->age - it->delay;
+        const float t = std::clamp(activeAge / it->duration, 0.0f, 1.0f);
+        const float eased = easeInOutCubic(t);
+        Rectangle rect = lerpRect(it->startBounds, it->targetBounds, eased);
+        if (activeAge > 0.0f) {
+            rect.y -= std::sin(t * PI) * scalef(34.0f);
+        }
+        const Vector2 center = {
+            rect.x + rect.width * 0.5f,
+            rect.y + rect.height * 0.5f
+        };
+        if (activeAge > 0.0f) {
+            const float frameDt = std::max(dt, 0.001f);
+            const float velocityX = (center.x - it->previousCenter.x) / frameDt;
+            const float targetVelocityRotation = std::clamp(velocityX * LayoutConfig::MotionGhostTiltFactor,
+                                                            -LayoutConfig::MotionGhostTiltDegrees,
+                                                            LayoutConfig::MotionGhostTiltDegrees);
+            const float acceleration = (targetVelocityRotation - it->velocityRotation) * LayoutConfig::MotionGhostTiltSpring
+                - it->rotationVelocity * LayoutConfig::MotionGhostTiltDamping;
+            it->rotationVelocity += acceleration * frameDt;
+            it->velocityRotation += it->rotationVelocity * frameDt;
+        }
+        it->previousCenter = center;
+        const float rotation = lerpValue(it->startRotation, it->targetRotation, eased) + it->velocityRotation;
+        drawCardFace(snapRect(rect), it->card, false, rotation, -1, -1, it->crispPresentation);
+
+        if (activeAge >= it->duration) {
+            it = m_cardMotionGhosts.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 int GameScreen::handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const {

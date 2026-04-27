@@ -173,6 +173,9 @@ public:
                           int baseHitIndex = 0,
                           float baseDelaySecs = 0.0f,
                           float delayStepSecs = LayoutConfig::HitEventDelayStep);
+    void notifyCardPlayRejected(int handIndex);
+    void animateHandToDiscardPile();
+    void animateDiscardToDrawPile(const std::vector<Card>& cards, float baseDelaySecs = 0.0f);
     void resetCombatEffects();
 
     void unloadAssets();
@@ -200,6 +203,26 @@ private:
         Rectangle bounds = {};
         float     rotation = 0.0f;
         bool      initialized = false;
+    };
+
+    enum class CardExitTarget {
+        DrawPile,
+        DiscardPile
+    };
+
+    struct CardMotionGhost {
+        Card      card;
+        Rectangle startBounds = {};
+        Rectangle targetBounds = {};
+        float     startRotation = 0.0f;
+        float     targetRotation = 0.0f;
+        float     age = 0.0f;
+        float     duration = LayoutConfig::HandCardExitDuration;
+        float     delay = 0.0f;
+        Vector2   previousCenter = {};
+        float     velocityRotation = 0.0f;
+        float     rotationVelocity = 0.0f;
+        bool      crispPresentation = false;
     };
 
     int          m_width;
@@ -264,9 +287,21 @@ private:
     std::unordered_map<std::string, float> m_cardHoverProgress;
     std::unordered_map<std::string, AnimatedCardState> m_handCardMotion;
     std::unordered_map<std::string, std::string> m_handCardMotionIds;
+    std::unordered_map<std::string, Card> m_handCardMotionCards;
+    std::unordered_map<std::string, CardExitTarget> m_pendingHandExitTargets;
+    std::unordered_map<std::string, float> m_pendingHandExitDelays;
     std::vector<std::string> m_handVisualOrder;
+    std::vector<CardMotionGhost> m_cardMotionGhosts;
+    std::vector<Card> m_lastObservedDiscardPile;
+    std::vector<Card> m_visuallyDiscardedHandCards;
     int          m_nextHandVisualId = 1;
     float        m_handMotionDuration = LayoutConfig::HandRelayoutDuration;
+    int          m_lastObservedTurnNumber = -1;
+    int          m_rejectedHandIndex = -1;
+    float        m_rejectedHandTimer = 0.0f;
+    Vector2      m_lastDragMouse = { 0.0f, 0.0f };
+    float        m_dragVelocityTilt = 0.0f;
+    float        m_dragTiltVelocity = 0.0f;
     Shader       m_intentFloatShader  = {};
     bool         m_intentFloatShaderLoaded = false;
     int          m_intentFloatTimeLoc = -1;
@@ -353,6 +388,15 @@ private:
     float cardHoverProgress(const std::string& key, bool hovered, float dt);
     Rectangle applyCardHoverMotion(Rectangle rect, float progress, float finalScale) const;
     Rectangle currentDraggedCardRect(const HandLayoutCard& layout) const;
+    void addCardMotionGhost(const Card& card,
+                            Rectangle startBounds,
+                            Rectangle targetBounds,
+                            float startRotation,
+                            float targetRotation,
+                            float duration,
+                            bool crispPresentation,
+                            float delay = 0.0f);
+    void updateAndDrawCardMotionGhosts(float dt);
     HandLayoutCard selectedCardLayout(const HandLayoutCard& baseLayout) const;
     HandLayoutCard blendLayout(const HandLayoutCard& from, const HandLayoutCard& to, float blend) const;
     int handInsertIndexFromMouseX(const std::vector<HandLayoutCard>& layout, float mouseX) const;

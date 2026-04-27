@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <vector>
 
 int main() {
     std::string settingsWarning;
@@ -618,7 +619,9 @@ int main() {
                         uiState.setMode(UIMode::PEEK_SELECT);
                         uiState.resetScroll();
                     }
-                    if (playResult.has_value()) {
+                    if (!playResult.has_value()) {
+                        screen.notifyCardPlayRejected(cardIdx);
+                    } else {
                         if (!cardSoundPath.empty()) {
                             cardAudio.playCardEffect(cardSoundPath);
                         }
@@ -682,8 +685,17 @@ int main() {
                             deathSlowMoTimer = LayoutConfig::DeathSlowMoDuration;
                             playerDeathSoundPlayed = true;
                         }
+                        Deck& playerDeck = state.getPlayer().getDeck();
+                        if (!state.hasPeekPending()
+                            && playerDeck.getDrawPileSize() == 0
+                            && playerDeck.getDiscardPileSize() > 0) {
+                            const std::vector<Card> discardSnapshot = playerDeck.getDiscardPileCards();
+                            screen.animateDiscardToDrawPile(discardSnapshot);
+                            playerDeck.reshuffleDiscard();
+                        }
                     }
                 } else if (endTurn && !state.isGameOver()) {
+                    screen.animateHandToDiscardPile();
                     state.endPlayerTurn();
                     enemyTurnElapsed = 0.0f;
                 }
