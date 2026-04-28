@@ -14,7 +14,7 @@
 bool CardResolutionSummary::hasGameplayEffect() const {
     return damageDealt > 0 || blockGained > 0 || healingDone > 0 || cardsDrawn > 0
         || manaGained > 0 || bonusManaGranted > 0 || debuffsCleared > 0
-        || nextCardFreeGranted || enemyTurnSkipped;
+        || nextCardFreeGranted || enemyTurnSkipped || copyNextCardGranted;
 }
 
 namespace {
@@ -183,6 +183,13 @@ CardResolutionSummary applyPlayerCard(const Card& card, Player& player, Enemy& e
             }
             break;
 
+        case EffectType::CopyHandCard:
+            if (effect.target == EffectTarget::Self) {
+                player.addStatus(StatusType::CopyNextCard, 1, 1, StatusDisposition::Positive);
+                summary.copyNextCardGranted = true;
+            }
+            break;
+
         case EffectType::HealOnTurnStart:
         case EffectType::BonusDrawOnDraw:
         case EffectType::DamageOnDraw:
@@ -253,6 +260,9 @@ std::string buildPlayerActionText(const Card& card, const CardResolutionSummary&
     }
     if (summary.enemyTurnSkipped) {
         fragments.push_back("stopped the enemy from acting next turn");
+    }
+    if (summary.copyNextCardGranted) {
+        fragments.push_back("will copy the next card played into the discard pile");
     }
 
     std::ostringstream builder;

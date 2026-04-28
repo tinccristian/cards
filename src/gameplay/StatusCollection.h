@@ -10,7 +10,8 @@ enum class StatusType {
     Infection,
     Weakness,
     Vulnerable,
-    DamageOnDraw  // temporary: deal magnitude damage per draw; cleared at next turn start
+    DamageOnDraw,  // temporary: deal magnitude damage per draw; cleared at next turn start
+    CopyNextCard   // temporary: copy the next card played this turn into the discard pile
 };
 
 enum class StatusDisposition {

@@ -245,6 +245,19 @@
       ]
     },
     {
+      "id": "dna",
+      "name": "DNA",
+      "tier": "rare",
+      "description": "The next card you play this turn is copied into your discard pile.",
+      "cost": 1,
+      "type": "skill",
+      "tags": ["medicine", "utility"],
+      "artPath": "assets/cards/dna.png",
+      "effects": [
+        { "type": "copy_hand_card", "target": "self", "amount": 1 }
+      ]
+    },
+    {
       "id": "surgery",
       "name": "Surgery",
       "tier": "rare",

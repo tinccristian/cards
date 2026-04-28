@@ -501,6 +501,8 @@ std::optional<CardResolutionSummary> GameState::playCard(int cardIndex) {
         }
     }
 
+    const bool willCopyNextCard = m_player.getStatusMagnitude(StatusType::CopyNextCard) > 0;
+
     // Player::playCard handles mana check and hand removal.
     // Organs activate immediately; non-organs are discarded after effects resolve
     // so that a draw effect cannot reshuffle the just-played card back into the deck.
@@ -522,6 +524,11 @@ std::optional<CardResolutionSummary> GameState::playCard(int cardIndex) {
         CombatResolver::applyPlayerCard(*optCard, m_player, *m_enemy);
 
     if (optCard->getType() != CardType::Organ) {
+        m_player.getDeck().discard(*optCard);
+    }
+
+    if (willCopyNextCard && optCard->getType() != CardType::Organ) {
+        m_player.removeStatus(StatusType::CopyNextCard);
         m_player.getDeck().discard(*optCard);
     }
 

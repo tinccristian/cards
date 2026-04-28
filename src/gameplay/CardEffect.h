@@ -30,6 +30,7 @@ enum class EffectType {
     DamageOnDraw,         // organ passive: deal amount damage to enemy each time player draws
     DamageOnDrawThisTurn, // skill: grant a status that deals amount damage per draw until end of turn
     PeekAndSelect,        // reveal top amount cards; player picks 1 to add to hand free this turn; rest go back
+    CopyHandCard,         // copy a random card from the player's current hand into the discard pile
     Unknown
 };
 

@@ -264,6 +264,10 @@ void Player::addStatus(StatusType type, int magnitude, int duration, StatusDispo
     m_statuses.add(type, magnitude, duration, disposition);
 }
 
+void Player::removeStatus(StatusType type) {
+    m_statuses.remove(type);
+}
+
 int Player::clearNegativeStatuses() {
     return m_statuses.clearNegative();
 }

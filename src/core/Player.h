@@ -82,6 +82,7 @@ public:
     const std::vector<Card>& getOwnedCards() const;
 
     void addStatus(StatusType type, int magnitude, int duration, StatusDisposition disposition);
+    void removeStatus(StatusType type);
     int  clearNegativeStatuses();
     int  getStatusMagnitude(StatusType type) const;
     const StatusCollection& getStatuses() const;

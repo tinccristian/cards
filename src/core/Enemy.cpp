@@ -278,6 +278,7 @@ void Enemy::decideIntent() {
             case EffectType::DamageOnDraw:
             case EffectType::DamageOnDrawThisTurn:
             case EffectType::PeekAndSelect:
+            case EffectType::CopyHandCard:
             case EffectType::Unknown:
                 break;
             }
@@ -385,6 +386,7 @@ EnemyTurnResult Enemy::executeTurn(Player& player) {
             case EffectType::DamageOnDraw:
             case EffectType::DamageOnDrawThisTurn:
             case EffectType::PeekAndSelect:
+            case EffectType::CopyHandCard:
             case EffectType::Unknown:
                 break;
             }

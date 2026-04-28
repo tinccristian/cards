@@ -37,6 +37,7 @@ std::optional<EffectType> effectTypeFromString(const std::string& value) {
     if (value == "damage_on_draw")          return EffectType::DamageOnDraw;
     if (value == "damage_on_draw_this_turn") return EffectType::DamageOnDrawThisTurn;
     if (value == "peek_and_select")         return EffectType::PeekAndSelect;
+    if (value == "copy_hand_card")          return EffectType::CopyHandCard;
     return std::nullopt;
 }
 
@@ -61,6 +62,7 @@ const char* toString(EffectType type) {
     case EffectType::DamageOnDraw:           return "Damage On Draw";
     case EffectType::DamageOnDrawThisTurn:   return "Damage On Draw This Turn";
     case EffectType::PeekAndSelect:          return "Peek And Select";
+    case EffectType::CopyHandCard:           return "Copy Hand Card";
     case EffectType::Unknown:                return "Unknown";
     }
     return "Unknown";

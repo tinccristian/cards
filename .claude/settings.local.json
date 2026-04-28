@@ -6,7 +6,23 @@
       "Bash(cmake .. -G Ninja)",
       "Bash(cmake --build .)",
       "Bash(cmake --build build --config Release)",
-      "Bash(cmake --build build --config Debug)"
+      "Bash(cmake --build build --config Debug)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Nodes:', len\\(d.get\\('nodes',[]\\)\\), json.dumps\\(d.get\\('nodes',[]\\)[:3], indent=2\\)[:400]\\)\")",
+      "Bash(claude mcp *)",
+      "mcp__pixellab__create_character",
+      "mcp__pixellab__get_character",
+      "Bash(break)",
+      "mcp__pixellab__animate_character",
+      "Bash(curl --fail -s -o \"d:/dev/gitHub/cards/assets/enemies/inflamed_nerve.zip\" \"https://api.pixellab.ai/mcp/characters/921fb50c-abf0-4a58-a6e0-1474f58d3ba7/download\")",
+      "Bash(unzip -o inflamed_nerve.zip -d inflamed_nerve)",
+      "Bash(python3 -c ' *)",
+      "Bash(python -c ' *)",
+      "mcp__pixellab__create_map_object",
+      "mcp__pixellab__get_map_object",
+      "Bash(curl --fail -s -o \"d:/dev/gitHub/cards/assets/cards/dna.png\" \"https://api.pixellab.ai/mcp/map-objects/3110ec68-24aa-4257-ba30-2882dc1d7af1/download\")",
+      "Bash(curl --fail -s -o \"d:/dev/gitHub/cards/assets/cards/dna_raw.png\" \"https://api.pixellab.ai/mcp/map-objects/c36a5a27-5415-4171-8db4-8d89e0faeda0/download\")",
+      "Bash(curl -s -X POST https://api.pixellab.ai/v2/map-objects -H 'Authorization: Bearer 0a806417-2052-47d9-9ff0-614fed2cef40' -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(curl --fail -s -o \"d:/dev/gitHub/cards/assets/cards/dna_raw.png\" \"https://api.pixellab.ai/mcp/map-objects/cc82bb7e-546b-4433-99f7-7345374723c2/download\")"
     ]
   }
 }
